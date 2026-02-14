@@ -1,0 +1,241 @@
+"""Static site builder service.
+
+Renders generated content into static HTML files using a SEPARATE
+Jinja2 Environment pointed at site_templates/ — NOT Flask's render_template.
+"""
+
+import json
+import os
+import shutil
+from datetime import datetime, timezone
+
+import jinja2
+
+from ..models import db, Site, SitePage, SiteBrand
+
+
+def _get_site_templates_path():
+    """Return the absolute path to the site_templates/ directory."""
+    return os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'site_templates')
+
+
+def _get_jinja_env():
+    """Create a Jinja2 Environment for site templates (NOT Flask's)."""
+    templates_path = _get_site_templates_path()
+    return jinja2.Environment(
+        loader=jinja2.FileSystemLoader(templates_path),
+        autoescape=jinja2.select_autoescape(['html', 'xml']),
+    )
+
+
+def _build_nav_links(site_pages):
+    """Build navigation links from site pages."""
+    links = [{'url': 'index.html', 'label': 'Home'}]
+
+    comparison = [p for p in site_pages if p.page_type.slug == 'comparison']
+    if comparison:
+        links.append({'url': 'comparison.html', 'label': 'Compare'})
+
+    evergreen = [p for p in site_pages if p.page_type.slug == 'evergreen']
+    for p in evergreen:
+        links.append({'url': f'{p.slug}.html', 'label': p.title})
+
+    return links
+
+
+def _build_footer_links(site_pages):
+    """Build footer links from site pages."""
+    links = [{'url': 'index.html', 'label': 'Home'}]
+
+    comparison = [p for p in site_pages if p.page_type.slug == 'comparison']
+    if comparison:
+        links.append({'url': 'comparison.html', 'label': 'Compare'})
+
+    evergreen = [p for p in site_pages if p.page_type.slug == 'evergreen']
+    for p in evergreen:
+        links.append({'url': f'{p.slug}.html', 'label': p.title})
+
+    brand_reviews = [p for p in site_pages if p.page_type.slug == 'brand-review']
+    for p in brand_reviews:
+        links.append({'url': f'reviews/{p.slug}.html', 'label': f'{p.title}'})
+
+    return links
+
+
+def _build_brand_info_list(site, geo):
+    """Build a list of brand info dicts for template use."""
+    brands = []
+    for sb in sorted(site.site_brands, key=lambda sb: sb.rank):
+        brand = sb.brand
+        bg = next((bg for bg in brand.brand_geos if bg.geo_id == geo.id), None)
+        brands.append({
+            'name': brand.name,
+            'slug': brand.slug,
+            'logo_filename': brand.logo_filename,
+            'affiliate_link': brand.affiliate_link or '#',
+            'website_url': brand.website_url or '#',
+            'rating': brand.rating,
+            'welcome_bonus': bg.welcome_bonus if bg else None,
+            'bonus_code': bg.bonus_code if bg else None,
+            'rank': sb.rank,
+        })
+    return brands
+
+
+def _build_brand_lookup(brand_info_list):
+    """Build a dict mapping slug/name to brand info for template lookups."""
+    lookup = {}
+    for b in brand_info_list:
+        lookup[b['slug']] = b
+        lookup[b['name']] = b
+    return lookup
+
+
+def _build_sitemap_pages(site_pages, domain):
+    """Build sitemap page entries."""
+    now = datetime.now(timezone.utc).strftime('%Y-%m-%d')
+    pages = []
+
+    for page in site_pages:
+        pt_slug = page.page_type.slug
+        if pt_slug == 'homepage':
+            url = 'index.html'
+        elif pt_slug == 'comparison':
+            url = 'comparison.html'
+        elif pt_slug == 'brand-review':
+            url = f'reviews/{page.slug}.html'
+        elif pt_slug == 'bonus-review':
+            url = f'bonuses/{page.slug}.html'
+        elif pt_slug == 'evergreen':
+            url = f'{page.slug}.html'
+        else:
+            continue
+
+        pages.append({
+            'url': url,
+            'lastmod': page.generated_at.strftime('%Y-%m-%d') if page.generated_at else now,
+        })
+
+    return pages
+
+
+def build_site(site, output_base_dir, upload_folder):
+    """Build a complete static site from generated content.
+
+    Args:
+        site: Site model instance (with relationships loaded)
+        output_base_dir: Base output directory (e.g. 'output/')
+        upload_folder: Path to uploads/ directory (for logo copying)
+
+    Returns:
+        str: Path to the built site version folder
+    """
+    env = _get_jinja_env()
+    geo = site.geo
+    vertical = site.vertical
+    pages = site.site_pages
+    version = site.current_version
+
+    # Build output path
+    site_slug = site.name.lower().replace(' ', '-')
+    site_dir = os.path.join(output_base_dir, f'{site.id}_{site_slug}')
+    version_dir = os.path.join(site_dir, f'v{version}')
+    os.makedirs(version_dir, exist_ok=True)
+
+    # Build shared context
+    nav_links = _build_nav_links(pages)
+    footer_links = _build_footer_links(pages)
+    brand_info_list = _build_brand_info_list(site, geo)
+    brand_lookup = _build_brand_lookup(brand_info_list)
+    domain = site.domain.domain if site.domain else 'example.com'
+
+    common_ctx = {
+        'site_name': site.name,
+        'language': geo.language,
+        'vertical_name': vertical.name,
+        'nav_links': nav_links,
+        'footer_links': footer_links,
+        'site_brands': brand_info_list,
+        'brand_lookup': brand_lookup,
+        'year': datetime.now().year,
+    }
+
+    # Render each page
+    for page in pages:
+        content = json.loads(page.content_json) if page.content_json else {}
+        pt_slug = page.page_type.slug
+        template_file = page.page_type.template_file
+
+        ctx = {
+            **common_ctx,
+            'content': content,
+            'page_title': page.title,
+            'meta_description': page.meta_description or '',
+            'subdirectory': False,
+        }
+
+        if pt_slug == 'homepage':
+            output_file = os.path.join(version_dir, 'index.html')
+        elif pt_slug == 'comparison':
+            output_file = os.path.join(version_dir, 'comparison.html')
+        elif pt_slug == 'brand-review':
+            reviews_dir = os.path.join(version_dir, 'reviews')
+            os.makedirs(reviews_dir, exist_ok=True)
+            output_file = os.path.join(reviews_dir, f'{page.slug}.html')
+            ctx['subdirectory'] = True
+            brand_info = brand_lookup.get(page.slug) or brand_lookup.get(page.brand.slug if page.brand else '')
+            ctx['brand_info'] = brand_info
+            ctx['brand_slug'] = page.slug
+        elif pt_slug == 'bonus-review':
+            bonuses_dir = os.path.join(version_dir, 'bonuses')
+            os.makedirs(bonuses_dir, exist_ok=True)
+            output_file = os.path.join(bonuses_dir, f'{page.slug}.html')
+            ctx['subdirectory'] = True
+            brand_info = brand_lookup.get(page.slug) or brand_lookup.get(page.brand.slug if page.brand else '')
+            ctx['brand_info'] = brand_info
+            ctx['brand_slug'] = page.slug
+        elif pt_slug == 'evergreen':
+            output_file = os.path.join(version_dir, f'{page.slug}.html')
+        else:
+            continue
+
+        template = env.get_template(template_file)
+        html = template.render(**ctx)
+        with open(output_file, 'w', encoding='utf-8') as f:
+            f.write(html)
+
+    # Copy assets
+    src_assets = os.path.join(_get_site_templates_path(), 'assets')
+    dst_assets = os.path.join(version_dir, 'assets')
+    if os.path.exists(dst_assets):
+        shutil.rmtree(dst_assets)
+    shutil.copytree(src_assets, dst_assets)
+
+    # Copy brand logos
+    logos_dir = os.path.join(dst_assets, 'logos')
+    os.makedirs(logos_dir, exist_ok=True)
+    src_logos = os.path.join(upload_folder, 'logos')
+    for brand_info in brand_info_list:
+        if brand_info['logo_filename']:
+            src = os.path.join(src_logos, brand_info['logo_filename'])
+            if os.path.exists(src):
+                shutil.copy2(src, os.path.join(logos_dir, brand_info['logo_filename']))
+
+    # Generate sitemap.xml
+    sitemap_pages = _build_sitemap_pages(pages, domain)
+    sitemap_template = env.get_template('sitemap.xml')
+    sitemap_html = sitemap_template.render(domain=domain, pages=sitemap_pages)
+    with open(os.path.join(version_dir, 'sitemap.xml'), 'w', encoding='utf-8') as f:
+        f.write(sitemap_html)
+
+    # Generate robots.txt
+    robots_template = env.get_template('robots.txt')
+    robots_txt = robots_template.render(domain=domain)
+    with open(os.path.join(version_dir, 'robots.txt'), 'w', encoding='utf-8') as f:
+        f.write(robots_txt)
+
+    # Update site record
+    site.output_path = version_dir
+    site.status = 'built'
+
+    return version_dir

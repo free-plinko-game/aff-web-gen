@@ -1,0 +1,130 @@
+{% extends "base.html" %}
+
+{% block title %}{{ 'Edit' if brand else 'Add' }} Brand — Affiliate Factory{% endblock %}
+
+{% block content %}
+<h1>{{ 'Edit' if brand else 'Add' }} Brand</h1>
+
+<form method="POST" enctype="multipart/form-data" class="mt-3">
+    <div class="row">
+        <div class="col-md-6">
+            <h4>Basic Info</h4>
+
+            <div class="mb-3">
+                <label for="name" class="form-label">Name</label>
+                <input type="text" class="form-control" id="name" name="name"
+                       value="{{ brand.name if brand else '' }}" required>
+            </div>
+
+            {% if not brand %}
+            <div class="mb-3">
+                <label for="slug" class="form-label">Slug</label>
+                <input type="text" class="form-control" id="slug" name="slug"
+                       placeholder="e.g. bet365" required>
+                <div class="form-text">URL-safe identifier. Cannot be changed after creation.</div>
+            </div>
+            {% endif %}
+
+            <div class="mb-3">
+                <label for="website_url" class="form-label">Website URL</label>
+                <input type="url" class="form-control" id="website_url" name="website_url"
+                       value="{{ brand.website_url if brand else '' }}">
+            </div>
+
+            <div class="mb-3">
+                <label for="affiliate_link" class="form-label">Affiliate Link</label>
+                <input type="url" class="form-control" id="affiliate_link" name="affiliate_link"
+                       value="{{ brand.affiliate_link if brand else '' }}">
+            </div>
+
+            <div class="mb-3">
+                <label for="description" class="form-label">Description</label>
+                <textarea class="form-control" id="description" name="description" rows="3">{{ brand.description if brand else '' }}</textarea>
+            </div>
+
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <label for="founded_year" class="form-label">Founded Year</label>
+                    <input type="number" class="form-control" id="founded_year" name="founded_year"
+                           value="{{ brand.founded_year if brand and brand.founded_year else '' }}">
+                </div>
+                <div class="col-md-6 mb-3">
+                    <label for="rating" class="form-label">Rating (0-5)</label>
+                    <input type="number" step="0.1" min="0" max="5" class="form-control" id="rating" name="rating"
+                           value="{{ brand.rating if brand and brand.rating else '' }}">
+                </div>
+            </div>
+
+            <div class="mb-3">
+                <label for="logo" class="form-label">Logo</label>
+                <input type="file" class="form-control" id="logo" name="logo" accept="image/*">
+                {% if brand and brand.logo_filename %}
+                    <div class="form-text">Current: {{ brand.logo_filename }}</div>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="col-md-6">
+            <h4>Verticals</h4>
+            <div class="mb-3">
+                {% for vertical in verticals %}
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" name="vertical_ids"
+                           value="{{ vertical.id }}" id="v_{{ vertical.id }}"
+                           {{ 'checked' if active_vertical_ids is defined and vertical.id in active_vertical_ids else '' }}>
+                    <label class="form-check-label" for="v_{{ vertical.id }}">{{ vertical.name }}</label>
+                </div>
+                {% endfor %}
+            </div>
+
+            <h4>GEO Availability</h4>
+            <div class="accordion" id="geoAccordion">
+                {% for geo in geos %}
+                <div class="accordion-item">
+                    <h2 class="accordion-header">
+                        <button class="accordion-button collapsed" type="button"
+                                data-bs-toggle="collapse" data-bs-target="#geo_{{ geo.id }}">
+                            <input class="form-check-input me-2" type="checkbox"
+                                   name="geo_active_{{ geo.id }}" value="1"
+                                   id="geo_check_{{ geo.id }}"
+                                   {{ 'checked' if active_geo_ids is defined and geo.id in active_geo_ids else '' }}
+                                   onclick="event.stopPropagation()">
+                            {{ geo.name }} ({{ geo.code | upper }})
+                        </button>
+                    </h2>
+                    <div id="geo_{{ geo.id }}" class="accordion-collapse collapse">
+                        <div class="accordion-body">
+                            <div class="mb-2">
+                                <label class="form-label">Welcome Bonus</label>
+                                <input type="text" class="form-control form-control-sm"
+                                       name="geo_bonus_{{ geo.id }}"
+                                       placeholder="e.g. Bet £10 Get £30"
+                                       value="{{ geo_data[geo.id].welcome_bonus if geo_data is defined and geo.id in geo_data else '' }}">
+                            </div>
+                            <div class="mb-2">
+                                <label class="form-label">Bonus Code</label>
+                                <input type="text" class="form-control form-control-sm"
+                                       name="geo_code_{{ geo.id }}"
+                                       value="{{ geo_data[geo.id].bonus_code if geo_data is defined and geo.id in geo_data else '' }}">
+                            </div>
+                            <div class="mb-2">
+                                <label class="form-label">License Info</label>
+                                <input type="text" class="form-control form-control-sm"
+                                       name="geo_license_{{ geo.id }}"
+                                       placeholder="e.g. UKGC License #12345"
+                                       value="{{ geo_data[geo.id].license_info if geo_data is defined and geo.id in geo_data else '' }}">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+
+    <div class="mt-4">
+        <button type="submit" class="btn btn-primary">{{ 'Update' if brand else 'Create' }} Brand</button>
+        <a href="{{ url_for('brands.list_brands') }}" class="btn btn-secondary">Cancel</a>
+    </div>
+</form>
+{% endblock %}

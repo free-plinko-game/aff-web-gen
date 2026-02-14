@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="hero">
+    <h1>{{ content.hero_title }}</h1>
+    <p class="hero-subtitle">{{ content.hero_subtitle }}</p>
+</section>
+
+<section class="bonus-overview">
+    {% if brand_info and brand_info.logo_filename %}
+    <img src="../assets/logos/{{ brand_info.logo_filename }}" alt="{{ brand_info.name }}" class="brand-logo-large">
+    {% endif %}
+
+    {% if content.bonus_overview %}
+    <div class="bonus-card">
+        <p><strong>Offer:</strong> {{ content.bonus_overview.offer }}</p>
+        {% if content.bonus_overview.code %}
+        <p><strong>Bonus Code:</strong> <code>{{ content.bonus_overview.code }}</code></p>
+        {% endif %}
+        {% if content.bonus_overview.min_deposit %}
+        <p><strong>Minimum Deposit:</strong> {{ content.bonus_overview.min_deposit }}</p>
+        {% endif %}
+        {% if content.bonus_overview.wagering_requirements %}
+        <p><strong>Wagering Requirements:</strong> {{ content.bonus_overview.wagering_requirements }}</p>
+        {% endif %}
+        {% if content.bonus_overview.validity %}
+        <p><strong>Validity:</strong> {{ content.bonus_overview.validity }}</p>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    <div class="cta-section">
+        {% if brand_info %}
+        <a href="{{ brand_info.affiliate_link }}" class="cta-button cta-large" target="_blank" rel="nofollow noopener">Claim Bonus</a>
+        {% endif %}
+        <a href="../reviews/{{ brand_slug }}.html" class="review-link">Read Full Review</a>
+    </div>
+</section>
+
+{% if content.how_to_claim %}
+<section class="how-to-claim">
+    <h2>How to Claim</h2>
+    <ol>
+    {% for step in content.how_to_claim %}
+        <li>{{ step }}</li>
+    {% endfor %}
+    </ol>
+</section>
+{% endif %}
+
+{% if content.terms_summary %}
+<section class="terms">
+    <h2>Key Terms & Conditions</h2>
+    <p>{{ content.terms_summary }}</p>
+</section>
+{% endif %}
+
+{% if content.pros or content.cons %}
+<section class="pros-cons">
+    <div class="pros">
+        <h2>Pros</h2>
+        <ul>
+        {% for pro in content.pros %}
+            <li>{{ pro }}</li>
+        {% endfor %}
+        </ul>
+    </div>
+    <div class="cons">
+        <h2>Cons</h2>
+        <ul>
+        {% for con in content.cons %}
+            <li>{{ con }}</li>
+        {% endfor %}
+        </ul>
+    </div>
+</section>
+{% endif %}
+
+{% if content.similar_offers %}
+<section class="similar-offers">
+    <h2>Similar Offers</h2>
+    <p>{{ content.similar_offers }}</p>
+</section>
+{% endif %}
+
+{% if content.verdict %}
+<section class="verdict">
+    <h2>Our Verdict</h2>
+    <p>{{ content.verdict }}</p>
+</section>
+{% endif %}
+
+{% if content.faq %}
+<section class="faq">
+    <h2>Frequently Asked Questions</h2>
+    {% for item in content.faq %}
+    <div class="faq-item">
+        <h3>{{ item.question }}</h3>
+        <p>{{ item.answer }}</p>
+    </div>
+    {% endfor %}
+</section>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+
+{% block title %}Sites — Affiliate Factory{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1>Sites</h1>
+    <a href="{{ url_for('sites.create') }}" class="btn btn-primary">Create Site</a>
+</div>
+
+<table class="table table-striped">
+    <thead>
+        <tr>
+            <th>Name</th>
+            <th>GEO</th>
+            <th>Vertical</th>
+            <th>Status</th>
+            <th>Pages</th>
+            <th>Created</th>
+            <th>Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for site in sites %}
+        <tr>
+            <td><a href="{{ url_for('sites.detail', site_id=site.id) }}">{{ site.name }}</a></td>
+            <td>{{ site.geo.code | upper }}</td>
+            <td>{{ site.vertical.name }}</td>
+            <td>
+                {% set status_colors = {'draft': 'secondary', 'generating': 'info', 'generated': 'primary', 'building': 'info', 'built': 'primary', 'deploying': 'warning', 'deployed': 'success', 'failed': 'danger'} %}
+                <span class="badge bg-{{ status_colors.get(site.status, 'secondary') }}">{{ site.status }}</span>
+            </td>
+            <td>{{ site.site_pages | length }}</td>
+            <td>{{ site.created_at.strftime('%Y-%m-%d') if site.created_at else '' }}</td>
+            <td>
+                <a href="{{ url_for('sites.detail', site_id=site.id) }}" class="btn btn-sm btn-outline-secondary">View</a>
+            </td>
+        </tr>
+        {% else %}
+        <tr>
+            <td colspan="7" class="text-center text-muted">No sites yet. <a href="{{ url_for('sites.create') }}">Create one.</a></td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endblock %}

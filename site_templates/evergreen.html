@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="hero">
+    <h1>{{ content.hero_title }}</h1>
+    <p class="hero-subtitle">{{ content.hero_subtitle }}</p>
+</section>
+
+<section class="intro">
+    <p>{{ content.intro_paragraph }}</p>
+</section>
+
+{% if content.sections %}
+{% for section in content.sections %}
+<section class="content-section">
+    <h2>{{ section.heading }}</h2>
+    <p>{{ section.content }}</p>
+</section>
+{% endfor %}
+{% endif %}
+
+{% if content.key_takeaways %}
+<section class="takeaways">
+    <h2>Key Takeaways</h2>
+    <ul>
+    {% for point in content.key_takeaways %}
+        <li>{{ point }}</li>
+    {% endfor %}
+    </ul>
+</section>
+{% endif %}
+
+{% if site_brands %}
+<section class="recommended-brands">
+    <h2>Recommended {{ vertical_name }} Sites</h2>
+    <div class="brand-grid">
+        {% for brand_info in site_brands[:3] %}
+        <div class="brand-card">
+            {% if brand_info.logo_filename %}
+            <img src="assets/logos/{{ brand_info.logo_filename }}" alt="{{ brand_info.name }}" class="brand-logo">
+            {% else %}
+            <div class="brand-logo-text">{{ brand_info.name }}</div>
+            {% endif %}
+            <h3>{{ brand_info.name }}</h3>
+            {% if brand_info.welcome_bonus %}
+            <p class="bonus">{{ brand_info.welcome_bonus }}</p>
+            {% endif %}
+            <a href="{{ brand_info.affiliate_link }}" class="cta-button" target="_blank" rel="nofollow noopener">Visit Site</a>
+        </div>
+        {% endfor %}
+    </div>
+</section>
+{% endif %}
+
+{% if content.faq %}
+<section class="faq">
+    <h2>Frequently Asked Questions</h2>
+    {% for item in content.faq %}
+    <div class="faq-item">
+        <h3>{{ item.question }}</h3>
+        <p>{{ item.answer }}</p>
+    </div>
+    {% endfor %}
+</section>
+{% endif %}
+
+{% if content.closing_paragraph %}
+<section class="closing">
+    <p>{{ content.closing_paragraph }}</p>
+</section>
+{% endif %}
+{% endblock %}

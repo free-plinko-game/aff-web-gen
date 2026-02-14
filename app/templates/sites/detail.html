@@ -1,0 +1,203 @@
+{% extends "base.html" %}
+
+{% block title %}{{ site.name }} — Affiliate Factory{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1>{{ site.name }}</h1>
+    {% set status_colors = {'draft': 'secondary', 'generating': 'info', 'generated': 'primary', 'building': 'info', 'built': 'primary', 'deploying': 'warning', 'deployed': 'success', 'failed': 'danger'} %}
+    <span class="badge bg-{{ status_colors.get(site.status, 'secondary') }} fs-6" id="siteStatus">{{ site.status }}</span>
+</div>
+
+<!-- Actions -->
+<div class="mb-4">
+    {% if site.status in ('draft', 'generated', 'failed') %}
+    <form method="POST" action="{{ url_for('sites.generate', site_id=site.id) }}" class="d-inline">
+        <button type="submit" class="btn btn-primary">
+            {{ 'Regenerate All Content' if site.status == 'generated' else 'Generate Content' }}
+        </button>
+    </form>
+    {% endif %}
+    {% if site.status == 'generating' %}
+    <button class="btn btn-info" disabled>Generating...</button>
+    {% endif %}
+    {% if site.status in ('generated', 'built') %}
+    <form method="POST" action="{{ url_for('sites.build', site_id=site.id) }}" class="d-inline">
+        <button type="submit" class="btn btn-success">
+            {{ 'Rebuild Site' if site.status == 'built' else 'Build Site' }}
+        </button>
+    </form>
+    {% endif %}
+    {% if site.status in ('built', 'deployed') and site.domain %}
+    <form method="POST" action="{{ url_for('sites.deploy', site_id=site.id) }}" class="d-inline">
+        <button type="submit" class="btn btn-warning">
+            {{ 'Re-deploy' if site.status == 'deployed' else 'Deploy' }}
+        </button>
+    </form>
+    {% endif %}
+    {% if site.status == 'deployed' and site.current_version > 1 %}
+    <form method="POST" action="{{ url_for('sites.rollback', site_id=site.id) }}" class="d-inline">
+        <button type="submit" class="btn btn-outline-danger"
+                onclick="return confirm('Roll back to the previous version?')">
+            Rollback
+        </button>
+    </form>
+    {% endif %}
+    {% if site.status == 'deploying' %}
+    <button class="btn btn-warning" disabled>Deploying...</button>
+    {% endif %}
+    {% if site.output_path %}
+    <a href="{{ url_for('sites.preview', site_id=site.id) }}" target="_blank" class="btn btn-outline-info">
+        Preview
+    </a>
+    {% endif %}
+</div>
+
+<!-- Progress Bar (shown during generation) -->
+<div id="progressContainer" class="mb-4 {{ '' if site.status == 'generating' else 'd-none' }}">
+    <div class="progress" style="height: 25px;">
+        <div id="progressBar" class="progress-bar progress-bar-striped progress-bar-animated"
+             role="progressbar" style="width: 0%">
+            <span id="progressText">0 / 0 pages</span>
+        </div>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header"><strong>Configuration</strong></div>
+            <div class="card-body">
+                <table class="table table-sm mb-0">
+                    <tr><th>GEO</th><td>{{ site.geo.name }} ({{ site.geo.code | upper }})</td></tr>
+                    <tr><th>Vertical</th><td>{{ site.vertical.name }}</td></tr>
+                    <tr>
+                        <th>Domain</th>
+                        <td>
+                            {% if site.domain %}
+                                {{ site.domain.domain }}
+                                <span class="badge bg-{{ 'success' if site.domain.status == 'deployed' else 'info' }}">{{ site.domain.status }}</span>
+                            {% else %}
+                                <span class="text-muted">Not assigned</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    <tr><th>Created</th><td>{{ site.created_at.strftime('%Y-%m-%d %H:%M') if site.created_at else '' }}</td></tr>
+                    <tr><th>Version</th><td>v{{ site.current_version }}</td></tr>
+                    {% if site.deployed_at %}
+                    <tr><th>Deployed</th><td>{{ site.deployed_at.strftime('%Y-%m-%d %H:%M') }}</td></tr>
+                    {% endif %}
+                </table>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <!-- Domain Assignment -->
+        {% if not site.domain and available_domains %}
+        <div class="card mb-3">
+            <div class="card-header"><strong>Assign Domain</strong></div>
+            <div class="card-body">
+                <form method="POST" action="{{ url_for('sites.assign_domain', site_id=site.id) }}">
+                    <div class="input-group">
+                        <select name="domain_id" class="form-select" required>
+                            <option value="">Select a domain...</option>
+                            {% for d in available_domains %}
+                            <option value="{{ d.id }}">{{ d.domain }}</option>
+                            {% endfor %}
+                        </select>
+                        <button type="submit" class="btn btn-outline-primary">Assign</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+        {% endif %}
+
+        <div class="card">
+            <div class="card-header"><strong>Brands ({{ site.site_brands | length }})</strong></div>
+            <div class="card-body">
+                <table class="table table-sm mb-0">
+                    <thead>
+                        <tr><th>Rank</th><th>Brand</th><th>Slug</th></tr>
+                    </thead>
+                    <tbody>
+                        {% for sb in site.site_brands | sort(attribute='rank') %}
+                        <tr>
+                            <td>{{ sb.rank }}</td>
+                            <td>{{ sb.brand.name }}</td>
+                            <td><code>{{ sb.brand.slug }}</code></td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header"><strong>Pages ({{ site.site_pages | length }})</strong></div>
+    <div class="card-body">
+        <table class="table table-sm mb-0">
+            <thead>
+                <tr><th>Type</th><th>Title</th><th>Slug</th><th>Generated</th><th>Actions</th></tr>
+            </thead>
+            <tbody>
+                {% for page in site.site_pages %}
+                <tr>
+                    <td><span class="badge bg-secondary">{{ page.page_type.name }}</span></td>
+                    <td>{{ page.title }}</td>
+                    <td><code>{{ page.slug }}</code></td>
+                    <td>
+                        {% if page.is_generated %}
+                            <span class="text-success">Yes</span>
+                            {% if page.generated_at %}
+                                <small class="text-muted ms-1">{{ page.generated_at.strftime('%Y-%m-%d %H:%M') }}</small>
+                            {% endif %}
+                        {% else %}
+                            <span class="text-muted">No</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if page.is_generated and site.status != 'generating' %}
+                        <form method="POST" action="{{ url_for('sites.regenerate_page', site_id=site.id, page_id=page.id) }}" class="d-inline">
+                            <button type="submit" class="btn btn-sm btn-outline-secondary">Regenerate</button>
+                        </form>
+                        <a href="{{ url_for('sites.page_history', site_id=site.id, page_id=page.id) }}"
+                           class="btn btn-sm btn-outline-info">History</a>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{% if site.status == 'generating' %}
+<script>
+(function pollProgress() {
+    fetch('{{ url_for("api.generation_status", site_id=site.id) }}')
+        .then(r => r.json())
+        .then(data => {
+            const pct = data.total_pages > 0
+                ? Math.round((data.generated_pages / data.total_pages) * 100)
+                : 0;
+            document.getElementById('progressBar').style.width = pct + '%';
+            document.getElementById('progressText').textContent =
+                data.generated_pages + ' / ' + data.total_pages + ' pages';
+            document.getElementById('siteStatus').textContent = data.status;
+
+            if (data.status === 'generating') {
+                setTimeout(pollProgress, 2000);
+            } else {
+                // Generation finished — reload to show updated state
+                window.location.reload();
+            }
+        })
+        .catch(() => setTimeout(pollProgress, 3000));
+})();
+</script>
+{% endif %}
+{% endblock %}

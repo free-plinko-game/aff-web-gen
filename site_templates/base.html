@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="{{ language | default('en') }}">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ page_title | default('') }}</title>
+    {% if meta_description %}
+    <meta name="description" content="{{ meta_description }}">
+    {% endif %}
+    <link rel="stylesheet" href="{{ 'assets/css/style.css' if not subdirectory else '../assets/css/style.css' }}">
+</head>
+<body>
+    <nav class="site-nav">
+        <div class="nav-container">
+            <a href="index.html" class="nav-brand">{{ site_name }}</a>
+            <ul class="nav-links">
+                {% for link in nav_links %}
+                <li><a href="{{ link.url }}">{{ link.label }}</a></li>
+                {% endfor %}
+            </ul>
+        </div>
+    </nav>
+
+    <main class="main-content">
+        {% block content %}{% endblock %}
+    </main>
+
+    <footer class="site-footer">
+        <div class="footer-container">
+            <div class="footer-links">
+                {% for link in footer_links %}
+                <a href="{{ link.url }}">{{ link.label }}</a>
+                {% endfor %}
+            </div>
+            <p class="footer-copy">&copy; {{ year }} {{ site_name }}. All rights reserved.</p>
+        </div>
+    </footer>
+
+    <script src="{{ 'assets/js/main.js' if not subdirectory else '../assets/js/main.js' }}"></script>
+</body>
+</html>

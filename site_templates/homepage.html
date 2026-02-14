@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="hero">
+    <h1>{{ content.hero_title }}</h1>
+    <p class="hero-subtitle">{{ content.hero_subtitle }}</p>
+</section>
+
+<section class="intro">
+    <p>{{ content.intro_paragraph }}</p>
+</section>
+
+<section class="top-brands">
+    <h2>Top Rated {{ vertical_name }}</h2>
+    <div class="brand-grid">
+        {% for brand_info in site_brands %}
+        <div class="brand-card">
+            {% if brand_info.logo_filename %}
+            <img src="assets/logos/{{ brand_info.logo_filename }}" alt="{{ brand_info.name }}" class="brand-logo">
+            {% else %}
+            <div class="brand-logo-text">{{ brand_info.name }}</div>
+            {% endif %}
+            <h3>{{ brand_info.name }}</h3>
+            {% if brand_info.rating %}
+            <div class="rating">{{ brand_info.rating }}/5</div>
+            {% endif %}
+            {% if brand_info.welcome_bonus %}
+            <p class="bonus">{{ brand_info.welcome_bonus }}</p>
+            {% endif %}
+            <div class="brand-actions">
+                <a href="{{ brand_info.affiliate_link }}" class="cta-button" target="_blank" rel="nofollow noopener">Visit Site</a>
+                <a href="reviews/{{ brand_info.slug }}.html" class="review-link">Read Review</a>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</section>
+
+{% if content.why_trust_us %}
+<section class="trust">
+    <h2>Why Trust Us</h2>
+    <p>{{ content.why_trust_us }}</p>
+</section>
+{% endif %}
+
+{% if content.faq %}
+<section class="faq">
+    <h2>Frequently Asked Questions</h2>
+    {% for item in content.faq %}
+    <div class="faq-item">
+        <h3>{{ item.question }}</h3>
+        <p>{{ item.answer }}</p>
+    </div>
+    {% endfor %}
+</section>
+{% endif %}
+
+{% if content.closing_paragraph %}
+<section class="closing">
+    <p>{{ content.closing_paragraph }}</p>
+</section>
+{% endif %}
+{% endblock %}

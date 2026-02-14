@@ -1,0 +1,199 @@
+from datetime import datetime, timezone
+
+from flask_sqlalchemy import SQLAlchemy
+
+db = SQLAlchemy()
+
+
+class Geo(db.Model):
+    __tablename__ = 'geos'
+
+    id = db.Column(db.Integer, primary_key=True)
+    code = db.Column(db.Text, unique=True, nullable=False)
+    name = db.Column(db.Text, nullable=False)
+    language = db.Column(db.Text, nullable=False)
+    currency = db.Column(db.Text, nullable=False)
+    regulation_notes = db.Column(db.Text)
+
+    brand_geos = db.relationship('BrandGeo', back_populates='geo', cascade='all, delete-orphan')
+    sites = db.relationship('Site', back_populates='geo')
+
+
+class Vertical(db.Model):
+    __tablename__ = 'verticals'
+
+    id = db.Column(db.Integer, primary_key=True)
+    slug = db.Column(db.Text, unique=True, nullable=False)
+    name = db.Column(db.Text, nullable=False)
+
+    brand_verticals = db.relationship('BrandVertical', back_populates='vertical', cascade='all, delete-orphan')
+    sites = db.relationship('Site', back_populates='vertical')
+
+
+class Brand(db.Model):
+    __tablename__ = 'brands'
+
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.Text, nullable=False)
+    slug = db.Column(db.Text, unique=True, nullable=False)
+    logo_filename = db.Column(db.Text)
+    website_url = db.Column(db.Text)
+    affiliate_link = db.Column(db.Text)
+    description = db.Column(db.Text)
+    founded_year = db.Column(db.Integer)
+    rating = db.Column(db.Float)
+
+    brand_geos = db.relationship('BrandGeo', back_populates='brand', cascade='all, delete-orphan')
+    brand_verticals = db.relationship('BrandVertical', back_populates='brand', cascade='all, delete-orphan')
+    site_brands = db.relationship('SiteBrand', back_populates='brand', cascade='all, delete-orphan')
+
+
+class BrandGeo(db.Model):
+    __tablename__ = 'brand_geos'
+    __table_args__ = (
+        db.UniqueConstraint('brand_id', 'geo_id', name='uq_brand_geo'),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    brand_id = db.Column(db.Integer, db.ForeignKey('brands.id'), nullable=False)
+    geo_id = db.Column(db.Integer, db.ForeignKey('geos.id'), nullable=False)
+    welcome_bonus = db.Column(db.Text)
+    bonus_code = db.Column(db.Text)
+    license_info = db.Column(db.Text)
+    is_active = db.Column(db.Boolean, default=True)
+
+    brand = db.relationship('Brand', back_populates='brand_geos')
+    geo = db.relationship('Geo', back_populates='brand_geos')
+
+
+class BrandVertical(db.Model):
+    __tablename__ = 'brand_verticals'
+    __table_args__ = (
+        db.UniqueConstraint('brand_id', 'vertical_id', name='uq_brand_vertical'),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    brand_id = db.Column(db.Integer, db.ForeignKey('brands.id'), nullable=False)
+    vertical_id = db.Column(db.Integer, db.ForeignKey('verticals.id'), nullable=False)
+
+    brand = db.relationship('Brand', back_populates='brand_verticals')
+    vertical = db.relationship('Vertical', back_populates='brand_verticals')
+
+
+class PageType(db.Model):
+    __tablename__ = 'page_types'
+
+    id = db.Column(db.Integer, primary_key=True)
+    slug = db.Column(db.Text, unique=True, nullable=False)
+    name = db.Column(db.Text, nullable=False)
+    template_file = db.Column(db.Text, nullable=False)
+    content_prompt = db.Column(db.Text)
+
+    site_pages = db.relationship('SitePage', back_populates='page_type')
+
+
+class Domain(db.Model):
+    __tablename__ = 'domains'
+
+    id = db.Column(db.Integer, primary_key=True)
+    domain = db.Column(db.Text, unique=True, nullable=False)
+    registrar = db.Column(db.Text)
+    status = db.Column(db.Text, default='available', nullable=False)
+
+    site = db.relationship('Site', back_populates='domain', uselist=False)
+
+
+class Site(db.Model):
+    __tablename__ = 'sites'
+
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.Text, nullable=False)
+    geo_id = db.Column(db.Integer, db.ForeignKey('geos.id'), nullable=False)
+    vertical_id = db.Column(db.Integer, db.ForeignKey('verticals.id'), nullable=False)
+    domain_id = db.Column(db.Integer, db.ForeignKey('domains.id'), nullable=True)
+    status = db.Column(db.Text, default='draft', nullable=False)
+    output_path = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    deployed_at = db.Column(db.DateTime)
+    current_version = db.Column(db.Integer, default=1)
+
+    geo = db.relationship('Geo', back_populates='sites')
+    vertical = db.relationship('Vertical', back_populates='sites')
+    domain = db.relationship('Domain', back_populates='site', foreign_keys=[domain_id])
+    site_brands = db.relationship('SiteBrand', back_populates='site', cascade='all, delete-orphan')
+    site_pages = db.relationship('SitePage', back_populates='site', cascade='all, delete-orphan')
+
+
+class SiteBrand(db.Model):
+    __tablename__ = 'site_brands'
+    __table_args__ = (
+        db.UniqueConstraint('site_id', 'brand_id', name='uq_site_brand'),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    site_id = db.Column(db.Integer, db.ForeignKey('sites.id'), nullable=False)
+    brand_id = db.Column(db.Integer, db.ForeignKey('brands.id'), nullable=False)
+    rank = db.Column(db.Integer, nullable=False)
+
+    site = db.relationship('Site', back_populates='site_brands')
+    brand = db.relationship('Brand', back_populates='site_brands')
+
+
+class SitePage(db.Model):
+    __tablename__ = 'site_pages'
+    __table_args__ = (
+        # Partial unique indexes to handle the three page categories:
+        # 1. Global pages (homepage, comparison): unique per (site, page_type) when no brand or topic
+        # 2. Brand pages (reviews): unique per (site, page_type, brand)
+        # 3. Evergreen pages: unique per (site, page_type, evergreen_topic)
+        db.Index(
+            'ix_site_page_global',
+            'site_id', 'page_type_id',
+            unique=True,
+            sqlite_where=db.text('brand_id IS NULL AND evergreen_topic IS NULL'),
+            postgresql_where=db.text('brand_id IS NULL AND evergreen_topic IS NULL'),
+        ),
+        db.Index(
+            'ix_site_page_brand',
+            'site_id', 'page_type_id', 'brand_id',
+            unique=True,
+            sqlite_where=db.text('brand_id IS NOT NULL'),
+            postgresql_where=db.text('brand_id IS NOT NULL'),
+        ),
+        db.Index(
+            'ix_site_page_evergreen',
+            'site_id', 'page_type_id', 'evergreen_topic',
+            unique=True,
+            sqlite_where=db.text('evergreen_topic IS NOT NULL'),
+            postgresql_where=db.text('evergreen_topic IS NOT NULL'),
+        ),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    site_id = db.Column(db.Integer, db.ForeignKey('sites.id'), nullable=False)
+    page_type_id = db.Column(db.Integer, db.ForeignKey('page_types.id'), nullable=False)
+    brand_id = db.Column(db.Integer, db.ForeignKey('brands.id'), nullable=True)
+    evergreen_topic = db.Column(db.Text, nullable=True)
+    slug = db.Column(db.Text, nullable=False)
+    title = db.Column(db.Text, nullable=False)
+    meta_description = db.Column(db.Text)
+    content_json = db.Column(db.Text)
+    is_generated = db.Column(db.Boolean, default=False)
+    generated_at = db.Column(db.DateTime)
+
+    site = db.relationship('Site', back_populates='site_pages')
+    page_type = db.relationship('PageType', back_populates='site_pages')
+    brand = db.relationship('Brand')
+    content_history = db.relationship('ContentHistory', back_populates='site_page', cascade='all, delete-orphan')
+
+
+class ContentHistory(db.Model):
+    __tablename__ = 'content_history'
+
+    id = db.Column(db.Integer, primary_key=True)
+    site_page_id = db.Column(db.Integer, db.ForeignKey('site_pages.id'), nullable=False)
+    content_json = db.Column(db.Text, nullable=False)
+    generated_at = db.Column(db.DateTime, nullable=False)
+    version = db.Column(db.Integer, nullable=False)
+
+    site_page = db.relationship('SitePage', back_populates='content_history')

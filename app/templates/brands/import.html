@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+
+{% block title %}Import Brands — Affiliate Factory{% endblock %}
+
+{% block content %}
+<h1>Bulk Brand Import</h1>
+
+<div class="card mt-4">
+    <div class="card-body">
+        <p>Upload a CSV file with the following columns:</p>
+        <code>name, slug, website_url, affiliate_link, rating</code>
+        <p class="text-muted mt-2">Brands with duplicate slugs will be skipped. The first row must be the header row.</p>
+
+        <form method="POST" enctype="multipart/form-data" class="mt-3">
+            <div class="mb-3">
+                <label for="csv_file" class="form-label">CSV File</label>
+                <input type="file" class="form-control" id="csv_file" name="csv_file" accept=".csv" required>
+            </div>
+            <button type="submit" class="btn btn-primary">Import</button>
+            <a href="{{ url_for('brands.list_brands') }}" class="btn btn-outline-secondary ms-2">Cancel</a>
+        </form>
+    </div>
+</div>
+{% endblock %}

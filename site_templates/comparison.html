@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="hero">
+    <h1>{{ content.hero_title }}</h1>
+    <p class="hero-subtitle">{{ content.hero_subtitle }}</p>
+</section>
+
+<section class="intro">
+    <p>{{ content.intro_paragraph }}</p>
+</section>
+
+<section class="comparison-table">
+    <h2>Compare {{ vertical_name }} Sites</h2>
+    <table class="comparison">
+        <thead>
+            <tr>
+                <th>Rank</th>
+                <th>Brand</th>
+                <th>Bonus</th>
+                <th>Rating</th>
+                <th>Pros</th>
+                <th>Cons</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for row in content.comparison_rows %}
+            <tr>
+                <td>{{ loop.index }}</td>
+                <td>
+                    {% set brand_info = brand_lookup.get(row.slug or row.brand) %}
+                    {% if brand_info and brand_info.logo_filename %}
+                    <img src="assets/logos/{{ brand_info.logo_filename }}" alt="{{ row.brand }}" class="table-logo">
+                    {% endif %}
+                    <a href="reviews/{{ row.slug or row.brand | lower }}.html">{{ row.brand }}</a>
+                </td>
+                <td>{{ row.bonus }}</td>
+                <td>{{ row.rating }}/5</td>
+                <td>
+                    <ul>
+                    {% for pro in row.pros %}
+                        <li>{{ pro }}</li>
+                    {% endfor %}
+                    </ul>
+                </td>
+                <td>
+                    <ul>
+                    {% for con in row.cons %}
+                        <li>{{ con }}</li>
+                    {% endfor %}
+                    </ul>
+                </td>
+                <td>
+                    {% if brand_info %}
+                    <a href="{{ brand_info.affiliate_link }}" class="cta-button" target="_blank" rel="nofollow noopener">Visit Site</a>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</section>
+
+{% if content.faq %}
+<section class="faq">
+    <h2>Frequently Asked Questions</h2>
+    {% for item in content.faq %}
+    <div class="faq-item">
+        <h3>{{ item.question }}</h3>
+        <p>{{ item.answer }}</p>
+    </div>
+    {% endfor %}
+</section>
+{% endif %}
+
+{% if content.closing_paragraph %}
+<section class="closing">
+    <p>{{ content.closing_paragraph }}</p>
+</section>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+
+{% block title %}Brands — Affiliate Factory{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1>Brands</h1>
+    <div>
+        <a href="{{ url_for('brands.bulk_import') }}" class="btn btn-outline-secondary me-2">Import CSV</a>
+        <a href="{{ url_for('brands.create') }}" class="btn btn-primary">Add Brand</a>
+    </div>
+</div>
+
+<table class="table table-striped">
+    <thead>
+        <tr>
+            <th>Logo</th>
+            <th>Name</th>
+            <th>Slug</th>
+            <th>Rating</th>
+            <th>GEOs</th>
+            <th>Verticals</th>
+            <th>Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for brand in brands %}
+        <tr>
+            <td>
+                {% if brand.logo_filename %}
+                    <img src="{{ url_for('static', filename='../uploads/logos/' + brand.logo_filename) }}"
+                         alt="{{ brand.name }}" style="max-height: 30px;">
+                {% else %}
+                    <span class="text-muted">—</span>
+                {% endif %}
+            </td>
+            <td>{{ brand.name }}</td>
+            <td><code>{{ brand.slug }}</code></td>
+            <td>{{ brand.rating or '—' }}</td>
+            <td>
+                {% for bg in brand.brand_geos %}
+                    <span class="badge bg-info">{{ bg.geo.code | upper }}</span>
+                {% endfor %}
+            </td>
+            <td>
+                {% for bv in brand.brand_verticals %}
+                    <span class="badge bg-secondary">{{ bv.vertical.name }}</span>
+                {% endfor %}
+            </td>
+            <td>
+                <a href="{{ url_for('brands.edit', brand_id=brand.id) }}" class="btn btn-sm btn-outline-secondary">Edit</a>
+                <form method="POST" action="{{ url_for('brands.delete', brand_id=brand.id) }}" class="d-inline"
+                      onsubmit="return confirm('Delete this brand?')">
+                    <button type="submit" class="btn btn-sm btn-outline-danger">Delete</button>
+                </form>
+            </td>
+        </tr>
+        {% else %}
+        <tr>
+            <td colspan="7" class="text-center text-muted">No brands yet. <a href="{{ url_for('brands.create') }}">Add one.</a></td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endblock %}

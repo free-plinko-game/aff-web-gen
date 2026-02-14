@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard — Affiliate Factory{% endblock %}
+
+{% block content %}
+<h1 class="mb-4">Dashboard</h1>
+
+<div class="row mb-4">
+    <div class="col-md-4">
+        <div class="card text-center">
+            <div class="card-body">
+                <h5 class="card-title">Brands</h5>
+                <p class="display-4">{{ brand_count }}</p>
+                <a href="{{ url_for('brands.list_brands') }}" class="btn btn-outline-primary btn-sm">Manage</a>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card text-center">
+            <div class="card-body">
+                <h5 class="card-title">Domains</h5>
+                <p class="display-4">{{ domain_count }}</p>
+                <a href="{{ url_for('domains.list_domains') }}" class="btn btn-outline-primary btn-sm">Manage</a>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card text-center">
+            <div class="card-body">
+                <h5 class="card-title">Sites</h5>
+                <p class="display-4">{{ site_count }}</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% if recent_sites %}
+<h3>Recent Sites</h3>
+<table class="table table-striped">
+    <thead>
+        <tr>
+            <th>Name</th>
+            <th>GEO</th>
+            <th>Vertical</th>
+            <th>Status</th>
+            <th>Created</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for site in recent_sites %}
+        <tr>
+            <td>{{ site.name }}</td>
+            <td>{{ site.geo.code | upper }}</td>
+            <td>{{ site.vertical.name }}</td>
+            <td><span class="badge bg-secondary">{{ site.status }}</span></td>
+            <td>{{ site.created_at.strftime('%Y-%m-%d') if site.created_at else '' }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endif %}
+{% endblock %}

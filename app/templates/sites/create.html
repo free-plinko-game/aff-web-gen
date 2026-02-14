@@ -1,0 +1,248 @@
+{% extends "base.html" %}
+
+{% block title %}Create Site — Affiliate Factory{% endblock %}
+
+{% block content %}
+<h1>Create Site</h1>
+
+<form method="POST" id="wizardForm">
+    <!-- Step indicators -->
+    <ul class="nav nav-pills mb-4" id="wizardSteps">
+        <li class="nav-item"><a class="nav-link active" data-step="1">1. GEO</a></li>
+        <li class="nav-item"><a class="nav-link" data-step="2">2. Vertical</a></li>
+        <li class="nav-item"><a class="nav-link" data-step="3">3. Brands</a></li>
+        <li class="nav-item"><a class="nav-link" data-step="4">4. Pages</a></li>
+        <li class="nav-item"><a class="nav-link" data-step="5">5. Review</a></li>
+    </ul>
+
+    <!-- Step 1: Pick a GEO -->
+    <div class="wizard-step" id="step1">
+        <h3>Select GEO</h3>
+        <div class="mb-3">
+            <label for="site_name" class="form-label">Site Name</label>
+            <input type="text" class="form-control" id="site_name" name="site_name"
+                   placeholder="e.g. UK Sports Betting Site 1" required>
+        </div>
+        <div class="mb-3">
+            <label class="form-label">Geographic Market</label>
+            {% for geo in geos %}
+            <div class="form-check">
+                <input class="form-check-input geo-radio" type="radio" name="geo_id"
+                       value="{{ geo.id }}" id="geo_{{ geo.id }}"
+                       data-name="{{ geo.name }}" data-code="{{ geo.code }}">
+                <label class="form-check-label" for="geo_{{ geo.id }}">
+                    {{ geo.name }} ({{ geo.code | upper }}) — {{ geo.currency }}
+                </label>
+            </div>
+            {% endfor %}
+        </div>
+        <button type="button" class="btn btn-primary" onclick="goToStep(2)">Next</button>
+    </div>
+
+    <!-- Step 2: Pick a Vertical -->
+    <div class="wizard-step d-none" id="step2">
+        <h3>Select Vertical</h3>
+        <div class="mb-3">
+            {% for vertical in verticals %}
+            <div class="form-check">
+                <input class="form-check-input vertical-radio" type="radio" name="vertical_id"
+                       value="{{ vertical.id }}" id="vert_{{ vertical.id }}"
+                       data-name="{{ vertical.name }}">
+                <label class="form-check-label" for="vert_{{ vertical.id }}">
+                    {{ vertical.name }}
+                </label>
+            </div>
+            {% endfor %}
+        </div>
+        <button type="button" class="btn btn-secondary" onclick="goToStep(1)">Back</button>
+        <button type="button" class="btn btn-primary" onclick="goToStep(3)">Next</button>
+    </div>
+
+    <!-- Step 3: Select Brands -->
+    <div class="wizard-step d-none" id="step3">
+        <h3>Select Brands</h3>
+        <p class="text-muted">Brands available for your selected GEO + vertical. Set ranking order.</p>
+        <div id="brandList" class="mb-3">
+            <p class="text-muted">Loading brands...</p>
+        </div>
+        <button type="button" class="btn btn-secondary" onclick="goToStep(2)">Back</button>
+        <button type="button" class="btn btn-primary" onclick="goToStep(4)">Next</button>
+    </div>
+
+    <!-- Step 4: Select Page Types -->
+    <div class="wizard-step d-none" id="step4">
+        <h3>Select Page Types</h3>
+
+        <h5>Global Pages</h5>
+        <div class="mb-3">
+            <div class="form-check">
+                <input class="form-check-input" type="checkbox" name="page_types" value="homepage" id="pt_homepage" checked>
+                <label class="form-check-label" for="pt_homepage">Homepage</label>
+            </div>
+            <div class="form-check">
+                <input class="form-check-input" type="checkbox" name="page_types" value="comparison" id="pt_comparison" checked>
+                <label class="form-check-label" for="pt_comparison">Comparison Page</label>
+            </div>
+        </div>
+
+        <h5>Brand-Specific Pages</h5>
+        <div class="mb-3">
+            <div class="form-check">
+                <input class="form-check-input" type="checkbox" name="page_types" value="brand-review" id="pt_brand_review" checked>
+                <label class="form-check-label" for="pt_brand_review">Brand Reviews (one per brand)</label>
+            </div>
+            <div class="form-check">
+                <input class="form-check-input" type="checkbox" name="page_types" value="bonus-review" id="pt_bonus_review" checked>
+                <label class="form-check-label" for="pt_bonus_review">Bonus Reviews (one per brand)</label>
+            </div>
+        </div>
+
+        <h5>Evergreen Content Pages</h5>
+        <div id="evergreenContainer" class="mb-3">
+            <!-- Dynamic evergreen topic inputs added here -->
+        </div>
+        <button type="button" class="btn btn-outline-secondary btn-sm" onclick="addEvergreenTopic()">
+            + Add Evergreen Page
+        </button>
+
+        <div class="mt-3">
+            <button type="button" class="btn btn-secondary" onclick="goToStep(3)">Back</button>
+            <button type="button" class="btn btn-primary" onclick="goToStep(5)">Next</button>
+        </div>
+    </div>
+
+    <!-- Step 5: Review & Confirm -->
+    <div class="wizard-step d-none" id="step5">
+        <h3>Review & Confirm</h3>
+        <table class="table">
+            <tr><th>Site Name</th><td id="reviewName"></td></tr>
+            <tr><th>GEO</th><td id="reviewGeo"></td></tr>
+            <tr><th>Vertical</th><td id="reviewVertical"></td></tr>
+            <tr><th>Brands</th><td id="reviewBrands"></td></tr>
+            <tr><th>Pages</th><td id="reviewPages"></td></tr>
+        </table>
+        <button type="button" class="btn btn-secondary" onclick="goToStep(4)">Back</button>
+        <button type="submit" class="btn btn-success">Create Site</button>
+    </div>
+</form>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function goToStep(step) {
+    // Validate current step before moving forward
+    if (step === 2) {
+        if (!document.querySelector('input[name="site_name"]').value.trim()) {
+            alert('Please enter a site name.'); return;
+        }
+        if (!document.querySelector('input[name="geo_id"]:checked')) {
+            alert('Please select a GEO.'); return;
+        }
+    }
+    if (step === 3) {
+        if (!document.querySelector('input[name="vertical_id"]:checked')) {
+            alert('Please select a vertical.'); return;
+        }
+        loadBrands();
+    }
+    if (step === 4) {
+        if (!document.querySelector('input[name="brand_ids"]:checked')) {
+            alert('Please select at least one brand.'); return;
+        }
+    }
+    if (step === 5) {
+        populateReview();
+    }
+
+    // Show/hide steps
+    document.querySelectorAll('.wizard-step').forEach(el => el.classList.add('d-none'));
+    document.getElementById('step' + step).classList.remove('d-none');
+
+    // Update step indicators
+    document.querySelectorAll('#wizardSteps .nav-link').forEach(el => {
+        el.classList.remove('active');
+        if (parseInt(el.dataset.step) === step) el.classList.add('active');
+    });
+}
+
+function loadBrands() {
+    const geoId = document.querySelector('input[name="geo_id"]:checked').value;
+    const verticalId = document.querySelector('input[name="vertical_id"]:checked').value;
+    const container = document.getElementById('brandList');
+
+    fetch(`/api/brands/filter?geo_id=${geoId}&vertical_id=${verticalId}`)
+        .then(r => r.json())
+        .then(brands => {
+            if (brands.length === 0) {
+                container.innerHTML = '<p class="text-warning">No brands available for this GEO + vertical combination. Add brands with matching GEO and vertical associations first.</p>';
+                return;
+            }
+            let html = '';
+            brands.forEach((brand, i) => {
+                html += `
+                <div class="card mb-2">
+                    <div class="card-body d-flex align-items-center">
+                        <input class="form-check-input me-3" type="checkbox" name="brand_ids"
+                               value="${brand.id}" id="brand_${brand.id}" checked>
+                        <label class="form-check-label flex-grow-1" for="brand_${brand.id}">
+                            <strong>${brand.name}</strong> <code>${brand.slug}</code>
+                            ${brand.rating ? ' — ' + brand.rating + '/5' : ''}
+                        </label>
+                        <div>
+                            <label class="form-label mb-0 me-2">Rank:</label>
+                            <input type="number" class="form-control form-control-sm d-inline-block"
+                                   style="width: 70px;" name="brand_rank_${brand.id}"
+                                   value="${i + 1}" min="1">
+                        </div>
+                    </div>
+                </div>`;
+            });
+            container.innerHTML = html;
+        });
+}
+
+let evergreenCount = 0;
+function addEvergreenTopic() {
+    evergreenCount++;
+    const container = document.getElementById('evergreenContainer');
+    const div = document.createElement('div');
+    div.className = 'input-group mb-2';
+    div.id = 'evergreen_' + evergreenCount;
+    div.innerHTML = `
+        <input type="text" class="form-control" name="evergreen_topics"
+               placeholder="e.g. How to Bet on Football">
+        <button type="button" class="btn btn-outline-danger" onclick="this.parentElement.remove()">Remove</button>
+    `;
+    container.appendChild(div);
+}
+
+function populateReview() {
+    document.getElementById('reviewName').textContent =
+        document.querySelector('input[name="site_name"]').value;
+
+    const geo = document.querySelector('input[name="geo_id"]:checked');
+    document.getElementById('reviewGeo').textContent = geo ? geo.dataset.name + ' (' + geo.dataset.code.toUpperCase() + ')' : '';
+
+    const vert = document.querySelector('input[name="vertical_id"]:checked');
+    document.getElementById('reviewVertical').textContent = vert ? vert.dataset.name : '';
+
+    // Brands
+    const brands = [];
+    document.querySelectorAll('input[name="brand_ids"]:checked').forEach(cb => {
+        const label = cb.parentElement.querySelector('label strong');
+        if (label) brands.push(label.textContent);
+    });
+    document.getElementById('reviewBrands').textContent = brands.join(', ') || 'None';
+
+    // Pages
+    const pages = [];
+    document.querySelectorAll('input[name="page_types"]:checked').forEach(cb => {
+        pages.push(cb.parentElement.querySelector('label').textContent.trim());
+    });
+    document.querySelectorAll('input[name="evergreen_topics"]').forEach(inp => {
+        if (inp.value.trim()) pages.push('Evergreen: ' + inp.value.trim());
+    });
+    document.getElementById('reviewPages').innerHTML = pages.map(p => `<span class="badge bg-secondary me-1">${p}</span>`).join('');
+}
+</script>
+{% endblock %}

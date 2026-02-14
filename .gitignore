@@ -1,0 +1,24 @@
+# Environment
+.env
+
+# Database
+*.db
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+venv/
+
+# Generated output
+output/
+
+# Uploaded assets
+uploads/logos/
+
+# IDE / tool config
+.claude/
+
+# OS
+.DS_Store
+Thumbs.db
