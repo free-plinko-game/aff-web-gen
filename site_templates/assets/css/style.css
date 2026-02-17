@@ -1454,18 +1454,19 @@ body {
     box-shadow: var(--shadow-card);
     margin-bottom: 1.5rem;
     overflow: hidden;
+    border: 1px solid var(--gray-200);
     transition: box-shadow 0.2s ease;
 }
 .comp-card:hover {
     box-shadow: 0 8px 30px rgba(0,0,0,0.1);
 }
 .comp-card-header {
-    display: flex;
-    align-items: center;
-    gap: 1rem;
-    padding: 1.25rem 1.5rem;
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    gap: 1.25rem;
+    padding: 1.5rem;
     border-bottom: 1px solid var(--gray-100);
-    flex-wrap: wrap;
+    align-items: center;
 }
 .comp-card-rank {
     flex-shrink: 0;
@@ -1474,7 +1475,6 @@ body {
     display: flex;
     align-items: center;
     gap: 1rem;
-    flex: 1;
     min-width: 0;
 }
 .comp-card-logo {
@@ -1490,14 +1490,16 @@ body {
     display: flex;
     align-items: center;
     justify-content: center;
-    background: var(--gray-100);
+    background: var(--navy);
     border-radius: var(--radius-sm);
-    font-size: 0.7rem;
+    font-size: 0.6rem;
     font-weight: 700;
-    color: var(--gray-500);
+    color: var(--white);
     text-align: center;
     overflow: hidden;
     flex-shrink: 0;
+    line-height: 1.2;
+    padding: 0.25rem;
 }
 .comp-card-brand h3 {
     font-family: 'Plus Jakarta Sans', 'DM Sans', sans-serif;
@@ -1514,10 +1516,10 @@ body {
 }
 .comp-card-cta {
     display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    flex-shrink: 0;
-    flex-wrap: wrap;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.5rem;
+    min-width: 200px;
 }
 .comp-card-body {
     padding: 1.25rem 1.5rem;
@@ -1571,16 +1573,18 @@ body {
 }
 
 /* --- Comparison Responsive --- */
-@media (max-width: 768px) {
+@media (max-width: 900px) {
     .comp-card-header {
-        flex-direction: column;
-        align-items: flex-start;
-        gap: 0.75rem;
+        grid-template-columns: 1fr;
+        gap: 1rem;
     }
     .comp-card-cta {
-        width: 100%;
-        justify-content: flex-start;
+        flex-direction: row;
+        flex-wrap: wrap;
+        align-items: center;
     }
+}
+@media (max-width: 768px) {
     .comp-card-pros-cons {
         flex-direction: column;
         gap: 1rem;
@@ -1885,5 +1889,156 @@ body {
     .evergreen-toc-list li a {
         padding: 0.75rem 1rem;
         font-size: 0.85rem;
+    }
+}
+
+/* =============================================
+   CTA TABLE STYLES
+   ============================================= */
+
+.cta-table {
+    background: var(--white);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-card);
+    border: 1px solid var(--gray-200);
+    overflow: hidden;
+    margin-bottom: 1.5rem;
+}
+.cta-table-header {
+    background: var(--navy);
+    padding: 1rem 1.5rem;
+}
+.cta-table-header h3 {
+    font-family: 'Plus Jakarta Sans', 'DM Sans', sans-serif;
+    font-weight: 700;
+    font-size: 1rem;
+    color: var(--white);
+    margin: 0;
+}
+.cta-row {
+    display: grid;
+    grid-template-columns: 48px 1fr auto auto auto;
+    align-items: center;
+    gap: 1rem;
+    padding: 0.85rem 1.5rem;
+    border-bottom: 1px solid var(--gray-100);
+    transition: background 0.15s;
+}
+.cta-row:last-child {
+    border-bottom: none;
+}
+.cta-row:hover {
+    background: var(--gray-50);
+}
+.cta-rank {
+    font-family: 'Plus Jakarta Sans', 'DM Sans', sans-serif;
+    font-weight: 800;
+    font-size: 1rem;
+    color: var(--navy);
+    text-align: center;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--gray-100);
+    border-radius: 50%;
+}
+.cta-brand {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    min-width: 0;
+}
+.cta-logo {
+    width: 40px;
+    height: 28px;
+    object-fit: contain;
+    border-radius: 4px;
+    flex-shrink: 0;
+}
+.cta-brand-name {
+    font-weight: 600;
+    font-size: 0.92rem;
+    color: var(--navy);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.cta-badge {
+    display: inline-flex;
+    font-size: 0.68rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    padding: 0.2rem 0.5rem;
+    background: rgba(0,180,216,0.1);
+    color: var(--teal);
+    border-radius: 100px;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+.cta-bonus {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--gray-700);
+    white-space: nowrap;
+}
+.cta-rating {
+    font-family: 'Plus Jakarta Sans', 'DM Sans', sans-serif;
+    font-weight: 700;
+    font-size: 0.85rem;
+    color: var(--amber);
+    white-space: nowrap;
+}
+.btn-cta {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.55rem 1.25rem;
+    background: var(--green);
+    color: var(--white);
+    font-weight: 700;
+    font-size: 0.82rem;
+    border-radius: var(--radius-sm);
+    text-decoration: none;
+    white-space: nowrap;
+    transition: all 0.2s;
+}
+.btn-cta:hover {
+    background: var(--green-dark);
+    transform: translateY(-1px);
+}
+
+/* --- CTA Table Responsive --- */
+@media (max-width: 768px) {
+    .cta-row {
+        grid-template-columns: 36px 1fr;
+        gap: 0.5rem 0.75rem;
+        padding: 1rem 1.25rem;
+    }
+    .cta-bonus,
+    .cta-rating {
+        grid-column: 2;
+        font-size: 0.82rem;
+    }
+    .cta-action {
+        grid-column: 1 / -1;
+    }
+    .btn-cta {
+        width: 100%;
+        justify-content: center;
+    }
+}
+@media (max-width: 480px) {
+    .cta-row {
+        grid-template-columns: 1fr;
+    }
+    .cta-rank {
+        display: none;
+    }
+    .cta-bonus,
+    .cta-rating {
+        grid-column: 1;
     }
 }

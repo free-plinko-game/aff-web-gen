@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+
+{% block title %}Manage Brands — {{ site.name }}{% endblock %}
+
+{% block content %}
+<nav aria-label="breadcrumb">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="{{ url_for('sites.list_sites') }}">Sites</a></li>
+        <li class="breadcrumb-item"><a href="{{ url_for('sites.detail', site_id=site.id) }}">{{ site.name }}</a></li>
+        <li class="breadcrumb-item active">Manage Brands</li>
+    </ol>
+</nav>
+
+<h1>Manage Brands</h1>
+<p class="text-muted">
+    Showing {{ available_brands | length }} brands with active data for
+    <strong>{{ site.geo.name }} ({{ site.geo.code | upper }})</strong>.
+    Check the brands to include on this site and set their display rank.
+</p>
+
+<form method="POST">
+    <div class="mb-3">
+        <button type="button" class="btn btn-sm btn-outline-secondary" id="selectAll">Select All</button>
+        <button type="button" class="btn btn-sm btn-outline-secondary" id="selectNone">Select None</button>
+        <span class="ms-3 text-muted" id="selectedCount">0 selected</span>
+    </div>
+
+    <table class="table table-sm table-hover">
+        <thead>
+            <tr>
+                <th style="width: 40px;"></th>
+                <th style="width: 70px;">Rank</th>
+                <th>Brand</th>
+                <th>Welcome Bonus</th>
+                <th>Rating</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for item in available_brands %}
+            <tr class="{{ 'table-primary' if item.selected else '' }}">
+                <td>
+                    <input type="checkbox" class="form-check-input brand-check" name="brand_ids"
+                           value="{{ item.brand.id }}" id="brand_{{ item.brand.id }}"
+                           {{ 'checked' if item.selected else '' }}>
+                </td>
+                <td>
+                    <input type="number" name="brand_rank_{{ item.brand.id }}" class="form-control form-control-sm"
+                           value="{{ item.rank if item.rank else '' }}" min="1" style="width: 60px;"
+                           placeholder="{{ loop.index }}">
+                </td>
+                <td>
+                    <label for="brand_{{ item.brand.id }}" class="mb-0" style="cursor:pointer;">
+                        <strong>{{ item.brand.name }}</strong>
+                        <code class="ms-1">{{ item.brand.slug }}</code>
+                    </label>
+                </td>
+                <td class="text-muted">{{ item.brand_geo.welcome_bonus or '—' }}</td>
+                <td>
+                    {% if item.brand.rating %}
+                        <span class="badge bg-success">{{ item.brand.rating }}</span>
+                    {% else %}
+                        <span class="text-muted">—</span>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <div class="mb-4">
+        <button type="submit" class="btn btn-primary">Save Brands</button>
+        <a href="{{ url_for('sites.detail', site_id=site.id) }}" class="btn btn-outline-secondary ms-2">Cancel</a>
+    </div>
+</form>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function() {
+    const checks = document.querySelectorAll('.brand-check');
+    const countEl = document.getElementById('selectedCount');
+
+    function updateCount() {
+        const n = document.querySelectorAll('.brand-check:checked').length;
+        countEl.textContent = n + ' selected';
+    }
+
+    checks.forEach(cb => cb.addEventListener('change', function() {
+        this.closest('tr').classList.toggle('table-primary', this.checked);
+        updateCount();
+    }));
+
+    document.getElementById('selectAll').addEventListener('click', function() {
+        checks.forEach(cb => { cb.checked = true; cb.closest('tr').classList.add('table-primary'); });
+        updateCount();
+    });
+
+    document.getElementById('selectNone').addEventListener('click', function() {
+        checks.forEach(cb => { cb.checked = false; cb.closest('tr').classList.remove('table-primary'); });
+        updateCount();
+    });
+
+    updateCount();
+})();
+</script>
+{% endblock %}

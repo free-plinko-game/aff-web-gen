@@ -151,24 +151,32 @@
 
         <div class="card">
             <div class="card-header d-flex justify-content-between align-items-center">
-                <strong>Brands ({{ site.site_brands | length }})</strong>
-                <a href="{{ url_for('sites.brand_overrides', site_id=site.id) }}" class="btn btn-sm btn-outline-secondary">Overrides</a>
+                <a class="text-decoration-none text-reset" data-bs-toggle="collapse" href="#brandsCollapse" role="button" aria-expanded="false" aria-controls="brandsCollapse">
+                    <strong>Brands ({{ site.site_brands | length }})</strong>
+                    <small class="ms-1 text-muted">&#9662;</small>
+                </a>
+                <div>
+                    <a href="{{ url_for('sites.manage_brands', site_id=site.id) }}" class="btn btn-sm btn-outline-primary">Manage</a>
+                    <a href="{{ url_for('sites.brand_overrides', site_id=site.id) }}" class="btn btn-sm btn-outline-secondary">Overrides</a>
+                </div>
             </div>
-            <div class="card-body">
-                <table class="table table-sm mb-0">
-                    <thead>
-                        <tr><th>Rank</th><th>Brand</th><th>Slug</th></tr>
-                    </thead>
-                    <tbody>
-                        {% for sb in site.site_brands | sort(attribute='rank') %}
-                        <tr>
-                            <td>{{ sb.rank }}</td>
-                            <td>{{ sb.brand.name }}</td>
-                            <td><code>{{ sb.brand.slug }}</code></td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
+            <div class="collapse" id="brandsCollapse">
+                <div class="card-body">
+                    <table class="table table-sm mb-0">
+                        <thead>
+                            <tr><th>Rank</th><th>Brand</th><th>Slug</th></tr>
+                        </thead>
+                        <tbody>
+                            {% for sb in site.site_brands | sort(attribute='rank') %}
+                            <tr>
+                                <td>{{ sb.rank }}</td>
+                                <td>{{ sb.brand.name }}</td>
+                                <td><code>{{ sb.brand.slug }}</code></td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
     </div>

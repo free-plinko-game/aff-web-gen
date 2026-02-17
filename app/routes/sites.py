@@ -595,6 +595,60 @@ def delete_page(site_id, page_id):
     return redirect(url_for('sites.detail', site_id=site.id))
 
 
+@bp.route('/<int:site_id>/manage-brands', methods=['GET', 'POST'])
+def manage_brands(site_id):
+    """Add, remove, and reorder brands on an existing site."""
+    site = db.session.get(Site, site_id) or abort(404)
+
+    if request.method == 'POST':
+        brand_ids = request.form.getlist('brand_ids', type=int)
+
+        # Validate: all selected brands must have active BrandGeo for this site's GEO
+        valid_brand_ids = {
+            bg.brand_id for bg in
+            BrandGeo.query.filter_by(geo_id=site.geo_id, is_active=True).all()
+        }
+        brand_ids = [bid for bid in brand_ids if bid in valid_brand_ids]
+
+        # Build map of current site_brands for preserving overrides
+        existing = {sb.brand_id: sb for sb in site.site_brands}
+
+        # Remove brands no longer selected (cascades to overrides)
+        for brand_id, sb in existing.items():
+            if brand_id not in brand_ids:
+                db.session.delete(sb)
+
+        # Add new brands / update ranks
+        for i, brand_id in enumerate(brand_ids):
+            rank = request.form.get(f'brand_rank_{brand_id}', type=int) or (i + 1)
+            if brand_id in existing:
+                existing[brand_id].rank = rank
+            else:
+                sb = SiteBrand(site_id=site.id, brand_id=brand_id, rank=rank)
+                db.session.add(sb)
+
+        db.session.commit()
+        flash(f'{len(brand_ids)} brands saved.', 'success')
+        return redirect(url_for('sites.detail', site_id=site.id))
+
+    # GET — show all brands with active BrandGeo for this site's GEO
+    active_geos = BrandGeo.query.filter_by(geo_id=site.geo_id, is_active=True).all()
+    available_brands = []
+    current_brand_ids = {sb.brand_id for sb in site.site_brands}
+    current_ranks = {sb.brand_id: sb.rank for sb in site.site_brands}
+
+    for bg in sorted(active_geos, key=lambda bg: bg.brand.name):
+        available_brands.append({
+            'brand': bg.brand,
+            'brand_geo': bg,
+            'selected': bg.brand_id in current_brand_ids,
+            'rank': current_ranks.get(bg.brand_id, 0),
+        })
+
+    return render_template('sites/manage_brands.html', site=site,
+                           available_brands=available_brands)
+
+
 @bp.route('/<int:site_id>/brand-overrides', methods=['GET', 'POST'])
 def brand_overrides(site_id):
     """View and edit brand overrides for this site."""

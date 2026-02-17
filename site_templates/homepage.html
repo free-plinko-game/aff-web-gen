@@ -67,6 +67,91 @@
             <p>{{ content.section_subtitle | default('Ranked by our team based on bonuses, quality, user experience, and trustworthiness.') }}</p>
         </div>
 
+        {% if cta_table and cta_table.rows %}
+        {# CTA table replaces brand cards when assigned #}
+        {% for row in cta_table.rows %}
+        {% if row.is_visible %}
+        {% set bi = brand_lookup.get(row.brand.slug) %}
+        <div class="brand-card">
+            <div class="brand-card-top">
+                <div>
+                    <div class="brand-logo-area">
+                        {% if loop.index <= 3 %}
+                        <span class="rank-badge rank-{{ loop.index }}">
+                            {%- if loop.index == 1 %}Recommended{% elif loop.index == 2 %}Hot Offer{% elif loop.index == 3 %}3rd{% endif -%}
+                        </span>
+                        {% else %}
+                        <span class="rank-badge rank-default">{{ loop.index }}th</span>
+                        {% endif %}
+                        {% if row.brand.logo_filename %}
+                        <img src="{{ prefix | default('') }}assets/logos/{{ row.brand.logo_filename }}" alt="{{ row.brand.name }}">
+                        {% else %}
+                        <div class="brand-logo-placeholder">{{ row.brand.name }}</div>
+                        {% endif %}
+                    </div>
+                    {% if row.brand.rating %}
+                    <div class="brand-rating">
+                        <div class="stars">
+                            {% set full_stars = row.brand.rating | int %}
+                            {% for i in range(5) %}
+                            <svg viewBox="0 0 24 24" fill="currentColor"{% if i >= full_stars %} style="opacity:0.3"{% endif %}><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+                            {% endfor %}
+                        </div>
+                        <span class="brand-rating-score">{{ row.brand.rating }}/5</span>
+                    </div>
+                    {% endif %}
+                </div>
+                <div class="brand-info">
+                    <h3><a href="reviews/{{ row.brand.slug }}.html">{{ row.brand.name }} Review</a></h3>
+                    <div class="brand-info-label">{% if loop.index == 1 %}Why we recommend it{% else %}Key strengths{% endif %}</div>
+                    {% if bi and bi.selling_points %}
+                    <ul class="selling-points">
+                        {% for point in bi.selling_points %}
+                        <li>
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg>
+                            {{ point }}
+                        </li>
+                        {% endfor %}
+                    </ul>
+                    {% elif bi and bi.short_description %}
+                    <ul class="selling-points">
+                        <li>
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg>
+                            {{ bi.short_description }}
+                        </li>
+                    </ul>
+                    {% endif %}
+                    {% if row.badge %}
+                    <div style="margin-top:0.5rem;"><span class="rank-badge rank-2" style="position:static;border-radius:100px;font-size:0.68rem;">{{ row.badge }}</span></div>
+                    {% endif %}
+                </div>
+                <div class="brand-cta">
+                    <div class="bonus-label">{{ row.brand.name }} Bonus</div>
+                    {% if row.bonus_text %}
+                    <div class="bonus-offer">{{ row.bonus_text }}</div>
+                    {% endif %}
+                    {% if bi and bi.bonus_code %}
+                    <div class="bonus-code-box">
+                        <span class="bonus-code-value">{{ bi.bonus_code }}</span>
+                        <button class="bonus-code-copy" data-code="{{ bi.bonus_code }}" title="Copy code">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+                        </button>
+                    </div>
+                    {% endif %}
+                    <a href="{{ bi.affiliate_link if bi else '#' }}" class="cta-button" target="_blank" rel="nofollow noopener">
+                        {{ row.cta_text }}
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+                    </a>
+                </div>
+            </div>
+            <div class="brand-card-tcs">
+                <span class="tcs-text">18+. T&amp;Cs apply. New customers only. Please gamble responsibly.</span>
+            </div>
+        </div>
+        {% endif %}
+        {% endfor %}
+        {% else %}
+        {# Default: show all site brands #}
         {% for brand in site_brands %}
         <div class="brand-card">
             <div class="brand-card-top">
@@ -142,9 +227,7 @@
             </div>
         </div>
         {% endfor %}
-
-        <!-- CTA TABLE -->
-        {% include '_cta_table.html' %}
+        {% endif %}
 
         <!-- WHY TRUST US -->
         {% if content.why_trust_us %}

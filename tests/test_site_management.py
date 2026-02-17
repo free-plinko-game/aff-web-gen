@@ -585,3 +585,129 @@ class TestDeleteSite:
     def test_delete_nonexistent_site_404(self, client, db):
         resp = client.post('/sites/99999/delete')
         assert resp.status_code == 404
+
+
+# --- Manage Brands ---
+
+class TestManageBrands:
+
+    def test_manage_brands_page_loads(self, client, site_with_brands):
+        site, brands = site_with_brands
+        resp = client.get(f'/sites/{site.id}/manage-brands')
+        assert resp.status_code == 200
+        assert b'Manage Brands' in resp.data
+        # Should list the 2 existing site brands as checked
+        for b in brands:
+            assert b.name.encode() in resp.data
+
+    def test_manage_brands_shows_available_brands(self, client, site_with_brands, db):
+        """Shows brands with active BrandGeo for the site's GEO, including unchecked ones."""
+        site, brands = site_with_brands
+        geo = Geo.query.filter_by(code='gb').first()
+        # Add a third brand with active BrandGeo but NOT on the site
+        uid = uuid.uuid4().hex[:8]
+        extra = Brand(name=f'ExtraBrand-{uid}', slug=f'extra-{uid}')
+        db.session.add(extra)
+        db.session.flush()
+        db.session.add(BrandGeo(brand_id=extra.id, geo_id=geo.id, is_active=True,
+                                welcome_bonus='50 Free Spins'))
+        db.session.flush()
+
+        resp = client.get(f'/sites/{site.id}/manage-brands')
+        assert resp.status_code == 200
+        assert f'ExtraBrand-{uid}'.encode() in resp.data
+
+    def test_add_brands_to_site(self, client, site_with_brands, db):
+        """Add a new brand to an existing site via manage brands."""
+        site, brands = site_with_brands
+        geo = Geo.query.filter_by(code='gb').first()
+        uid = uuid.uuid4().hex[:8]
+        new_brand = Brand(name=f'NewBrand-{uid}', slug=f'new-{uid}')
+        db.session.add(new_brand)
+        db.session.flush()
+        db.session.add(BrandGeo(brand_id=new_brand.id, geo_id=geo.id, is_active=True))
+        db.session.flush()
+
+        # Submit with all 3 brands selected
+        resp = client.post(f'/sites/{site.id}/manage-brands', data={
+            'brand_ids': [str(b.id) for b in brands] + [str(new_brand.id)],
+            f'brand_rank_{brands[0].id}': '1',
+            f'brand_rank_{brands[1].id}': '2',
+            f'brand_rank_{new_brand.id}': '3',
+        }, follow_redirects=True)
+        assert resp.status_code == 200
+        assert b'3 brands saved' in resp.data
+        assert SiteBrand.query.filter_by(site_id=site.id, brand_id=new_brand.id).first() is not None
+
+    def test_remove_brand_from_site(self, client, site_with_brands, db):
+        """Uncheck a brand to remove it from the site."""
+        site, brands = site_with_brands
+        removed_id = brands[1].id
+
+        # Submit with only the first brand
+        resp = client.post(f'/sites/{site.id}/manage-brands', data={
+            'brand_ids': str(brands[0].id),
+            f'brand_rank_{brands[0].id}': '1',
+        }, follow_redirects=True)
+        assert resp.status_code == 200
+        assert b'1 brand' in resp.data
+        assert SiteBrand.query.filter_by(site_id=site.id, brand_id=removed_id).first() is None
+        # First brand still there
+        assert SiteBrand.query.filter_by(site_id=site.id, brand_id=brands[0].id).first() is not None
+
+    def test_reorder_brands(self, client, site_with_brands, db):
+        """Change brand ranks via manage brands."""
+        site, brands = site_with_brands
+
+        resp = client.post(f'/sites/{site.id}/manage-brands', data={
+            'brand_ids': [str(b.id) for b in brands],
+            f'brand_rank_{brands[0].id}': '2',
+            f'brand_rank_{brands[1].id}': '1',
+        }, follow_redirects=True)
+        assert resp.status_code == 200
+        sb0 = SiteBrand.query.filter_by(site_id=site.id, brand_id=brands[0].id).first()
+        sb1 = SiteBrand.query.filter_by(site_id=site.id, brand_id=brands[1].id).first()
+        assert sb0.rank == 2
+        assert sb1.rank == 1
+
+    def test_ignores_brands_without_active_geo(self, client, site_with_brands, db):
+        """Brands without active BrandGeo for the site's GEO are rejected."""
+        site, brands = site_with_brands
+        uid = uuid.uuid4().hex[:8]
+        no_geo_brand = Brand(name=f'NoGeo-{uid}', slug=f'nogeo-{uid}')
+        db.session.add(no_geo_brand)
+        db.session.flush()
+
+        resp = client.post(f'/sites/{site.id}/manage-brands', data={
+            'brand_ids': [str(brands[0].id), str(no_geo_brand.id)],
+            f'brand_rank_{brands[0].id}': '1',
+            f'brand_rank_{no_geo_brand.id}': '2',
+        }, follow_redirects=True)
+        assert resp.status_code == 200
+        assert b'1 brand' in resp.data
+        assert SiteBrand.query.filter_by(site_id=site.id, brand_id=no_geo_brand.id).first() is None
+
+    def test_manage_brands_preserves_overrides(self, client, site_with_brands, db):
+        """Existing brand overrides survive a manage-brands save."""
+        from app.models import SiteBrandOverride
+        site, brands = site_with_brands
+        sb = SiteBrand.query.filter_by(site_id=site.id, brand_id=brands[0].id).first()
+        override = SiteBrandOverride(
+            site_brand_id=sb.id,
+            custom_welcome_bonus='SPECIAL OFFER',
+        )
+        db.session.add(override)
+        db.session.flush()
+
+        # Re-save with same brands
+        resp = client.post(f'/sites/{site.id}/manage-brands', data={
+            'brand_ids': [str(b.id) for b in brands],
+            f'brand_rank_{brands[0].id}': '1',
+            f'brand_rank_{brands[1].id}': '2',
+        }, follow_redirects=True)
+        assert resp.status_code == 200
+
+        # Override should still exist
+        db.session.refresh(sb)
+        assert sb.override is not None
+        assert sb.override.custom_welcome_bonus == 'SPECIAL OFFER'
