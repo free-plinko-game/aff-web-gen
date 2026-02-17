@@ -7,9 +7,70 @@
 
 <div class="card mt-4">
     <div class="card-body">
-        <p>Upload a CSV file with the following columns:</p>
-        <code>name, slug, website_url, affiliate_link, rating</code>
-        <p class="text-muted mt-2">Brands with duplicate slugs will be skipped. The first row must be the header row.</p>
+        <p>Upload a CSV file with <strong>one row per brand-GEO combination</strong>. If a brand is active in multiple GEOs, use multiple rows (brand fields repeat, GEO fields differ).</p>
+
+        <div class="mb-3">
+            <strong>Required columns:</strong>
+            <code>name, slug</code>
+        </div>
+
+        <div class="row">
+            <div class="col-md-6">
+                <strong>Brand columns:</strong>
+                <ul class="small mb-2">
+                    <li><code>name</code> — brand name (required)</li>
+                    <li><code>slug</code> — URL slug (required, unique)</li>
+                    <li><code>website_url</code> — brand website</li>
+                    <li><code>affiliate_link</code> — default affiliate URL</li>
+                    <li><code>rating</code> — overall rating (0-5)</li>
+                    <li><code>description</code> — brand description</li>
+                    <li><code>founded_year</code> — e.g. 2006</li>
+                    <li><code>parent_company</code></li>
+                    <li><code>support_methods</code> — e.g. "Live Chat, Email"</li>
+                    <li><code>support_email</code></li>
+                    <li><code>available_languages</code> — e.g. "English, German"</li>
+                    <li><code>has_ios_app</code> — true/false</li>
+                    <li><code>has_android_app</code> — true/false</li>
+                    <li><code>verticals</code> — comma-separated slugs, e.g. "sports-betting,casino"</li>
+                </ul>
+            </div>
+            <div class="col-md-6">
+                <strong>GEO columns</strong> <small class="text-muted">(per-row)</small>:
+                <ul class="small mb-2">
+                    <li><code>geo</code> — GEO code (e.g. gb, de, se)</li>
+                    <li><code>welcome_bonus</code> — e.g. "£30 Free Bet"</li>
+                    <li><code>bonus_code</code></li>
+                    <li><code>license_info</code> — e.g. "UKGC #12345"</li>
+                    <li><code>payment_methods</code> — e.g. "Visa, PayPal"</li>
+                    <li><code>withdrawal_timeframe</code> — e.g. "1-3 days"</li>
+                    <li><code>rating_bonus</code> — 0-5</li>
+                    <li><code>rating_usability</code> — 0-5</li>
+                    <li><code>rating_mobile_app</code> — 0-5</li>
+                    <li><code>rating_payments</code> — 0-5</li>
+                    <li><code>rating_support</code> — 0-5</li>
+                    <li><code>rating_licensing</code> — 0-5</li>
+                    <li><code>rating_rewards</code> — 0-5</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="alert alert-info mt-2">
+            <strong>Tips:</strong>
+            <ul class="mb-0 small">
+                <li>Brands with duplicate slugs are skipped with a warning.</li>
+                <li>Leave the <code>geo</code> column empty to import a brand without GEO data.</li>
+                <li>Only columns present in your CSV header are processed — you can omit any optional column entirely.</li>
+                <li>Boolean columns (<code>has_ios_app</code>, <code>has_android_app</code>) accept: true, 1, yes.</li>
+            </ul>
+        </div>
+
+        <details class="mb-3">
+            <summary class="text-primary" style="cursor: pointer;">Example CSV</summary>
+            <pre class="bg-light p-2 rounded mt-2" style="font-size: 0.8em; overflow-x: auto;">name,slug,website_url,affiliate_link,rating,founded_year,parent_company,has_ios_app,has_android_app,verticals,geo,welcome_bonus,bonus_code,license_info,payment_methods,rating_bonus,rating_usability
+Bet365,bet365,https://bet365.com,https://aff.bet365.com,4.5,2000,Hillside Group,true,true,sports-betting,gb,£30 Free Bet,BET30,UKGC #39563,Visa; PayPal; Skrill,4.5,4.2
+Bet365,bet365,,,,,,,,,de,30€ Gratiswette,BET30DE,Schleswig-Holstein,Visa; PayPal,4.0,4.0
+888sport,888sport,https://888sport.com,https://aff.888sport.com,4.0,1997,888 Holdings,true,true,"sports-betting,casino",gb,£30 + £10 Casino,888BONUS,UKGC #39028,Visa; PayPal; Neteller,4.2,3.8</pre>
+        </details>
 
         <form method="POST" enctype="multipart/form-data" class="mt-3">
             <div class="mb-3">

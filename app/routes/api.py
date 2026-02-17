@@ -1,6 +1,9 @@
-from flask import Blueprint, jsonify, request, abort
+import os
+
+from flask import Blueprint, jsonify, request, abort, Response, send_from_directory
 
 from ..models import db, Brand, BrandGeo, BrandVertical, Site, SitePage
+from ..services.preview_renderer import render_page_preview
 
 bp = Blueprint('api', __name__, url_prefix='/api')
 
@@ -74,3 +77,40 @@ def save_robots_txt(site_id):
     db.session.commit()
 
     return jsonify({'success': True})
+
+
+@bp.route('/sites/<int:site_id>/pages/<int:page_id>/preview')
+def page_preview(site_id, page_id):
+    """Render a live preview of a page (in-memory, no disk write)."""
+    site = db.session.get(Site, site_id)
+    if not site:
+        return jsonify({'error': 'Site not found'}), 404
+
+    page = db.session.get(SitePage, page_id)
+    if not page or page.site_id != site.id:
+        return jsonify({'error': 'Page not found'}), 404
+
+    asset_prefix = f'/api/sites/{site_id}/preview-assets/'
+    try:
+        html = render_page_preview(page, site, asset_url_prefix=asset_prefix)
+    except Exception as e:
+        html = f'<html><body><h1>Preview Error</h1><pre>{e}</pre></body></html>'
+
+    return Response(html, content_type='text/html; charset=utf-8')
+
+
+@bp.route('/sites/<int:site_id>/preview-assets/<path:filename>')
+def preview_assets(site_id, filename):
+    """Serve static assets (CSS, JS, logos) for the live preview iframe."""
+    # Serve from site_templates/assets/
+    from ..services.site_builder import _get_site_templates_path
+    templates_path = _get_site_templates_path()
+    assets_dir = os.path.join(templates_path, 'assets')
+
+    # Check if it's a logo file — serve from uploads/logos/ instead
+    if filename.startswith('logos/'):
+        from flask import current_app
+        upload_folder = current_app.config.get('UPLOAD_FOLDER', 'uploads')
+        return send_from_directory(os.path.join(upload_folder, 'logos'), filename[6:])
+
+    return send_from_directory(assets_dir, filename)

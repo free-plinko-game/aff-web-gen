@@ -2,6 +2,7 @@
 
 import io
 import os
+import uuid
 
 from app.models import db as _db, Brand, BrandGeo, BrandVertical, Geo, Vertical
 
@@ -227,3 +228,61 @@ class TestBrandNewFields:
         assert brand.parent_company == 'New Corp'
         assert brand.has_ios_app is True
         assert brand.has_android_app is False
+
+
+class TestBulkDeleteBrands:
+
+    def test_bulk_delete_multiple(self, client, db):
+        uid = uuid.uuid4().hex[:8]
+        brands = []
+        for i in range(3):
+            b = Brand(name=f'BulkDel{i}-{uid}', slug=f'bulkdel{i}-{uid}')
+            db.session.add(b)
+            db.session.flush()
+            brands.append(b)
+
+        resp = client.post('/brands/bulk-delete', data={
+            'brand_ids': [str(b.id) for b in brands],
+        }, follow_redirects=True)
+        assert resp.status_code == 200
+        assert b'3 brands deleted' in resp.data
+        for b in brands:
+            assert _db.session.get(Brand, b.id) is None
+
+    def test_bulk_delete_none_selected(self, client, db):
+        resp = client.post('/brands/bulk-delete', data={}, follow_redirects=True)
+        assert resp.status_code == 200
+        assert b'No brands selected' in resp.data
+
+    def test_bulk_delete_single(self, client, db):
+        uid = uuid.uuid4().hex[:8]
+        b = Brand(name=f'SingleDel-{uid}', slug=f'singledel-{uid}')
+        db.session.add(b)
+        db.session.flush()
+        bid = b.id
+
+        resp = client.post('/brands/bulk-delete', data={
+            'brand_ids': str(bid),
+        }, follow_redirects=True)
+        assert resp.status_code == 200
+        assert b'1 brand deleted' in resp.data
+        assert _db.session.get(Brand, bid) is None
+
+    def test_bulk_delete_with_geos(self, client, db):
+        """Bulk delete cascades to brand_geos."""
+        uid = uuid.uuid4().hex[:8]
+        geo = Geo.query.filter_by(code='gb').first()
+        b = Brand(name=f'GeoDelB-{uid}', slug=f'geodelb-{uid}')
+        db.session.add(b)
+        db.session.flush()
+        bg = BrandGeo(brand_id=b.id, geo_id=geo.id, is_active=True, welcome_bonus='Free')
+        db.session.add(bg)
+        db.session.flush()
+        bid = b.id
+
+        resp = client.post('/brands/bulk-delete', data={
+            'brand_ids': str(bid),
+        }, follow_redirects=True)
+        assert resp.status_code == 200
+        assert _db.session.get(Brand, bid) is None
+        assert BrandGeo.query.filter_by(brand_id=bid).count() == 0

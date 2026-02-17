@@ -67,6 +67,12 @@
     <a href="{{ url_for('sites.add_page', site_id=site.id) }}" class="btn btn-outline-primary">
         Add Page
     </a>
+    <form method="POST" action="{{ url_for('sites.delete_site', site_id=site.id) }}" class="d-inline float-end">
+        <button type="submit" class="btn btn-outline-danger"
+                onclick="return confirm('Permanently delete &quot;{{ site.name }}&quot; and all its pages? This cannot be undone.')">
+            Delete Site
+        </button>
+    </form>
 </div>
 
 <!-- Progress Bar (shown during generation) -->
@@ -106,6 +112,18 @@
                     {% if site.deployed_at %}
                     <tr><th>Deployed</th><td>{{ site.deployed_at.strftime('%Y-%m-%d %H:%M') }}</td></tr>
                     {% endif %}
+                    <tr>
+                        <th>Freshness</th>
+                        <td>
+                            <form method="POST" action="{{ url_for('sites.update_freshness', site_id=site.id) }}" class="d-inline">
+                                <div class="input-group input-group-sm" style="max-width: 200px;">
+                                    <input type="number" name="threshold" class="form-control" value="{{ site.freshness_threshold_days or 30 }}" min="1" max="365">
+                                    <span class="input-group-text">days</span>
+                                    <button type="submit" class="btn btn-outline-secondary btn-sm">Set</button>
+                                </div>
+                            </form>
+                        </td>
+                    </tr>
                 </table>
             </div>
         </div>
@@ -132,7 +150,10 @@
         {% endif %}
 
         <div class="card">
-            <div class="card-header"><strong>Brands ({{ site.site_brands | length }})</strong></div>
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <strong>Brands ({{ site.site_brands | length }})</strong>
+                <a href="{{ url_for('sites.brand_overrides', site_id=site.id) }}" class="btn btn-sm btn-outline-secondary">Overrides</a>
+            </div>
             <div class="card-body">
                 <table class="table table-sm mb-0">
                     <thead>
@@ -162,6 +183,11 @@
         </button>
     </li>
     <li class="nav-item">
+        <a class="nav-link" href="{{ url_for('sites.cta_table_list', site_id=site.id) }}">
+            CTA Tables
+        </a>
+    </li>
+    <li class="nav-item">
         <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-robots" type="button">
             robots.txt
         </button>
@@ -174,7 +200,7 @@
         {% set generated_count = site.site_pages | selectattr('is_generated') | list | length %}
         {% set pending_count = site.site_pages | length - generated_count %}
         <p class="text-muted mb-3">
-            {{ site.site_pages | length }} pages ({{ generated_count }} generated, {{ pending_count }} pending)
+            {{ site.site_pages | length }} pages ({{ generated_count }} generated, {{ pending_count }} pending{% if stale_count %}, <strong class="text-warning">{{ stale_count }} stale</strong>{% endif %})
         </p>
 
         <table class="table table-sm">
@@ -183,12 +209,14 @@
                     <th>URL</th>
                     <th>Page Type</th>
                     <th>Status</th>
+                    <th>Freshness</th>
                     <th>Actions</th>
                 </tr>
             </thead>
             <tbody>
                 {% for page in site.site_pages %}
                 {% set url = page_url(page) %}
+                {% set freshness = page_freshness(page) %}
                 <tr>
                     <td>
                         <code>
@@ -212,6 +240,15 @@
                         {% else %}
                             <span class="badge bg-success">Built</span>
                             <small class="text-muted ms-1">{{ page.generated_at.strftime('%Y-%m-%d %H:%M') if page.generated_at else '' }}</small>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if freshness is none %}
+                            <span class="text-muted">—</span>
+                        {% elif freshness.stale %}
+                            <span class="badge bg-danger bg-opacity-75">Stale ({{ freshness.days }}d)</span>
+                        {% else %}
+                            <span class="badge bg-success bg-opacity-75">Fresh ({{ freshness.days }}d)</span>
                         {% endif %}
                     </td>
                     <td>

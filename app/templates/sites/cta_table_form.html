@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+
+{% block title %}{{ 'Edit' if table else 'Create' }} CTA Table — {{ site.name }}{% endblock %}
+
+{% block content %}
+<nav aria-label="breadcrumb">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="{{ url_for('sites.detail', site_id=site.id) }}">{{ site.name }}</a></li>
+        <li class="breadcrumb-item"><a href="{{ url_for('sites.cta_table_list', site_id=site.id) }}">CTA Tables</a></li>
+        <li class="breadcrumb-item active">{{ 'Edit' if table else 'Create' }}</li>
+    </ol>
+</nav>
+
+<h1>{{ 'Edit' if table else 'Create' }} CTA Table</h1>
+
+{% set existing_rows = {} %}
+{% if table %}
+    {% for row in table.rows %}
+        {% if existing_rows.update({row.brand_id: row}) %}{% endif %}
+    {% endfor %}
+{% endif %}
+
+<form method="POST">
+    <div class="card mb-3">
+        <div class="card-header"><strong>Table Settings</strong></div>
+        <div class="card-body">
+            <div class="mb-3" style="max-width: 400px;">
+                <label for="name" class="form-label">Table Name</label>
+                <input type="text" name="name" id="name" class="form-control"
+                       value="{{ table.name if table else '' }}" required
+                       placeholder="e.g. Top 3 Bookmakers">
+            </div>
+        </div>
+    </div>
+
+    <div class="card mb-3">
+        <div class="card-header"><strong>Brand Rows</strong></div>
+        <div class="card-body">
+            <p class="text-muted mb-3">Select brands and customise their display in this CTA table.</p>
+            {% for sb in site_brands %}
+            {% set brand = sb.brand %}
+            {% set row = existing_rows.get(brand.id) %}
+            <div class="border rounded p-3 mb-2">
+                <div class="form-check mb-2">
+                    <input type="checkbox" class="form-check-input" name="row_brand_ids"
+                           value="{{ brand.id }}" id="brand_{{ brand.id }}"
+                           {{ 'checked' if row else '' }}>
+                    <label class="form-check-label" for="brand_{{ brand.id }}">
+                        <strong>{{ brand.name }}</strong> <code class="ms-1">{{ brand.slug }}</code>
+                    </label>
+                </div>
+                <div class="row ms-4">
+                    <div class="col-md-3">
+                        <input type="text" name="row_{{ brand.id }}_bonus" class="form-control form-control-sm"
+                               placeholder="Custom bonus text"
+                               value="{{ row.custom_bonus_text or '' if row else '' }}">
+                    </div>
+                    <div class="col-md-3">
+                        <input type="text" name="row_{{ brand.id }}_cta" class="form-control form-control-sm"
+                               placeholder="CTA text (default: Visit Site)"
+                               value="{{ row.custom_cta_text or '' if row else '' }}">
+                    </div>
+                    <div class="col-md-3">
+                        <input type="text" name="row_{{ brand.id }}_badge" class="form-control form-control-sm"
+                               placeholder="Badge (e.g. Editor's Pick)"
+                               value="{{ row.custom_badge or '' if row else '' }}">
+                    </div>
+                    <div class="col-md-3">
+                        <div class="form-check mt-1">
+                            <input type="checkbox" class="form-check-input" name="row_{{ brand.id }}_visible"
+                                   id="vis_{{ brand.id }}"
+                                   {{ 'checked' if (row and row.is_visible) or not row else '' }}>
+                            <label class="form-check-label" for="vis_{{ brand.id }}">Visible</label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <div class="mb-4">
+        <button type="submit" class="btn btn-primary">{{ 'Update' if table else 'Create' }} CTA Table</button>
+        <a href="{{ url_for('sites.cta_table_list', site_id=site.id) }}" class="btn btn-outline-secondary ms-2">Cancel</a>
+    </div>
+</form>
+{% endblock %}

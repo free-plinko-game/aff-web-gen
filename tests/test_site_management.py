@@ -13,7 +13,7 @@ import pytest
 
 from app.models import (
     db as _db, Site, SitePage, SiteBrand, Brand, BrandGeo, BrandVertical,
-    Geo, Vertical, PageType, Domain, ContentHistory,
+    Geo, Vertical, PageType, Domain, ContentHistory, CTATable,
 )
 
 
@@ -535,3 +535,53 @@ class TestPhase7Schema:
         db.session.flush()
         db.session.refresh(site)
         assert site.custom_robots_txt == 'User-agent: *\nDisallow: /'
+
+
+# --- Delete Site ---
+
+class TestDeleteSite:
+
+    def test_delete_site(self, client, site_with_pages, db):
+        site, brands, home, review = site_with_pages
+        site_id = site.id
+        resp = client.post(f'/sites/{site_id}/delete', follow_redirects=True)
+        assert resp.status_code == 200
+        assert b'deleted' in resp.data
+        assert db.session.get(Site, site_id) is None
+
+    def test_delete_site_cascades_pages(self, client, site_with_pages, db):
+        site, brands, home, review = site_with_pages
+        home_id = home.id
+        review_id = review.id
+        resp = client.post(f'/sites/{site.id}/delete', follow_redirects=True)
+        assert resp.status_code == 200
+        assert db.session.get(SitePage, home_id) is None
+        assert db.session.get(SitePage, review_id) is None
+
+    def test_delete_site_releases_domain(self, client, site_with_brands, db):
+        site, brands = site_with_brands
+        domain = Domain(domain='deltest.com', status='assigned')
+        db.session.add(domain)
+        db.session.flush()
+        site.domain_id = domain.id
+        db.session.flush()
+
+        resp = client.post(f'/sites/{site.id}/delete', follow_redirects=True)
+        assert resp.status_code == 200
+        db.session.refresh(domain)
+        assert domain.status == 'available'
+
+    def test_delete_site_cleans_up_cta_tables(self, client, site_with_brands, db):
+        site, brands = site_with_brands
+        ct = CTATable(site_id=site.id, name='DelCTA', slug='del-cta')
+        db.session.add(ct)
+        db.session.flush()
+        ct_id = ct.id
+
+        resp = client.post(f'/sites/{site.id}/delete', follow_redirects=True)
+        assert resp.status_code == 200
+        assert db.session.get(CTATable, ct_id) is None
+
+    def test_delete_nonexistent_site_404(self, client, db):
+        resp = client.post('/sites/99999/delete')
+        assert resp.status_code == 404

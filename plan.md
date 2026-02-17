@@ -28,6 +28,9 @@ A Flask-based control panel for generating and deploying static affiliate websit
 - All junction tables (`brand_geos`, `brand_verticals`, `site_brands`) must have **unique constraints** on their compound key pairs to prevent duplicate entries.
 - `domains.domain` must be **unique**.
 - `brands.slug` must be **unique** — it's used for URL generation in output sites.
+- `cta_tables.slug` must be **unique**.
+- `cta_table_rows` must have a **unique constraint** on `(cta_table_id, brand_id)`.
+- `site_brand_overrides` must have a **unique constraint** on `(site_id, brand_id)`.
 - `site_pages` uses **three partial unique indexes** (see site_pages table below for details):
   - Brand pages: unique on `(site_id, page_type_id, brand_id)` WHERE `brand_id IS NOT NULL`
   - Evergreen pages: unique on `(site_id, page_type_id, evergreen_topic)` WHERE `evergreen_topic IS NOT NULL`
@@ -134,6 +137,8 @@ A Flask-based control panel for generating and deploying static affiliate websit
 | built_at | DATETIME | Nullable — timestamp of last successful build |
 | current_version | INTEGER | Default 1, incremented on each rebuild |
 | custom_robots_txt | TEXT | Nullable — if set, used instead of the default robots.txt template during build |
+| custom_head | TEXT | Nullable — raw HTML injected into `<head>` on every page of this site (site-wide tracking, analytics, etc.) |
+| freshness_threshold_days | INTEGER | Default 30 — pages older than this are flagged as stale on the dashboard |
 
 ### `site_brands`
 | Column | Type | Notes |
@@ -153,8 +158,10 @@ A Flask-based control panel for generating and deploying static affiliate websit
 | brand_id | INTEGER FK | Nullable — for brand-specific pages (reviews, bonus pages) |
 | evergreen_topic | TEXT | Nullable — for evergreen pages, e.g. "How to Bet on Football", "Understanding Odds" |
 | slug | TEXT | URL slug for this page |
-| title | TEXT | Page title |
+| title | TEXT | Page title (used as H1 / display title) |
+| meta_title | TEXT | Nullable — SEO `<title>` tag. If null, falls back to `title`. Often different from H1 for keyword targeting. |
 | meta_description | TEXT | SEO meta |
+| custom_head | TEXT | Nullable — raw HTML injected into `<head>` for this page (tracking pixels, canonical overrides, hreflang tags, etc.) |
 | content_json | TEXT | JSON blob of generated content sections |
 | is_generated | BOOLEAN | Whether LLM content has been generated |
 | generated_at | DATETIME | Nullable — timestamp of last generation |
@@ -174,6 +181,47 @@ A Flask-based control panel for generating and deploying static affiliate websit
 | version | INTEGER | Auto-incrementing per page |
 
 This table stores previous versions of generated content. Every time content is regenerated for a `site_page`, the old `content_json` is copied here before being overwritten. This enables rollbacks.
+
+### `cta_tables`
+| Column | Type | Notes |
+|---|---|---|
+| id | INTEGER PK | Auto |
+| name | TEXT | Internal label, e.g. "UK Sports Betting CTA Table" |
+| slug | TEXT UNIQUE | Used for referencing in templates, e.g. `uk-sports-main` |
+| site_id | INTEGER FK | → sites.id — CTA tables are scoped to a site |
+| created_at | DATETIME | Auto |
+| updated_at | DATETIME | Auto |
+
+CTA tables are reusable comparison/CTA components that can be embedded on any page within the same site. They're managed independently from page content, so updating a bonus in the CTA table updates it everywhere the table is referenced.
+
+### `cta_table_rows`
+| Column | Type | Notes |
+|---|---|---|
+| id | INTEGER PK | Auto |
+| cta_table_id | INTEGER FK | → cta_tables.id |
+| brand_id | INTEGER FK | → brands.id |
+| rank | INTEGER | Display order |
+| custom_bonus_text | TEXT | Nullable — overrides `brand_geos.welcome_bonus` for this table if set |
+| custom_cta_text | TEXT | Nullable — e.g. "Claim Free Bets", "Start Playing" (default: "Visit Site") |
+| custom_badge | TEXT | Nullable — e.g. "Editor's Pick", "Best Odds", "New" |
+| is_visible | BOOLEAN | Default True — toggle rows on/off without deleting |
+| **UNIQUE** | | **(cta_table_id, brand_id)** |
+
+### `site_brand_overrides`
+| Column | Type | Notes |
+|---|---|---|
+| id | INTEGER PK | Auto |
+| site_id | INTEGER FK | → sites.id |
+| brand_id | INTEGER FK | → brands.id |
+| custom_description | TEXT | Nullable — overrides `brands.description` for this site |
+| custom_selling_points | TEXT | Nullable — JSON array of strings, overrides selling points for this site |
+| custom_affiliate_link | TEXT | Nullable — overrides `brands.affiliate_link` for this site (e.g. different sub-ID) |
+| custom_welcome_bonus | TEXT | Nullable — overrides `brand_geos.welcome_bonus` for this site |
+| custom_bonus_code | TEXT | Nullable — overrides `brand_geos.bonus_code` for this site |
+| notes | TEXT | Nullable — internal notes, e.g. "This site focuses on live betting for this brand" |
+| **UNIQUE** | | **(site_id, brand_id)** |
+
+This table allows per-site customisation of brand data without changing the global brand record. When `site_builder.py` assembles template data, it checks for overrides and merges them on top of the base brand + brand_geo data. If an override field is null, the global value is used.
 
 ---
 
@@ -203,7 +251,9 @@ affiliate-factory/
 │   │   ├── __init__.py
 │   │   ├── content_generator.py    ← OpenAI API integration (runs in background thread)
 │   │   ├── site_builder.py         ← Renders templates → static files (sitemap, robots.txt, linking)
-│   │   └── deployer.py             ← SSH deployment via Fabric (symlink-based versioning)
+│   │   ├── deployer.py             ← SSH deployment via Fabric (symlink-based versioning)
+│   │   ├── preview_renderer.py     ← Renders a single page template for live preview (returns HTML string)
+│   │   └── schema_generator.py     ← Generates JSON-LD structured data for each page type
 │   ├── templates/                  ← Flask control panel templates (Jinja2)
 │   │   ├── base.html
 │   │   ├── dashboard.html
@@ -218,7 +268,10 @@ affiliate-factory/
 │   │       ├── create.html         ← The main wizard (GEO → vertical → brands → pages)
 │   │       ├── detail.html         ← Site hub: pages list, sitemap, robots.txt, generation & build controls
 │   │       ├── add_page.html       ← Add a new page to an existing site
-│   │       ├── edit_page.html      ← Edit page settings + regeneration notes
+│   │       ├── edit_page.html      ← Structured content editor with live preview + regeneration notes
+│   │       ├── cta_tables.html     ← CTA table list + CRUD for a site
+│   │       ├── cta_table_form.html ← Create/edit a CTA table and its rows
+│   │       ├── brand_overrides.html ← Per-site brand override management
 │   │       └── deploy.html
 │   └── static/                     ← Control panel static assets
 │       ├── css/
@@ -226,12 +279,13 @@ affiliate-factory/
 ├── uploads/                        ← User-uploaded assets
 │   └── logos/                      ← Brand logos (uploaded via brand CRUD)
 ├── site_templates/                 ← Templates for the GENERATED affiliate sites
-│   ├── base.html                   ← Base layout (header, footer, nav — includes site-wide linking)
+│   ├── base.html                   ← Base layout (header, footer, nav — includes site-wide linking + schema block)
 │   ├── homepage.html
 │   ├── comparison.html
 │   ├── brand_review.html
 │   ├── bonus_review.html
 │   ├── evergreen.html
+│   ├── _cta_table.html             ← Reusable CTA table partial ({% include '_cta_table.html' %})
 │   ├── sitemap.xml                 ← Jinja2 template for sitemap generation
 │   ├── robots.txt                  ← Jinja2 template for robots.txt
 │   └── assets/                     ← CSS/JS/images for generated sites
@@ -376,8 +430,11 @@ All generated sites follow a consistent URL and navigation structure:
 
 1. Build `site_builder.py` service:
    - Loads the site config + all site_pages with their content_json
+   - Loads `site_brand_overrides` and merges override data on top of base brand + brand_geo data (see Brand Data Layering in Key Design Decisions)
+   - Resolves CTA tables: for pages with a `cta_table_slug` in content_json, loads the corresponding `cta_tables` + `cta_table_rows` data
    - Generates `nav_links` and `footer_links` lists from the site's pages (see Internal Linking Strategy above)
-   - For each page, renders the corresponding `site_templates/*.html` with the content data + nav/footer links
+   - For each page, calls `schema_generator.py` to produce JSON-LD structured data
+   - For each page, renders the corresponding `site_templates/*.html` with the content data + nav/footer links + CTA table data + schema JSON-LD + custom_head
    - Copies assets (CSS, JS) into the output folder
    - **Copies brand logos** from `uploads/logos/` into `output/{site}/v{n}/assets/logos/` for all brands in the site
    - Generates `sitemap.xml` from the sitemap template (lists all pages with lastmod dates)
@@ -385,7 +442,7 @@ All generated sites follow a consistent URL and navigation structure:
    - Outputs to versioned folder: `output/{site_id}_{slug}/v{version}/`
    - Increments `sites.current_version`
 2. Create the Jinja2 site templates in `site_templates/`:
-   - `base.html` — responsive layout, nav bar (from `nav_links`), footer (from `footer_links`)
+   - `base.html` — responsive layout, nav bar (from `nav_links`), footer (from `footer_links`). Includes `{{ site_custom_head | safe }}`, `{{ page_custom_head | safe }}`, and `{{ schema_json_ld | safe }}` blocks in `<head>`. Uses `{{ meta_title or title }}` for the `<title>` tag.
    - `homepage.html` — hero section, top brands grid with logos + affiliate links, intro content
    - `comparison.html` — comparison table with brand logos, bonuses, ratings, pros/cons, CTA buttons linking to affiliate URLs. Rows link to individual brand review pages.
    - `brand_review.html` — full review with pros/cons, bonus info, CTA buttons. Cross-links to bonus review page for same brand.
@@ -534,6 +591,174 @@ Since pages can now be added or updated independently, the site detail page need
 
 ---
 
+### Phase 8: Content Editor & Advanced Features
+**Goal:** Replace raw JSON editing with a structured content editor and live preview, add reusable CTA tables, auto-generated schema markup, per-site brand overrides, and content freshness monitoring.
+
+This phase transforms the edit page experience from a developer-facing JSON editor into a proper CMS-like content management workflow.
+
+#### 8.1 — Structured Content Editor with Live Preview
+
+Replace the raw JSON content display in `edit_page.html` with a two-panel layout: structured form on the left, live preview iframe on the right.
+
+1. **Structured Form (left panel):**
+   - Dynamically generated based on the page's `page_type`. Each page type has a known JSON structure (defined in the content generation prompts), so the form fields map directly to the JSON keys.
+   - **Homepage** fields: hero_title, hero_subtitle, hero_badge, hero_stats (repeating group), trust_items (repeating list), section_title, section_subtitle, why_trust_us_title, why_trust_us, faq (repeating question/answer pairs)
+   - **Comparison** fields: hero_title, hero_subtitle, intro_paragraph, comparison_rows (repeating group: brand, bonus, rating, pros list, cons list, verdict), faq (repeating), closing_paragraph
+   - **Brand Review** fields: hero_title, hero_subtitle, intro_paragraphs (repeating), pros (list), cons (list), features_sections (repeating heading/content), user_experience, verdict, faq (repeating)
+   - **Bonus Review** fields: hero_title, hero_subtitle, bonus_overview (offer, code, min_deposit, wagering_requirements, validity), how_to_claim (ordered list), terms_summary, pros (list), cons (list), similar_offers, verdict, faq (repeating)
+   - **Evergreen** fields: hero_title, hero_subtitle, intro_paragraph, sections (repeating heading/content), key_takeaways (list), faq (repeating), closing_paragraph
+   - For repeating fields (FAQ pairs, pros/cons lists, sections), provide "Add" / "Remove" buttons to manage items dynamically.
+   - On form change, assemble the JSON from the form fields and POST to the preview endpoint.
+
+2. **Live Preview (right panel):**
+   - An `<iframe>` that loads the rendered page from a preview endpoint.
+   - **Preview endpoint:** `GET /api/sites/<site_id>/pages/<page_id>/preview` — calls `preview_renderer.py` which renders the page's site template with the current `content_json` and returns full HTML. This uses the same Jinja2 templates as `site_builder.py` but renders in-memory without writing to disk.
+   - **Save + Refresh flow:** When the operator clicks "Save", the form data is assembled into JSON, saved to `site_pages.content_json`, and the iframe reloads to show the updated preview.
+   - The preview should look identical to the final built page (same CSS, same template). Asset paths in the preview should resolve correctly — `preview_renderer.py` can serve assets from `site_templates/assets/` and logos from `uploads/logos/`.
+
+3. **Form layout:**
+   - Use Bootstrap 5 two-column grid: `col-lg-6` for the form, `col-lg-6` for the iframe.
+   - The iframe panel should be sticky (stays visible while scrolling the form).
+   - On mobile, the iframe stacks below the form with a "Preview" toggle button.
+
+4. **Page settings (above the content form):**
+   - Page Title (H1)
+   - Meta Title (SEO `<title>` — separate field, falls back to Page Title if empty)
+   - Meta Description
+   - Slug (with change warning)
+   - Custom Head HTML (textarea — for tracking pixels, canonical tags, hreflang, etc.)
+   - CTA Table selector (dropdown of available CTA tables for this site — see 8.2)
+   - Regeneration Notes (textarea — same as Phase 7.2)
+
+5. **Actions:**
+   - "Save" — saves all form fields to DB (page settings + content_json), refreshes preview
+   - "Save & Regenerate" — saves page settings + regeneration notes, triggers LLM regeneration (overwrites content_json with fresh LLM output, snapshots old version to content_history)
+   - "Cancel" — returns to site detail page
+
+6. **Build `preview_renderer.py`:**
+   - Takes a site_page record (or raw content_json + page_type)
+   - Loads the corresponding site template from `site_templates/`
+   - Builds the same template context that `site_builder.py` would (brand data, nav_links, footer_links, etc.)
+   - Renders to an HTML string and returns it
+   - Serves brand logos and CSS/JS assets via a Flask route so the preview renders correctly
+   - Does NOT write to disk — this is purely for the preview iframe
+
+#### 8.2 — Custom CTA Tables
+
+Reusable comparison/CTA table components that can be embedded on any page and managed independently.
+
+1. **CRUD for CTA tables:** Add a "CTA Tables" tab on the site detail page.
+   - List all CTA tables for the site
+   - "Create CTA Table" button → `cta_table_form.html`
+   - Edit / Delete existing tables
+
+2. **CTA Table Form (`cta_table_form.html`):**
+   - Name and slug fields
+   - Brand rows section: a sortable list of brands from the site's `site_brands`
+   - Per brand row:
+     - Rank (drag to reorder)
+     - Custom bonus text (optional override of `brand_geos.welcome_bonus`)
+     - Custom CTA button text (e.g. "Claim Free Bets" — default: "Visit Site")
+     - Custom badge (e.g. "Editor's Pick", "Best Odds", "New")
+     - Visibility toggle (show/hide without deleting)
+   - "Add Brand" button to include a brand from the site's pool
+   - Save creates/updates `cta_tables` + `cta_table_rows` records
+
+3. **Embedding CTA tables in pages:**
+   - The edit page form (8.1) includes a "CTA Table" dropdown selector per page
+   - Store the selected CTA table as a FK column `site_pages.cta_table_id` → `cta_tables.id` (nullable). This survives LLM regeneration (which overwrites `content_json`) and is queryable. Do NOT store it inside `content_json`.
+   - During build, `site_builder.py` checks `site_pages.cta_table_id`, loads the table + rows, and passes the data to the template as a `cta_table` variable
+   - Site templates render the CTA table using a shared partial/include (e.g. `site_templates/_cta_table.html`) — a styled comparison block with brand logos, bonuses, badges, and CTA buttons
+
+4. **Benefit:** Update a brand's bonus once in the CTA table → every page using that table reflects the change on next build. No need to regenerate content.
+
+#### 8.3 — Schema Markup / Structured Data
+
+Auto-generate JSON-LD structured data for each page type to improve search engine visibility.
+
+1. **Build `schema_generator.py`:**
+   - Takes a page type, content_json, brand data, and site metadata
+   - Returns a JSON-LD `<script>` block ready to inject into `<head>`
+   - Schema types by page:
+     - **Brand Review:** `Review` schema — itemReviewed (Organization), reviewRating (star rating), author, datePublished
+     - **Bonus Review:** `Review` schema — focused on the offer, with ratingValue
+     - **Comparison:** `ItemList` schema — list of reviewed items with position and ratings
+     - **Evergreen:** `Article` schema — headline, datePublished, dateModified, author, publisher
+     - **Homepage:** `WebSite` schema — site name, URL, search action (optional)
+     - **FAQ sections:** `FAQPage` schema — appended to any page that has FAQ content in its content_json
+
+2. **Integration with site_builder.py:**
+   - During build, call `schema_generator.py` for each page
+   - Inject the returned JSON-LD into the page's `<head>` section
+   - The base site template (`site_templates/base.html`) should include a `{% block schema %}{% endblock %}` or a template variable `{{ schema_json_ld | safe }}` for this
+
+3. **Integration with custom_head:**
+   - Auto-generated schema is injected automatically during build
+   - If the operator adds manual schema via `custom_head` on a page, it's rendered alongside the auto-generated schema (not replacing it). The operator can disable auto-schema per page if needed via a checkbox in the edit form.
+
+4. **No manual editing required** — schema is derived from existing data (ratings, content, brand info). It just works.
+
+#### 8.4 — Brand Overrides per Site
+
+Allow per-site customisation of brand data without changing the global brand record.
+
+1. **Data model:** `site_brand_overrides` uses a FK to `site_brands.id` (not separate site_id + brand_id columns). This means one override per site-brand pair, and if a brand is removed from a site (`site_brands` row deleted), the override cascades out automatically — no orphans.
+
+2. **Brand Overrides UI:** Add a "Brand Overrides" tab on the site detail page → `brand_overrides.html`
+   - Lists all brands assigned to the site (from `site_brands`)
+   - Per brand, show the current global values alongside editable override fields:
+     - Custom Description (e.g. "For this casino site, emphasise the live dealer games")
+     - Custom Selling Points (JSON array of strings)
+     - Custom Affiliate Link (e.g. different sub-ID or campaign tag)
+     - Custom Welcome Bonus (override the GEO-specific bonus for this site)
+     - Custom Bonus Code
+     - Internal Notes (never rendered — just for the operator)
+   - Fields left blank inherit the global value. Show the global value as placeholder text.
+
+3. **Data flow in `site_builder.py`:**
+   - When assembling template context for a page, query `site_brand_overrides` for the site (via `site_brands`)
+   - For each brand, merge overrides on top of base brand + brand_geo data:
+     ```
+     final_description = override.custom_description or brand.description
+     final_affiliate_link = override.custom_affiliate_link or brand.affiliate_link
+     final_welcome_bonus = override.custom_welcome_bonus or brand_geo.welcome_bonus
+     ... etc
+     ```
+   - Templates receive the merged data — they don't need to know about overrides
+
+4. **Use cases:**
+   - Site A is a sports betting site → Bet365's description emphasises live betting and cash-out
+   - Site B is a casino site → Bet365's description emphasises live dealer and slots
+   - Different affiliate sub-IDs for tracking which site generates conversions
+   - A temporary promotional bonus override without changing the master brand record
+
+#### 8.5 — Content Freshness Alerts
+
+Flag pages and sites that haven't been updated recently, so stale content doesn't go unnoticed.
+
+1. **Per-site threshold:** `sites.freshness_threshold_days` (default 30). Configurable from the site detail page settings.
+
+2. **Dashboard freshness widget:**
+   - On the main dashboard, show a "Stale Content" alert card
+   - Lists sites that have pages older than their threshold
+   - Format: "Top Aussie Casinos — 4 pages older than 30 days"
+   - Click to go to the site detail page
+
+3. **Site detail page freshness indicators:**
+   - In the sitemap viewer (7.3), add a "Freshness" column
+   - Pages where `generated_at` is older than `freshness_threshold_days` show a warning badge: "Stale (45 days old)"
+   - Pages with no `generated_at` show "Not Generated"
+   - Fresh pages show a green indicator
+   - Summary at the top: "3 of 12 pages are stale"
+
+4. **Freshness is based on `generated_at`** — not when the page was created, but when its content was last generated or regenerated. This correctly handles pages that exist but haven't been refreshed.
+
+5. **No auto-regeneration** — freshness alerts are informational only. The operator decides when to regenerate. This avoids surprise API costs and unwanted content changes.
+
+**Test:** Create a site with 5 pages. Generate all content. Wait (or manually backdate `generated_at` in the DB). Verify stale indicators appear on the dashboard and site detail page. Set threshold to 7 days, verify thresholds update. Regenerate a stale page, verify it becomes fresh.
+
+---
+
 ## Key Design Decisions
 
 ### Site Management Hub
@@ -541,6 +766,18 @@ The site detail page (`/sites/<id>`) is the operator's primary workspace after i
 
 ### Content Structure
 LLM-generated content is stored as **JSON blobs** in `site_pages.content_json`. This keeps things flexible — you can add new sections to templates without DB migrations. The site templates read from this JSON to populate the HTML. Previous versions are preserved in `content_history` for rollback.
+
+### Content Editor Philosophy
+The structured content editor (Phase 8.1) maps form fields to the known JSON keys for each page type. This means the form structure is tightly coupled to the content generation prompts — if you change what the LLM returns, the form needs to match. Keep the JSON structures stable and documented. The editor supports both **manual editing** (operator types in the fields directly) and **LLM regeneration** (operator provides notes, LLM overwrites the fields). Both flows write to the same `content_json` blob. The live preview iframe ensures the operator always sees the actual rendered output.
+
+### CTA Tables vs Page Content
+CTA tables are intentionally separate from `content_json`. Page content is LLM-generated and page-specific. CTA tables are manually curated, reusable across pages, and updated independently. When a bonus changes, you update the CTA table once — not every page. During build, `site_builder.py` merges CTA table data into the template context alongside the content_json data.
+
+### Brand Data Layering
+Brand data flows through three layers during build: (1) global `brands` table → (2) GEO-specific `brand_geos` → (3) site-specific `site_brand_overrides`. Each layer overrides the previous for non-null fields. Templates always receive the final merged data and never need to know which layer a value came from.
+
+### Schema Markup
+JSON-LD structured data is auto-generated during build, not stored in the DB. It's derived from existing data (ratings, content, brand info) so it stays in sync automatically. The `schema_generator.py` service is stateless — give it a page type and data, get back a JSON-LD block.
 
 ### Template Separation
 There are TWO sets of templates:
@@ -684,4 +921,12 @@ uploads/logos/
 - **Regeneration notes flow:** When regenerating with notes, append them to the base prompt, snapshot the old content + notes to `content_history`, then clear the notes from `site_pages` after successful generation.
 - **Rebuild awareness:** After any page is added, updated, or regenerated, the site detail page must show a warning if the site hasn't been rebuilt since. Compare `site_pages.generated_at` against `sites.built_at`.
 - **Custom robots.txt:** If `sites.custom_robots_txt` is not null, `site_builder.py` writes it verbatim. Otherwise, render the Jinja2 template as default.
+- **Live preview:** `preview_renderer.py` renders pages in-memory using the same Jinja2 templates and context as `site_builder.py`. It does NOT write files to disk. Asset paths in previews must resolve correctly via Flask routes serving `site_templates/assets/` and `uploads/logos/`.
+- **Structured editor forms:** The content editor form fields must match the JSON structure returned by the LLM for each page type. If the content prompt changes, the form must be updated to match. Keep these in sync.
+- **CTA tables are separate from content_json.** The CTA table assignment is stored as `site_pages.cta_table_id` (FK), NOT inside `content_json` — this ensures it survives LLM regeneration. Resolved at build time by `site_builder.py` and passed to templates as a `cta_table` variable. Templates render them via a shared partial (`site_templates/_cta_table.html`).
+- **Brand data layering:** When building template context, always check `site_brand_overrides` (FK to `site_brands.id`) and merge on top of base brand + brand_geo data. Null override fields = use global value. Overrides cascade-delete when the brand is removed from the site.
+- **Schema markup:** Auto-generated by `schema_generator.py` at build time. Injected into `<head>` via a template variable (`{{ schema_json_ld | safe }}`). Not stored in the DB.
+- **Custom head injection:** Both `sites.custom_head` (site-wide) and `site_pages.custom_head` (per-page) are rendered in the `<head>` section. Site-wide first, then page-specific. Both are raw HTML — no escaping.
+- **Meta title fallback:** If `site_pages.meta_title` is null, use `site_pages.title` for the `<title>` tag. Templates should use `{{ meta_title or title }}`.
+- **Content freshness is informational only.** Never auto-regenerate. The operator decides when and what to update.
 - **`.env` must never be committed.** A `.env.example` with placeholder values is committed instead.

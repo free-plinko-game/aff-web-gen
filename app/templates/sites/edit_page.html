@@ -10,49 +10,102 @@
     </ol>
 </nav>
 
-<h1>Edit Page</h1>
-<p class="text-muted">
-    <span class="badge bg-secondary">{{ page.page_type.name }}</span>
-    URL: <code>{{ page_url(page) }}</code>
-</p>
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h1 class="mb-0">Edit Page</h1>
+    <div>
+        <span class="badge bg-secondary">{{ page.page_type.name }}</span>
+        URL: <code>{{ page_url(page) }}</code>
+    </div>
+</div>
 
-<form method="POST">
+<form method="POST" id="editForm">
     <div class="row">
-        <div class="col-md-8">
+        <!-- Left Panel: Structured Form -->
+        <div class="col-lg-7">
+            <!-- Page Settings -->
             <div class="card mb-3">
                 <div class="card-header"><strong>Page Settings</strong></div>
                 <div class="card-body">
-                    <div class="mb-3">
-                        <label for="title" class="form-label">Page Title</label>
-                        <input type="text" name="title" id="title" class="form-control"
-                               value="{{ page.title }}" required>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="title" class="form-label">Page Title</label>
+                            <input type="text" name="title" id="title" class="form-control"
+                                   value="{{ page.title }}" required>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="meta_title" class="form-label">Meta Title <small class="text-muted">(SEO &lt;title&gt;)</small></label>
+                            <input type="text" name="meta_title" id="meta_title" class="form-control"
+                                   value="{{ page.meta_title or '' }}" placeholder="{{ page.title }}">
+                            <small class="form-text text-muted">Falls back to Page Title if empty.</small>
+                        </div>
                     </div>
                     <div class="mb-3">
                         <label for="meta_description" class="form-label">Meta Description</label>
                         <textarea name="meta_description" id="meta_description" class="form-control"
                                   rows="2">{{ page.meta_description or '' }}</textarea>
                     </div>
-                    <div class="mb-3">
-                        <label for="slug" class="form-label">Slug</label>
-                        <input type="text" name="slug" id="slug" class="form-control"
-                               value="{{ page.slug }}">
-                        <small class="form-text text-warning">Changing the slug will break existing links to this page.</small>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="slug" class="form-label">Slug</label>
+                            <input type="text" name="slug" id="slug" class="form-control"
+                                   value="{{ page.slug }}">
+                            <small class="form-text text-warning">Changing the slug will break existing links.</small>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="cta_table_id" class="form-label">CTA Table</label>
+                            <select name="cta_table_id" id="cta_table_id" class="form-select">
+                                <option value="">None</option>
+                                {% for ct in cta_tables %}
+                                <option value="{{ ct.id }}" {{ 'selected' if page.cta_table_id == ct.id else '' }}>
+                                    {{ ct.name }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                    <div class="mb-0">
+                        <label for="custom_head" class="form-label">Custom &lt;head&gt; HTML</label>
+                        <textarea name="custom_head" id="custom_head" class="form-control font-monospace"
+                                  rows="2" placeholder="e.g. tracking scripts, custom CSS">{{ page.custom_head or '' }}</textarea>
                     </div>
                 </div>
             </div>
 
+            <!-- Content JSON Editor -->
+            <div class="card mb-3">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <strong>Content</strong>
+                    <div>
+                        <button type="button" class="btn btn-sm btn-outline-info" onclick="formatJSON()">Format JSON</button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary" onclick="refreshPreview()">Refresh Preview</button>
+                    </div>
+                </div>
+                <div class="card-body p-0">
+                    <textarea name="content_json" id="contentEditor" class="form-control font-monospace border-0 rounded-0"
+                              rows="20" style="resize: vertical; tab-size: 2;" spellcheck="false"
+                              >{{ page.content_json or '{}' }}</textarea>
+                </div>
+                {% if page.generated_at %}
+                <div class="card-footer text-muted">
+                    <small>Last generated: {{ page.generated_at.strftime('%Y-%m-%d %H:%M') }}</small>
+                </div>
+                {% endif %}
+            </div>
+
+            <!-- Regeneration Notes -->
             <div class="card mb-3">
                 <div class="card-header"><strong>Regeneration Notes</strong></div>
                 <div class="card-body">
                     <textarea name="regeneration_notes" id="regeneration_notes" class="form-control"
-                              rows="4" placeholder="e.g. Focus more on the mobile app experience, target keyword: best UK betting sites 2026">{{ page.regeneration_notes or '' }}</textarea>
+                              rows="3" placeholder="e.g. Focus more on mobile app experience, target keyword: best UK betting sites 2026">{{ page.regeneration_notes or '' }}</textarea>
                     <small class="form-text text-muted">
-                        Custom instructions for the LLM on next regeneration. These will be appended to the base prompt,
-                        archived in content history, and cleared after successful generation.
+                        Custom instructions for the LLM on next regeneration. Appended to the base prompt,
+                        archived in content history, and cleared after generation.
                     </small>
                 </div>
             </div>
 
+            <!-- Actions -->
             <div class="d-flex gap-2 mb-4">
                 <button type="submit" name="action" value="save" class="btn btn-primary">Save</button>
                 <button type="submit" name="action" value="save_and_regenerate" class="btn btn-success"
@@ -63,26 +116,40 @@
             </div>
         </div>
 
-        <div class="col-md-4">
-            <!-- Current Content Preview -->
-            {% if page.content_json %}
-            <div class="card mb-3">
-                <div class="card-header"><strong>Current Content</strong></div>
-                <div class="card-body">
-                    <pre class="bg-light p-2 rounded" style="max-height: 300px; overflow-y: auto; font-size: 0.8em;">{{ page.content_json }}</pre>
-                    {% if page.generated_at %}
-                    <small class="text-muted">Generated: {{ page.generated_at.strftime('%Y-%m-%d %H:%M') }}</small>
+        <!-- Right Panel: Preview & History -->
+        <div class="col-lg-5">
+            <!-- Live Preview -->
+            <div class="card mb-3" id="previewCard">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <strong>Live Preview</strong>
+                    <div>
+                        <button type="button" class="btn btn-sm btn-outline-secondary" onclick="togglePreviewSize()">
+                            <span id="previewSizeIcon">&#x26F6;</span>
+                        </button>
+                        <button type="button" class="btn btn-sm btn-outline-info" onclick="refreshPreview()">Refresh</button>
+                    </div>
+                </div>
+                <div class="card-body p-0">
+                    {% if page.content_json %}
+                    <iframe id="previewFrame"
+                            src="{{ url_for('api.page_preview', site_id=site.id, page_id=page.id) }}"
+                            style="width: 100%; height: 500px; border: none;"
+                            sandbox="allow-same-origin allow-scripts"></iframe>
+                    {% else %}
+                    <div class="p-4 text-center text-muted">
+                        <p>No content generated yet.</p>
+                        <p>Generate or manually enter content to see a preview.</p>
+                    </div>
                     {% endif %}
                 </div>
             </div>
-            {% endif %}
 
             <!-- Content History -->
             {% if history %}
             <div class="card">
                 <div class="card-header"><strong>Content History</strong> ({{ history | length }} versions)</div>
                 <div class="card-body p-0">
-                    <div class="list-group list-group-flush">
+                    <div class="list-group list-group-flush" style="max-height: 300px; overflow-y: auto;">
                         {% for h in history %}
                         <div class="list-group-item">
                             <div class="d-flex justify-content-between align-items-start">
@@ -111,4 +178,59 @@
         </div>
     </div>
 </form>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Format JSON in the content editor
+function formatJSON() {
+    const editor = document.getElementById('contentEditor');
+    try {
+        const parsed = JSON.parse(editor.value);
+        editor.value = JSON.stringify(parsed, null, 2);
+    } catch (e) {
+        alert('Invalid JSON: ' + e.message);
+    }
+}
+
+// Refresh the preview iframe
+function refreshPreview() {
+    const frame = document.getElementById('previewFrame');
+    if (frame) {
+        frame.src = frame.src.split('?')[0] + '?t=' + Date.now();
+    }
+}
+
+// Toggle preview iframe size (compact / expanded)
+let expanded = false;
+function togglePreviewSize() {
+    const frame = document.getElementById('previewFrame');
+    if (!frame) return;
+    expanded = !expanded;
+    frame.style.height = expanded ? '800px' : '500px';
+    document.getElementById('previewSizeIcon').textContent = expanded ? '\u2716' : '\u26F6';
+}
+
+// Auto-format JSON on page load
+document.addEventListener('DOMContentLoaded', function() {
+    const editor = document.getElementById('contentEditor');
+    try {
+        const parsed = JSON.parse(editor.value);
+        editor.value = JSON.stringify(parsed, null, 2);
+    } catch (e) {
+        // Leave as-is if invalid
+    }
+
+    // Tab key inserts spaces in the editor
+    editor.addEventListener('keydown', function(e) {
+        if (e.key === 'Tab') {
+            e.preventDefault();
+            const start = this.selectionStart;
+            const end = this.selectionEnd;
+            this.value = this.value.substring(0, start) + '  ' + this.value.substring(end);
+            this.selectionStart = this.selectionEnd = start + 2;
+        }
+    });
+});
+</script>
 {% endblock %}

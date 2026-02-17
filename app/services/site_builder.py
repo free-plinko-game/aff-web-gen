@@ -12,6 +12,7 @@ from datetime import datetime, timezone
 import jinja2
 
 from ..models import db, Site, SitePage, SiteBrand
+from .schema_generator import generate_schema
 
 
 def _get_site_templates_path():
@@ -63,20 +64,26 @@ def _build_footer_links(site_pages):
 
 
 def _build_brand_info_list(site, geo):
-    """Build a list of brand info dicts for template use."""
+    """Build a list of brand info dicts for template use.
+
+    Merges three layers: brand (global) → brand_geo (GEO-specific) → override (site-specific).
+    Null override fields fall back to the base value.
+    """
     brands = []
     for sb in sorted(site.site_brands, key=lambda sb: sb.rank):
         brand = sb.brand
         bg = next((bg for bg in brand.brand_geos if bg.geo_id == geo.id), None)
+        ov = sb.override  # SiteBrandOverride or None
+
         brands.append({
             'name': brand.name,
             'slug': brand.slug,
             'logo_filename': brand.logo_filename,
-            'affiliate_link': brand.affiliate_link or '#',
+            'affiliate_link': (ov.custom_affiliate_link if ov and ov.custom_affiliate_link else None) or brand.affiliate_link or '#',
             'website_url': brand.website_url or '#',
             'rating': brand.rating,
-            'welcome_bonus': bg.welcome_bonus if bg else None,
-            'bonus_code': bg.bonus_code if bg else None,
+            'welcome_bonus': (ov.custom_welcome_bonus if ov and ov.custom_welcome_bonus else None) or (bg.welcome_bonus if bg else None),
+            'bonus_code': (ov.custom_bonus_code if ov and ov.custom_bonus_code else None) or (bg.bonus_code if bg else None),
             'rank': sb.rank,
             'founded_year': brand.founded_year,
             'parent_company': brand.parent_company,
@@ -85,7 +92,7 @@ def _build_brand_info_list(site, geo):
             'available_languages': brand.available_languages,
             'has_ios_app': brand.has_ios_app,
             'has_android_app': brand.has_android_app,
-            'description': brand.description,
+            'description': (ov.custom_description if ov and ov.custom_description else None) or brand.description,
             'license_info': bg.license_info if bg else None,
             'payment_methods': bg.payment_methods if bg else None,
             'withdrawal_timeframe': bg.withdrawal_timeframe if bg else None,
@@ -137,6 +144,37 @@ def _build_sitemap_pages(site_pages, domain):
     return pages
 
 
+def _build_cta_table_data(cta_table, brand_info_list, geo):
+    """Build CTA table data dict for template rendering."""
+    brand_map = {b['slug']: b for b in brand_info_list}
+    rows = []
+    for row in cta_table.rows:
+        if not row.is_visible:
+            continue
+        brand = row.brand
+        brand_info = brand_map.get(brand.slug, {})
+        bg = next((bg for bg in brand.brand_geos if bg.geo_id == geo.id), None)
+        rows.append({
+            'rank': row.rank,
+            'brand': {
+                'name': brand.name,
+                'slug': brand.slug,
+                'logo_filename': brand.logo_filename,
+                'rating': brand.rating,
+                'affiliate_link': brand_info.get('affiliate_link', brand.affiliate_link or '#'),
+            },
+            'bonus_text': row.custom_bonus_text or (bg.welcome_bonus if bg else ''),
+            'cta_text': row.custom_cta_text or 'Visit Site',
+            'badge': row.custom_badge,
+            'is_visible': row.is_visible,
+        })
+    return {
+        'name': cta_table.name,
+        'slug': cta_table.slug,
+        'rows': rows,
+    }
+
+
 def build_site(site, output_base_dir, upload_folder):
     """Build a complete static site from generated content.
 
@@ -184,12 +222,20 @@ def build_site(site, output_base_dir, upload_folder):
         pt_slug = page.page_type.slug
         template_file = page.page_type.template_file
 
+        # Resolve CTA table if assigned (8.2)
+        cta_table_data = None
+        if page.cta_table_id and page.cta_table:
+            cta_table_data = _build_cta_table_data(page.cta_table, brand_info_list, geo)
+
         ctx = {
             **common_ctx,
             'content': content,
             'page_title': page.title,
+            'meta_title': page.meta_title or '',
             'meta_description': page.meta_description or '',
             'subdirectory': False,
+            'cta_table': cta_table_data,
+            'custom_head': (site.custom_head or '') + '\n' + (page.custom_head or ''),
         }
 
         if pt_slug == 'homepage':
@@ -236,6 +282,16 @@ def build_site(site, output_base_dir, upload_folder):
             output_file = os.path.join(version_dir, f'{page.slug}.html')
         else:
             continue
+
+        # Generate JSON-LD schema markup (8.3)
+        page_url = _build_sitemap_pages([page], domain)[0]['url'] if page else ''
+        brand_info_for_schema = ctx.get('brand_info')
+        rating_for_schema = brand_info_for_schema.get('rating') if brand_info_for_schema else None
+        ctx['schema_json_ld'] = generate_schema(
+            pt_slug, content, page.title, site.name, domain,
+            f'/{page_url}', brand_info=brand_info_for_schema,
+            rating=rating_for_schema, generated_at=page.generated_at,
+        )
 
         template = env.get_template(template_file)
         html = template.render(**ctx)

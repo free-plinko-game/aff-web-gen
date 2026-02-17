@@ -1,11 +1,12 @@
 import os
 import re
+from datetime import datetime, timezone, timedelta
 
 from flask import Blueprint, render_template, request, redirect, url_for, flash, abort, current_app, send_from_directory
 
 from ..models import (
-    db, Site, SiteBrand, SitePage, Geo, Vertical, Brand, BrandGeo, BrandVertical, PageType, Domain,
-    ContentHistory,
+    db, Site, SiteBrand, SiteBrandOverride, SitePage, Geo, Vertical, Brand, BrandGeo, BrandVertical,
+    PageType, Domain, ContentHistory, CTATable, CTATableRow,
 )
 from ..services.content_generator import start_generation, generate_page_content, save_content_to_page
 from ..services.site_builder import build_site
@@ -112,9 +113,42 @@ def detail(site_id):
     domain_name = site.domain.domain if site.domain else 'example.com'
     default_robots_txt = f"User-agent: *\nAllow: /\n\nSitemap: https://{domain_name}/sitemap.xml"
 
+    # Freshness data (8.5)
+    # Strip tzinfo for comparison — SQLite stores naive datetimes
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    threshold = timedelta(days=site.freshness_threshold_days or 30)
+
+    def page_freshness(page):
+        if not page.is_generated or not page.generated_at:
+            return None
+        gen_at = page.generated_at.replace(tzinfo=None) if page.generated_at.tzinfo else page.generated_at
+        age = now - gen_at
+        return {'days': age.days, 'stale': age > threshold}
+
+    stale_count = sum(
+        1 for p in site.site_pages
+        if p.is_generated and p.generated_at
+        and (now - (p.generated_at.replace(tzinfo=None) if p.generated_at.tzinfo else p.generated_at)) > threshold
+    )
+
     return render_template('sites/detail.html', site=site, available_domains=available_domains,
                            rebuild_needed=rebuild_needed, page_url=_page_url,
-                           default_robots_txt=default_robots_txt)
+                           default_robots_txt=default_robots_txt,
+                           page_freshness=page_freshness, stale_count=stale_count)
+
+
+@bp.route('/<int:site_id>/update-freshness', methods=['POST'])
+def update_freshness(site_id):
+    """Update the freshness threshold for a site."""
+    site = db.session.get(Site, site_id) or abort(404)
+    threshold = request.form.get('threshold', type=int)
+    if threshold and 1 <= threshold <= 365:
+        site.freshness_threshold_days = threshold
+        db.session.commit()
+        flash(f'Freshness threshold set to {threshold} days.', 'success')
+    else:
+        flash('Invalid threshold (must be 1-365 days).', 'error')
+    return redirect(url_for('sites.detail', site_id=site.id))
 
 
 @bp.route('/<int:site_id>/generate', methods=['POST'])
@@ -264,6 +298,29 @@ def rollback(site_id):
         flash(f'Rollback failed: {e}', 'error')
 
     return redirect(url_for('sites.detail', site_id=site.id))
+
+
+@bp.route('/<int:site_id>/delete', methods=['POST'])
+def delete_site(site_id):
+    """Delete a site and all its pages, CTA tables, and brand overrides."""
+    site = db.session.get(Site, site_id) or abort(404)
+
+    # Release domain back to available
+    if site.domain:
+        site.domain.status = 'available'
+
+    # Delete CTA tables (clear FK from pages first, then delete)
+    from ..models import CTATable
+    for ct in CTATable.query.filter_by(site_id=site.id).all():
+        for page in ct.pages:
+            page.cta_table_id = None
+        db.session.delete(ct)
+
+    name = site.name
+    db.session.delete(site)
+    db.session.commit()
+    flash(f'Site "{name}" deleted.', 'success')
+    return redirect(url_for('sites.list_sites'))
 
 
 @bp.route('/<int:site_id>/preview/')
@@ -474,9 +531,25 @@ def edit_page(site_id, page_id):
         action = request.form.get('action', 'save')
 
         page.title = request.form.get('title', page.title).strip()
+        page.meta_title = request.form.get('meta_title', '').strip() or None
         page.meta_description = request.form.get('meta_description', '').strip() or None
         page.slug = request.form.get('slug', page.slug).strip()
+        page.custom_head = request.form.get('custom_head', '').strip() or None
         page.regeneration_notes = request.form.get('regeneration_notes', '').strip() or None
+
+        # CTA table assignment
+        cta_table_id = request.form.get('cta_table_id', type=int)
+        page.cta_table_id = cta_table_id if cta_table_id else None
+
+        # Content JSON (from structured editor textarea)
+        content_json_raw = request.form.get('content_json', '').strip()
+        if content_json_raw:
+            import json
+            try:
+                json.loads(content_json_raw)  # Validate JSON
+                page.content_json = content_json_raw
+            except json.JSONDecodeError:
+                flash('Invalid JSON in content editor. Content was not updated.', 'error')
 
         db.session.commit()
 
@@ -494,16 +567,17 @@ def edit_page(site_id, page_id):
 
         return redirect(url_for('sites.detail', site_id=site.id))
 
-    # GET — load content history
+    # GET — load content history and CTA tables
     history = (
         ContentHistory.query
         .filter_by(site_page_id=page.id)
         .order_by(ContentHistory.version.desc())
         .all()
     )
+    cta_tables = CTATable.query.filter_by(site_id=site.id).order_by(CTATable.name).all()
 
     return render_template('sites/edit_page.html', site=site, page=page,
-                           history=history, page_url=_page_url)
+                           history=history, page_url=_page_url, cta_tables=cta_tables)
 
 
 @bp.route('/<int:site_id>/pages/<int:page_id>/delete', methods=['POST'])
@@ -519,6 +593,175 @@ def delete_page(site_id, page_id):
     db.session.commit()
     flash(f'Page "{title}" deleted.', 'success')
     return redirect(url_for('sites.detail', site_id=site.id))
+
+
+@bp.route('/<int:site_id>/brand-overrides', methods=['GET', 'POST'])
+def brand_overrides(site_id):
+    """View and edit brand overrides for this site."""
+    site = db.session.get(Site, site_id) or abort(404)
+
+    if request.method == 'POST':
+        for sb in site.site_brands:
+            prefix = f'brand_{sb.id}_'
+            custom_desc = request.form.get(f'{prefix}description', '').strip() or None
+            custom_sp = request.form.get(f'{prefix}selling_points', '').strip() or None
+            custom_aff = request.form.get(f'{prefix}affiliate_link', '').strip() or None
+            custom_bonus = request.form.get(f'{prefix}welcome_bonus', '').strip() or None
+            custom_code = request.form.get(f'{prefix}bonus_code', '').strip() or None
+            internal_notes = request.form.get(f'{prefix}notes', '').strip() or None
+
+            has_any = any([custom_desc, custom_sp, custom_aff, custom_bonus, custom_code, internal_notes])
+
+            if sb.override:
+                if has_any:
+                    sb.override.custom_description = custom_desc
+                    sb.override.custom_selling_points = custom_sp
+                    sb.override.custom_affiliate_link = custom_aff
+                    sb.override.custom_welcome_bonus = custom_bonus
+                    sb.override.custom_bonus_code = custom_code
+                    sb.override.internal_notes = internal_notes
+                else:
+                    # All fields cleared — remove the override
+                    db.session.delete(sb.override)
+            elif has_any:
+                override = SiteBrandOverride(
+                    site_brand_id=sb.id,
+                    custom_description=custom_desc,
+                    custom_selling_points=custom_sp,
+                    custom_affiliate_link=custom_aff,
+                    custom_welcome_bonus=custom_bonus,
+                    custom_bonus_code=custom_code,
+                    internal_notes=internal_notes,
+                )
+                db.session.add(override)
+
+        db.session.commit()
+        flash('Brand overrides saved.', 'success')
+        return redirect(url_for('sites.detail', site_id=site.id))
+
+    # GET — build context with brand + geo data for placeholders
+    brands_data = []
+    for sb in sorted(site.site_brands, key=lambda sb: sb.rank):
+        bg = next((bg for bg in sb.brand.brand_geos if bg.geo_id == site.geo_id), None)
+        brands_data.append({
+            'site_brand': sb,
+            'brand': sb.brand,
+            'brand_geo': bg,
+            'override': sb.override,
+        })
+
+    return render_template('sites/brand_overrides.html', site=site, brands_data=brands_data)
+
+
+@bp.route('/<int:site_id>/cta-tables')
+def cta_table_list(site_id):
+    """List CTA tables for a site."""
+    site = db.session.get(Site, site_id) or abort(404)
+    tables = CTATable.query.filter_by(site_id=site.id).order_by(CTATable.name).all()
+    return render_template('sites/cta_tables.html', site=site, tables=tables)
+
+
+@bp.route('/<int:site_id>/cta-tables/create', methods=['GET', 'POST'])
+def cta_table_create(site_id):
+    """Create a new CTA table."""
+    site = db.session.get(Site, site_id) or abort(404)
+
+    if request.method == 'POST':
+        name = request.form.get('name', '').strip()
+        slug = _slugify(name) if name else ''
+        if not name:
+            flash('Name is required.', 'error')
+            return redirect(url_for('sites.cta_table_create', site_id=site.id))
+
+        # Check for duplicate slug
+        existing = CTATable.query.filter_by(site_id=site.id, slug=slug).first()
+        if existing:
+            flash(f'A CTA table with slug "{slug}" already exists.', 'error')
+            return redirect(url_for('sites.cta_table_create', site_id=site.id))
+
+        table = CTATable(site_id=site.id, name=name, slug=slug)
+        db.session.add(table)
+        db.session.flush()
+
+        # Process brand rows
+        _save_cta_rows(table, site, request.form)
+
+        db.session.commit()
+        flash(f'CTA table "{name}" created.', 'success')
+        return redirect(url_for('sites.cta_table_list', site_id=site.id))
+
+    site_brands = sorted(site.site_brands, key=lambda sb: sb.rank)
+    return render_template('sites/cta_table_form.html', site=site, table=None, site_brands=site_brands)
+
+
+@bp.route('/<int:site_id>/cta-tables/<int:table_id>/edit', methods=['GET', 'POST'])
+def cta_table_edit(site_id, table_id):
+    """Edit an existing CTA table."""
+    site = db.session.get(Site, site_id) or abort(404)
+    table = db.session.get(CTATable, table_id) or abort(404)
+    if table.site_id != site.id:
+        abort(404)
+
+    if request.method == 'POST':
+        name = request.form.get('name', '').strip()
+        slug = _slugify(name) if name else ''
+        if not name:
+            flash('Name is required.', 'error')
+            return redirect(url_for('sites.cta_table_edit', site_id=site.id, table_id=table.id))
+
+        table.name = name
+        table.slug = slug
+
+        # Clear existing rows and re-create
+        CTATableRow.query.filter_by(cta_table_id=table.id).delete()
+        db.session.flush()
+        _save_cta_rows(table, site, request.form)
+
+        db.session.commit()
+        flash(f'CTA table "{name}" updated.', 'success')
+        return redirect(url_for('sites.cta_table_list', site_id=site.id))
+
+    site_brands = sorted(site.site_brands, key=lambda sb: sb.rank)
+    return render_template('sites/cta_table_form.html', site=site, table=table, site_brands=site_brands)
+
+
+@bp.route('/<int:site_id>/cta-tables/<int:table_id>/delete', methods=['POST'])
+def cta_table_delete(site_id, table_id):
+    """Delete a CTA table."""
+    site = db.session.get(Site, site_id) or abort(404)
+    table = db.session.get(CTATable, table_id) or abort(404)
+    if table.site_id != site.id:
+        abort(404)
+
+    # Clear FK references from pages
+    for page in table.pages:
+        page.cta_table_id = None
+
+    name = table.name
+    db.session.delete(table)
+    db.session.commit()
+    flash(f'CTA table "{name}" deleted.', 'success')
+    return redirect(url_for('sites.cta_table_list', site_id=site.id))
+
+
+def _save_cta_rows(table, site, form):
+    """Save CTA table rows from form data."""
+    site_brand_ids = {sb.brand_id for sb in site.site_brands}
+    brand_ids = form.getlist('row_brand_ids', type=int)
+
+    for i, brand_id in enumerate(brand_ids):
+        if brand_id not in site_brand_ids:
+            continue
+        row = CTATableRow(
+            cta_table_id=table.id,
+            brand_id=brand_id,
+            rank=i + 1,
+            custom_bonus_text=form.get(f'row_{brand_id}_bonus', '').strip() or None,
+            custom_cta_text=form.get(f'row_{brand_id}_cta', '').strip() or None,
+            custom_badge=form.get(f'row_{brand_id}_badge', '').strip() or None,
+            is_visible=form.get(f'row_{brand_id}_visible') == 'on',
+        )
+        db.session.add(row)
 
 
 def _create_site_pages(site, brand_ids, form):

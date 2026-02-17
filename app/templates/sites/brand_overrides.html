@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+
+{% block title %}Brand Overrides — {{ site.name }}{% endblock %}
+
+{% block content %}
+<nav aria-label="breadcrumb">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="{{ url_for('sites.detail', site_id=site.id) }}">{{ site.name }}</a></li>
+        <li class="breadcrumb-item active">Brand Overrides</li>
+    </ol>
+</nav>
+
+<h1>Brand Overrides</h1>
+<p class="text-muted">Customise brand data for this site only. Leave fields blank to use global values.</p>
+
+<form method="POST">
+    {% for item in brands_data %}
+    {% set sb = item.site_brand %}
+    {% set brand = item.brand %}
+    {% set bg = item.brand_geo %}
+    {% set ov = item.override %}
+    <div class="card mb-3">
+        <div class="card-header">
+            <strong>#{{ sb.rank }} {{ brand.name }}</strong>
+            <code class="ms-2">{{ brand.slug }}</code>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="mb-2">
+                        <label class="form-label form-label-sm">Custom Description</label>
+                        <textarea name="brand_{{ sb.id }}_description" class="form-control form-control-sm" rows="2"
+                                  placeholder="{{ brand.description or '' }}">{{ ov.custom_description or '' if ov else '' }}</textarea>
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label form-label-sm">Custom Selling Points <small class="text-muted">(JSON array)</small></label>
+                        <input type="text" name="brand_{{ sb.id }}_selling_points" class="form-control form-control-sm"
+                               placeholder='["Point 1", "Point 2"]'
+                               value="{{ ov.custom_selling_points or '' if ov else '' }}">
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label form-label-sm">Custom Affiliate Link</label>
+                        <input type="text" name="brand_{{ sb.id }}_affiliate_link" class="form-control form-control-sm"
+                               placeholder="{{ brand.affiliate_link or '' }}"
+                               value="{{ ov.custom_affiliate_link or '' if ov else '' }}">
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="mb-2">
+                        <label class="form-label form-label-sm">Custom Welcome Bonus</label>
+                        <input type="text" name="brand_{{ sb.id }}_welcome_bonus" class="form-control form-control-sm"
+                               placeholder="{{ bg.welcome_bonus if bg else '' }}"
+                               value="{{ ov.custom_welcome_bonus or '' if ov else '' }}">
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label form-label-sm">Custom Bonus Code</label>
+                        <input type="text" name="brand_{{ sb.id }}_bonus_code" class="form-control form-control-sm"
+                               placeholder="{{ bg.bonus_code if bg else '' }}"
+                               value="{{ ov.custom_bonus_code or '' if ov else '' }}">
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label form-label-sm">Internal Notes <small class="text-muted">(not rendered)</small></label>
+                        <textarea name="brand_{{ sb.id }}_notes" class="form-control form-control-sm" rows="2">{{ ov.internal_notes or '' if ov else '' }}</textarea>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+
+    <div class="mb-4">
+        <button type="submit" class="btn btn-primary">Save Overrides</button>
+        <a href="{{ url_for('sites.detail', site_id=site.id) }}" class="btn btn-outline-secondary ms-2">Cancel</a>
+    </div>
+</form>
+{% endblock %}

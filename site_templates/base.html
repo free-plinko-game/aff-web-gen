@@ -3,14 +3,24 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{ page_title | default('') }}</title>
+    <title>{{ meta_title | default(page_title, true) }}</title>
     {% if meta_description %}
     <meta name="description" content="{{ meta_description }}">
     {% endif %}
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=Plus+Jakarta+Sans:wght@700;800&display=swap" rel="stylesheet">
+    {% if preview_asset_prefix %}
+    {% set prefix = preview_asset_prefix %}
+    {% else %}
     {% set prefix = '../' if subdirectory else '' %}
+    {% endif %}
     <link rel="stylesheet" href="{{ prefix }}assets/css/style.css">
+    {% if schema_json_ld %}
+    {{ schema_json_ld | safe }}
+    {% endif %}
+    {% if custom_head %}
+    {{ custom_head | safe }}
+    {% endif %}
 </head>
 <body>
 
@@ -77,6 +87,10 @@
     </div>
 </footer>
 
+{% if preview_asset_prefix %}
+<script src="{{ preview_asset_prefix }}assets/js/main.js"></script>
+{% else %}
 <script src="{{ prefix }}assets/js/main.js"></script>
+{% endif %}
 </body>
 </html>

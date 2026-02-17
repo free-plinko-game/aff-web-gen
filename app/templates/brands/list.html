@@ -11,9 +11,19 @@
     </div>
 </div>
 
+<form method="POST" action="{{ url_for('brands.bulk_delete') }}" id="bulkDeleteForm">
+<div class="mb-2 d-none" id="bulkActions">
+    <button type="submit" class="btn btn-sm btn-danger"
+            onclick="return confirm('Delete ' + document.querySelectorAll('input[name=brand_ids]:checked').length + ' selected brands? This cannot be undone.')">
+        Delete Selected (<span id="selectedCount">0</span>)
+    </button>
+    <button type="button" class="btn btn-sm btn-outline-secondary ms-1" onclick="toggleAll(false)">Clear</button>
+</div>
+
 <table class="table table-striped">
     <thead>
         <tr>
+            <th style="width: 30px;"><input type="checkbox" id="selectAll" onclick="toggleAll(this.checked)"></th>
             <th>Logo</th>
             <th>Name</th>
             <th>Slug</th>
@@ -26,6 +36,7 @@
     <tbody>
         {% for brand in brands %}
         <tr>
+            <td><input type="checkbox" name="brand_ids" value="{{ brand.id }}" onchange="updateBulkUI()"></td>
             <td>
                 {% if brand.logo_filename %}
                     <img src="{{ url_for('static', filename='../uploads/logos/' + brand.logo_filename) }}"
@@ -57,9 +68,27 @@
         </tr>
         {% else %}
         <tr>
-            <td colspan="7" class="text-center text-muted">No brands yet. <a href="{{ url_for('brands.create') }}">Add one.</a></td>
+            <td colspan="8" class="text-center text-muted">No brands yet. <a href="{{ url_for('brands.create') }}">Add one.</a></td>
         </tr>
         {% endfor %}
     </tbody>
 </table>
+</form>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function updateBulkUI() {
+    const checked = document.querySelectorAll('input[name=brand_ids]:checked').length;
+    document.getElementById('selectedCount').textContent = checked;
+    document.getElementById('bulkActions').classList.toggle('d-none', checked === 0);
+    document.getElementById('selectAll').checked =
+        checked === document.querySelectorAll('input[name=brand_ids]').length && checked > 0;
+}
+
+function toggleAll(checked) {
+    document.querySelectorAll('input[name=brand_ids]').forEach(cb => cb.checked = checked);
+    updateBulkUI();
+}
+</script>
 {% endblock %}

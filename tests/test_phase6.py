@@ -137,6 +137,194 @@ class TestBulkImport:
         assert b'Please select a CSV file' in resp.data
 
 
+class TestBulkImportExtended:
+    """Tests for the expanded bulk import: all brand fields, GEO, verticals."""
+
+    def test_import_with_all_brand_fields(self, app, db, client):
+        """Import a brand with all extended brand columns."""
+        uid = _uid()
+        csv_content = (
+            "name,slug,website_url,affiliate_link,rating,description,"
+            "founded_year,parent_company,support_methods,support_email,"
+            "available_languages,has_ios_app,has_android_app\n"
+            f"Full Brand {uid},full-{uid},https://full.com,https://aff.full.com,4.5,"
+            f"A great brand,2010,FullCo Ltd,Live Chat; Email,help@full.com,"
+            f"English; German,true,yes\n"
+        )
+        data = {'csv_file': (io.BytesIO(csv_content.encode('utf-8')), 'brands.csv')}
+        resp = client.post('/brands/import', data=data,
+                           content_type='multipart/form-data', follow_redirects=True)
+        assert resp.status_code == 200
+        assert b'1 brands imported' in resp.data
+
+        brand = Brand.query.filter_by(slug=f'full-{uid}').first()
+        assert brand is not None
+        assert brand.description == 'A great brand'
+        assert brand.founded_year == 2010
+        assert brand.parent_company == 'FullCo Ltd'
+        assert brand.support_methods == 'Live Chat; Email'
+        assert brand.support_email == 'help@full.com'
+        assert brand.available_languages == 'English; German'
+        assert brand.has_ios_app is True
+        assert brand.has_android_app is True
+        assert brand.rating == 4.5
+
+    def test_import_with_geo(self, app, db, client):
+        """Import a brand with one GEO association."""
+        uid = _uid()
+        csv_content = (
+            "name,slug,rating,geo,welcome_bonus,bonus_code,license_info,"
+            "payment_methods,withdrawal_timeframe\n"
+            f"GeoBrand {uid},geo-{uid},4.0,gb,£30 Free,WELCOME,UKGC #99,"
+            f"Visa; PayPal,1-3 days\n"
+        )
+        data = {'csv_file': (io.BytesIO(csv_content.encode('utf-8')), 'brands.csv')}
+        resp = client.post('/brands/import', data=data,
+                           content_type='multipart/form-data', follow_redirects=True)
+        assert resp.status_code == 200
+        assert b'1 brands imported' in resp.data
+        assert b'1 GEO associations' in resp.data
+
+        brand = Brand.query.filter_by(slug=f'geo-{uid}').first()
+        assert brand is not None
+        geo = Geo.query.filter_by(code='gb').first()
+        bg = BrandGeo.query.filter_by(brand_id=brand.id, geo_id=geo.id).first()
+        assert bg is not None
+        assert bg.welcome_bonus == '£30 Free'
+        assert bg.bonus_code == 'WELCOME'
+        assert bg.license_info == 'UKGC #99'
+        assert bg.payment_methods == 'Visa; PayPal'
+        assert bg.withdrawal_timeframe == '1-3 days'
+
+    def test_import_with_geo_ratings(self, app, db, client):
+        """Import GEO with category rating columns."""
+        uid = _uid()
+        csv_content = (
+            "name,slug,geo,rating_bonus,rating_usability,rating_mobile_app,"
+            "rating_payments,rating_support,rating_licensing,rating_rewards\n"
+            f"RatedBrand {uid},rated-{uid},gb,4.5,4.0,3.5,4.2,3.8,5.0,4.1\n"
+        )
+        data = {'csv_file': (io.BytesIO(csv_content.encode('utf-8')), 'brands.csv')}
+        resp = client.post('/brands/import', data=data,
+                           content_type='multipart/form-data', follow_redirects=True)
+        assert b'1 brands imported' in resp.data
+
+        brand = Brand.query.filter_by(slug=f'rated-{uid}').first()
+        geo = Geo.query.filter_by(code='gb').first()
+        bg = BrandGeo.query.filter_by(brand_id=brand.id, geo_id=geo.id).first()
+        assert bg.rating_bonus == 4.5
+        assert bg.rating_usability == 4.0
+        assert bg.rating_mobile_app == 3.5
+        assert bg.rating_payments == 4.2
+        assert bg.rating_support == 3.8
+        assert bg.rating_licensing == 5.0
+        assert bg.rating_rewards == 4.1
+
+    def test_import_multi_geo(self, app, db, client):
+        """Import one brand with two GEOs (two rows, same slug)."""
+        uid = _uid()
+        csv_content = (
+            "name,slug,rating,geo,welcome_bonus,bonus_code\n"
+            f"MultiGeo {uid},multigeo-{uid},4.0,gb,£30 Free,GB30\n"
+            f"MultiGeo {uid},multigeo-{uid},4.0,de,30€ Gratis,DE30\n"
+        )
+        data = {'csv_file': (io.BytesIO(csv_content.encode('utf-8')), 'brands.csv')}
+        resp = client.post('/brands/import', data=data,
+                           content_type='multipart/form-data', follow_redirects=True)
+        assert b'1 brands imported' in resp.data
+        assert b'2 GEO associations' in resp.data
+
+        brand = Brand.query.filter_by(slug=f'multigeo-{uid}').first()
+        assert brand is not None
+        geos = BrandGeo.query.filter_by(brand_id=brand.id).all()
+        assert len(geos) == 2
+        geo_codes = {db.session.get(Geo, bg.geo_id).code for bg in geos}
+        assert geo_codes == {'gb', 'de'}
+
+    def test_import_with_verticals(self, app, db, client):
+        """Import a brand with comma-separated verticals."""
+        uid = _uid()
+        csv_content = (
+            "name,slug,verticals\n"
+            f"VertBrand {uid},vert-{uid},\"sports-betting,casino\"\n"
+        )
+        data = {'csv_file': (io.BytesIO(csv_content.encode('utf-8')), 'brands.csv')}
+        resp = client.post('/brands/import', data=data,
+                           content_type='multipart/form-data', follow_redirects=True)
+        assert b'1 brands imported' in resp.data
+
+        brand = Brand.query.filter_by(slug=f'vert-{uid}').first()
+        assert brand is not None
+        vert_slugs = {bv.vertical.slug for bv in brand.brand_verticals}
+        assert 'sports-betting' in vert_slugs
+        assert 'casino' in vert_slugs
+
+    def test_import_unknown_geo_warns(self, app, db, client):
+        """Unknown GEO code triggers a warning but brand is still imported."""
+        uid = _uid()
+        csv_content = (
+            "name,slug,geo,welcome_bonus\n"
+            f"BadGeo {uid},badgeo-{uid},zz,Free Bet\n"
+        )
+        data = {'csv_file': (io.BytesIO(csv_content.encode('utf-8')), 'brands.csv')}
+        resp = client.post('/brands/import', data=data,
+                           content_type='multipart/form-data', follow_redirects=True)
+        assert b'1 brands imported' in resp.data
+        assert b'Unknown GEO code' in resp.data
+
+        brand = Brand.query.filter_by(slug=f'badgeo-{uid}').first()
+        assert brand is not None
+        assert BrandGeo.query.filter_by(brand_id=brand.id).count() == 0
+
+    def test_import_no_geo_column(self, app, db, client):
+        """CSV without a geo column still imports brands (backwards compatible)."""
+        uid = _uid()
+        csv_content = (
+            "name,slug,rating\n"
+            f"NoGeo {uid},nogeo-{uid},3.5\n"
+        )
+        data = {'csv_file': (io.BytesIO(csv_content.encode('utf-8')), 'brands.csv')}
+        resp = client.post('/brands/import', data=data,
+                           content_type='multipart/form-data', follow_redirects=True)
+        assert b'1 brands imported' in resp.data
+
+        brand = Brand.query.filter_by(slug=f'nogeo-{uid}').first()
+        assert brand is not None
+        assert brand.rating == 3.5
+
+    def test_import_full_example(self, app, db, client):
+        """Full integration: multiple brands, GEOs, verticals, all fields."""
+        uid = _uid()
+        csv_content = (
+            "name,slug,website_url,rating,founded_year,parent_company,"
+            "has_ios_app,has_android_app,verticals,geo,welcome_bonus,bonus_code,"
+            "license_info,payment_methods,rating_bonus\n"
+            # Brand 1 with 2 GEOs
+            f"Alpha {uid},alpha-{uid},https://alpha.com,4.5,2005,AlphaCo,"
+            f"true,true,sports-betting,gb,£30 Free,ALPHA,UKGC #111,Visa; PayPal,4.5\n"
+            f"Alpha {uid},alpha-{uid},,,,,,,,de,30€ Gratis,ALPHADE,MGA #222,Visa,4.0\n"
+            # Brand 2 with 1 GEO
+            f"Beta {uid},beta-{uid},https://beta.com,3.8,2012,BetaCo,"
+            f"false,true,casino,gb,£20 Bonus,BETA,UKGC #333,PayPal,3.5\n"
+        )
+        data = {'csv_file': (io.BytesIO(csv_content.encode('utf-8')), 'brands.csv')}
+        resp = client.post('/brands/import', data=data,
+                           content_type='multipart/form-data', follow_redirects=True)
+        assert b'2 brands imported' in resp.data
+        assert b'3 GEO associations' in resp.data
+
+        alpha = Brand.query.filter_by(slug=f'alpha-{uid}').first()
+        assert alpha.founded_year == 2005
+        assert alpha.has_ios_app is True
+        assert len(alpha.brand_geos) == 2
+        assert len(alpha.brand_verticals) == 1
+
+        beta = Brand.query.filter_by(slug=f'beta-{uid}').first()
+        assert beta.has_ios_app is False
+        assert beta.has_android_app is True
+        assert len(beta.brand_geos) == 1
+
+
 # ── 6.3  Content History Viewer ─────────────────────────────────
 
 class TestContentHistory:

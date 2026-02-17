@@ -133,6 +133,8 @@ class Site(db.Model):
     built_at = db.Column(db.DateTime)
     current_version = db.Column(db.Integer, default=1)
     custom_robots_txt = db.Column(db.Text)
+    freshness_threshold_days = db.Column(db.Integer, default=30)
+    custom_head = db.Column(db.Text)  # Site-wide custom HTML for <head>
 
     geo = db.relationship('Geo', back_populates='sites')
     vertical = db.relationship('Vertical', back_populates='sites')
@@ -154,6 +156,22 @@ class SiteBrand(db.Model):
 
     site = db.relationship('Site', back_populates='site_brands')
     brand = db.relationship('Brand', back_populates='site_brands')
+    override = db.relationship('SiteBrandOverride', back_populates='site_brand', uselist=False, cascade='all, delete-orphan')
+
+
+class SiteBrandOverride(db.Model):
+    __tablename__ = 'site_brand_overrides'
+
+    id = db.Column(db.Integer, primary_key=True)
+    site_brand_id = db.Column(db.Integer, db.ForeignKey('site_brands.id'), unique=True, nullable=False)
+    custom_description = db.Column(db.Text)
+    custom_selling_points = db.Column(db.Text)  # JSON array of strings
+    custom_affiliate_link = db.Column(db.Text)
+    custom_welcome_bonus = db.Column(db.Text)
+    custom_bonus_code = db.Column(db.Text)
+    internal_notes = db.Column(db.Text)
+
+    site_brand = db.relationship('SiteBrand', back_populates='override')
 
 
 class SitePage(db.Model):
@@ -193,15 +211,19 @@ class SitePage(db.Model):
     evergreen_topic = db.Column(db.Text, nullable=True)
     slug = db.Column(db.Text, nullable=False)
     title = db.Column(db.Text, nullable=False)
+    meta_title = db.Column(db.Text)  # SEO <title> — falls back to title if null
     meta_description = db.Column(db.Text)
+    custom_head = db.Column(db.Text)  # Per-page custom HTML for <head>
     content_json = db.Column(db.Text)
     is_generated = db.Column(db.Boolean, default=False)
     generated_at = db.Column(db.DateTime)
     regeneration_notes = db.Column(db.Text)
+    cta_table_id = db.Column(db.Integer, db.ForeignKey('cta_tables.id'), nullable=True)
 
     site = db.relationship('Site', back_populates='site_pages')
     page_type = db.relationship('PageType', back_populates='site_pages')
     brand = db.relationship('Brand')
+    cta_table = db.relationship('CTATable', back_populates='pages')
     content_history = db.relationship('ContentHistory', back_populates='site_page', cascade='all, delete-orphan')
 
 
@@ -216,3 +238,39 @@ class ContentHistory(db.Model):
     version = db.Column(db.Integer, nullable=False)
 
     site_page = db.relationship('SitePage', back_populates='content_history')
+
+
+class CTATable(db.Model):
+    __tablename__ = 'cta_tables'
+    __table_args__ = (
+        db.UniqueConstraint('site_id', 'slug', name='uq_cta_table_slug'),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    site_id = db.Column(db.Integer, db.ForeignKey('sites.id'), nullable=False)
+    name = db.Column(db.Text, nullable=False)
+    slug = db.Column(db.Text, nullable=False)
+
+    site = db.relationship('Site', backref='cta_tables')
+    rows = db.relationship('CTATableRow', back_populates='cta_table', cascade='all, delete-orphan',
+                           order_by='CTATableRow.rank')
+    pages = db.relationship('SitePage', back_populates='cta_table')
+
+
+class CTATableRow(db.Model):
+    __tablename__ = 'cta_table_rows'
+    __table_args__ = (
+        db.UniqueConstraint('cta_table_id', 'brand_id', name='uq_cta_row_brand'),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    cta_table_id = db.Column(db.Integer, db.ForeignKey('cta_tables.id'), nullable=False)
+    brand_id = db.Column(db.Integer, db.ForeignKey('brands.id'), nullable=False)
+    rank = db.Column(db.Integer, nullable=False)
+    custom_bonus_text = db.Column(db.Text)
+    custom_cta_text = db.Column(db.Text)  # e.g. "Claim Free Bets" — default: "Visit Site"
+    custom_badge = db.Column(db.Text)  # e.g. "Editor's Pick", "Best Odds"
+    is_visible = db.Column(db.Boolean, default=True)
+
+    cta_table = db.relationship('CTATable', back_populates='rows')
+    brand = db.relationship('Brand')

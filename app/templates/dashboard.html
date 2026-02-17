@@ -34,6 +34,26 @@
     </div>
 </div>
 
+{% if stale_sites %}
+<div class="card border-warning mb-4">
+    <div class="card-header bg-warning bg-opacity-10"><strong>Stale Content</strong></div>
+    <div class="card-body p-0">
+        <table class="table table-sm mb-0">
+            <tbody>
+                {% for item in stale_sites %}
+                <tr>
+                    <td>
+                        <a href="{{ url_for('sites.detail', site_id=item.site.id) }}">{{ item.site.name }}</a>
+                    </td>
+                    <td>{{ item.stale_count }} of {{ item.total_count }} pages older than {{ item.threshold_days }} days</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+
 {% if recent_sites %}
 <h3>Recent Sites</h3>
 <table class="table table-striped">
