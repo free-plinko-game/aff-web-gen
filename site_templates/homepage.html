@@ -1,63 +1,250 @@
 {% extends "base.html" %}
 
-{% block content %}
+{% block body_content %}
+<!-- HERO -->
 <section class="hero">
-    <h1>{{ content.hero_title }}</h1>
-    <p class="hero-subtitle">{{ content.hero_subtitle }}</p>
-</section>
-
-<section class="intro">
-    <p>{{ content.intro_paragraph }}</p>
-</section>
-
-<section class="top-brands">
-    <h2>Top Rated {{ vertical_name }}</h2>
-    <div class="brand-grid">
-        {% for brand_info in site_brands %}
-        <div class="brand-card">
-            {% if brand_info.logo_filename %}
-            <img src="assets/logos/{{ brand_info.logo_filename }}" alt="{{ brand_info.name }}" class="brand-logo">
+    <div class="hero-inner">
+        <div class="hero-badge">&#127942; {{ content.hero_badge | default('Updated ' ~ year) }}</div>
+        <h1>{{ content.hero_title }}</h1>
+        <p class="hero-sub">{{ content.hero_subtitle }}</p>
+        <div class="hero-stats">
+            {% if content.hero_stats %}
+            {% for stat in content.hero_stats %}
+            <div class="hero-stat">
+                <div class="hero-stat-number">{{ stat.number }}</div>
+                <div class="hero-stat-label">{{ stat.label }}</div>
+            </div>
+            {% endfor %}
             {% else %}
-            <div class="brand-logo-text">{{ brand_info.name }}</div>
+            <div class="hero-stat">
+                <div class="hero-stat-number">{{ site_brands | length }}</div>
+                <div class="hero-stat-label">Sites Reviewed</div>
+            </div>
+            <div class="hero-stat">
+                <div class="hero-stat-number">100%</div>
+                <div class="hero-stat-label">Licensed</div>
+            </div>
             {% endif %}
-            <h3>{{ brand_info.name }}</h3>
-            {% if brand_info.rating %}
-            <div class="rating">{{ brand_info.rating }}/5</div>
-            {% endif %}
-            {% if brand_info.welcome_bonus %}
-            <p class="bonus">{{ brand_info.welcome_bonus }}</p>
-            {% endif %}
-            <div class="brand-actions">
-                <a href="{{ brand_info.affiliate_link }}" class="cta-button" target="_blank" rel="nofollow noopener">Visit Site</a>
-                <a href="reviews/{{ brand_info.slug }}.html" class="review-link">Read Review</a>
+        </div>
+    </div>
+</section>
+
+<!-- TRUST BAR -->
+<div class="trust-bar">
+    <div class="trust-bar-inner">
+        {% if content.trust_items %}
+        {% for item in content.trust_items %}
+        <div class="trust-item">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 12l2 2 4-4"/><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20z"/></svg>
+            {{ item }}
+        </div>
+        {% endfor %}
+        {% else %}
+        <div class="trust-item">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 12l2 2 4-4"/><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20z"/></svg>
+            Expert Reviewed
+        </div>
+        <div class="trust-item">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 12l2 2 4-4"/><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20z"/></svg>
+            Independently Verified
+        </div>
+        <div class="trust-item">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 12l2 2 4-4"/><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20z"/></svg>
+            Updated Monthly
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- MAIN -->
+<main class="main">
+
+    <!-- LEFT: BRAND CARDS -->
+    <div class="content-area">
+
+        <div class="section-header">
+            <h2>{{ content.section_title | default('Top Rated ' ~ vertical_name) }}</h2>
+            <p>{{ content.section_subtitle | default('Ranked by our team based on bonuses, quality, user experience, and trustworthiness.') }}</p>
+        </div>
+
+        {% for brand in site_brands %}
+        <div class="brand-card">
+            <div class="brand-card-top">
+                <div>
+                    <div class="brand-logo-area">
+                        {% if brand.rank <= 3 %}
+                        <span class="rank-badge rank-{{ brand.rank }}">
+                            {%- if brand.rank == 1 %}Recommended{% elif brand.rank == 2 %}Hot Offer{% elif brand.rank == 3 %}3rd{% endif -%}
+                        </span>
+                        {% else %}
+                        <span class="rank-badge rank-default">{{ brand.rank }}th</span>
+                        {% endif %}
+                        {% if brand.logo_filename %}
+                        <img src="assets/logos/{{ brand.logo_filename }}" alt="{{ brand.name }}">
+                        {% else %}
+                        <div class="brand-logo-placeholder">{{ brand.name }}</div>
+                        {% endif %}
+                    </div>
+                    {% if brand.rating %}
+                    <div class="brand-rating">
+                        <div class="stars">
+                            {% set full_stars = brand.rating | int %}
+                            {% for i in range(5) %}
+                            <svg viewBox="0 0 24 24" fill="currentColor"{% if i >= full_stars %} style="opacity:0.3"{% endif %}><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+                            {% endfor %}
+                        </div>
+                        <span class="brand-rating-score">{{ brand.rating }}/5</span>
+                    </div>
+                    {% endif %}
+                </div>
+                <div class="brand-info">
+                    <h3><a href="reviews/{{ brand.slug }}.html">{{ brand.name }} Review</a></h3>
+                    <div class="brand-info-label">{% if brand.rank == 1 %}Why we recommend it{% else %}Key strengths{% endif %}</div>
+                    {% if brand.selling_points %}
+                    <ul class="selling-points">
+                        {% for point in brand.selling_points %}
+                        <li>
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg>
+                            {{ point }}
+                        </li>
+                        {% endfor %}
+                    </ul>
+                    {% elif brand.short_description %}
+                    <ul class="selling-points">
+                        <li>
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg>
+                            {{ brand.short_description }}
+                        </li>
+                    </ul>
+                    {% endif %}
+                </div>
+                <div class="brand-cta">
+                    <div class="bonus-label">{{ brand.name }} Bonus</div>
+                    {% if brand.welcome_bonus %}
+                    <div class="bonus-offer">{{ brand.welcome_bonus }}</div>
+                    {% endif %}
+                    {% if brand.bonus_code %}
+                    <div class="bonus-code-box">
+                        <span class="bonus-code-value">{{ brand.bonus_code }}</span>
+                        <button class="bonus-code-copy" data-code="{{ brand.bonus_code }}" title="Copy code">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+                        </button>
+                    </div>
+                    {% endif %}
+                    <a href="{{ brand.affiliate_link }}" class="cta-button" target="_blank" rel="nofollow noopener">
+                        Visit Provider
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+                    </a>
+                </div>
+            </div>
+            <div class="brand-card-tcs">
+                <span class="tcs-text">18+. T&amp;Cs apply. New customers only. Please gamble responsibly.</span>
             </div>
         </div>
         {% endfor %}
+
+        <!-- WHY TRUST US -->
+        {% if content.why_trust_us %}
+        <div class="content-block">
+            <h2>{{ content.why_trust_us_title | default('Why Trust Our Recommendations') }}</h2>
+            <p>{{ content.why_trust_us }}</p>
+        </div>
+        {% endif %}
+
+        <!-- FAQ -->
+        {% if content.faq %}
+        <div class="content-block">
+            <h2>Frequently Asked Questions</h2>
+            <div style="height:0.75rem;"></div>
+            <div class="faq-list">
+                {% for item in content.faq %}
+                <div class="faq-item{% if loop.first %} active{% endif %}">
+                    <button class="faq-question">
+                        {{ item.question }}
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+                    </button>
+                    <div class="faq-answer">{{ item.answer }}</div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
     </div>
-</section>
 
-{% if content.why_trust_us %}
-<section class="trust">
-    <h2>Why Trust Us</h2>
-    <p>{{ content.why_trust_us }}</p>
-</section>
-{% endif %}
+    <!-- SIDEBAR -->
+    <aside class="sidebar">
 
-{% if content.faq %}
-<section class="faq">
-    <h2>Frequently Asked Questions</h2>
-    {% for item in content.faq %}
-    <div class="faq-item">
-        <h3>{{ item.question }}</h3>
-        <p>{{ item.answer }}</p>
-    </div>
-    {% endfor %}
-</section>
-{% endif %}
+        <!-- Top Picks -->
+        <div class="sidebar-card">
+            <div class="sidebar-card-header">
+                <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+                <h3>Top Picks</h3>
+            </div>
+            {% for brand in site_brands[:5] %}
+            <a href="reviews/{{ brand.slug }}.html" class="sidebar-brand-item">
+                <div class="sidebar-brand-logo">
+                    {% if brand.logo_filename %}
+                    <img src="assets/logos/{{ brand.logo_filename }}" alt="{{ brand.name }}" style="max-width:36px;max-height:24px;object-fit:contain;">
+                    {% else %}
+                    <span>{{ brand.name[:8] }}</span>
+                    {% endif %}
+                </div>
+                <div class="sidebar-brand-info">
+                    <div class="sidebar-brand-name">{{ brand.name }}</div>
+                    {% if brand.rating %}
+                    <div class="sidebar-brand-rating">
+                        {% set full = brand.rating | round | int %}
+                        <span>{{ '\u2605' * full }}{{ '\u2606' * (5 - full) }}</span>
+                    </div>
+                    {% endif %}
+                </div>
+                {% if brand.rating %}
+                <div class="sidebar-brand-score">{{ brand.rating }}</div>
+                {% endif %}
+            </a>
+            {% endfor %}
+        </div>
 
-{% if content.closing_paragraph %}
-<section class="closing">
-    <p>{{ content.closing_paragraph }}</p>
-</section>
-{% endif %}
-{% endblock %}
+        <!-- Quick Links -->
+        <div class="sidebar-card">
+            <div class="sidebar-card-header">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+                <h3>Quick Links</h3>
+            </div>
+            <div class="quick-links">
+                {% for link in nav_links %}
+                {% if link.url != 'index.html' %}
+                <a href="{{ link.url }}" class="quick-link">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
+                    {{ link.label }}
+                </a>
+                {% endif %}
+                {% endfor %}
+                {% for brand in site_brands[:3] %}
+                <a href="bonuses/{{ brand.slug }}.html" class="quick-link">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 12H4M12 4v16"/></svg>
+                    {{ brand.name }} Bonus
+                </a>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- Responsible Gambling -->
+        <div class="sidebar-card">
+            <div class="sidebar-card-header" style="background: var(--gray-700);">
+                <svg viewBox="0 0 24 24" fill="none" stroke="var(--amber)" stroke-width="2"><path d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                <h3>Gamble Responsibly</h3>
+            </div>
+            <div style="padding: 1rem 1.1rem;">
+                <p style="font-size:0.82rem; color:var(--gray-600); line-height:1.7; margin-bottom:0.75rem;">If you feel you may have a gambling problem, help is available. Please gamble responsibly.</p>
+                <a href="https://www.gambleaware.org" target="_blank" rel="noopener" style="display:block; text-align:center; font-size:0.82rem; font-weight:600; color:var(--teal); text-decoration:none; padding:0.6rem; background:var(--gray-50); border-radius:var(--radius-sm);">
+                    GambleAware.org &rarr;
+                </a>
+            </div>
+        </div>
+
+    </aside>
+
+</main>
+{% endblock body_content %}

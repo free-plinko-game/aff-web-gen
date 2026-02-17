@@ -59,6 +59,12 @@ def create():
             description=request.form.get('description', '').strip(),
             founded_year=int(request.form['founded_year']) if request.form.get('founded_year') else None,
             rating=float(request.form['rating']) if request.form.get('rating') else None,
+            parent_company=request.form.get('parent_company', '').strip() or None,
+            support_methods=request.form.get('support_methods', '').strip() or None,
+            support_email=request.form.get('support_email', '').strip() or None,
+            available_languages=request.form.get('available_languages', '').strip() or None,
+            has_ios_app='has_ios_app' in request.form,
+            has_android_app='has_android_app' in request.form,
         )
 
         # Handle logo upload
@@ -97,6 +103,12 @@ def edit(brand_id):
         brand.description = request.form.get('description', '').strip()
         brand.founded_year = int(request.form['founded_year']) if request.form.get('founded_year') else None
         brand.rating = float(request.form['rating']) if request.form.get('rating') else None
+        brand.parent_company = request.form.get('parent_company', '').strip() or None
+        brand.support_methods = request.form.get('support_methods', '').strip() or None
+        brand.support_email = request.form.get('support_email', '').strip() or None
+        brand.available_languages = request.form.get('available_languages', '').strip() or None
+        brand.has_ios_app = 'has_ios_app' in request.form
+        brand.has_android_app = 'has_android_app' in request.form
 
         # Handle logo upload
         logo_file = request.files.get('logo')
@@ -210,6 +222,15 @@ def _save_geo_associations(brand, form):
                 bonus_code=form.get(f'geo_code_{geo_id}', '').strip(),
                 license_info=form.get(f'geo_license_{geo_id}', '').strip(),
                 is_active=True,
+                payment_methods=form.get(f'geo_payment_methods_{geo_id}', '').strip() or None,
+                withdrawal_timeframe=form.get(f'geo_withdrawal_timeframe_{geo_id}', '').strip() or None,
+                rating_bonus=float(form[f'geo_rating_bonus_{geo_id}']) if form.get(f'geo_rating_bonus_{geo_id}') else None,
+                rating_usability=float(form[f'geo_rating_usability_{geo_id}']) if form.get(f'geo_rating_usability_{geo_id}') else None,
+                rating_mobile_app=float(form[f'geo_rating_mobile_app_{geo_id}']) if form.get(f'geo_rating_mobile_app_{geo_id}') else None,
+                rating_payments=float(form[f'geo_rating_payments_{geo_id}']) if form.get(f'geo_rating_payments_{geo_id}') else None,
+                rating_support=float(form[f'geo_rating_support_{geo_id}']) if form.get(f'geo_rating_support_{geo_id}') else None,
+                rating_licensing=float(form[f'geo_rating_licensing_{geo_id}']) if form.get(f'geo_rating_licensing_{geo_id}') else None,
+                rating_rewards=float(form[f'geo_rating_rewards_{geo_id}']) if form.get(f'geo_rating_rewards_{geo_id}') else None,
             )
             db.session.add(brand_geo)
 

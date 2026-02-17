@@ -2,7 +2,7 @@
 
 ## Overview
 
-A Flask-based control panel for generating and deploying static affiliate websites. The operator selects a GEO, vertical, brands, and page types — the system generates LLM-written content, populates pre-built HTML templates, outputs a complete static site folder, and deploys it to a VPS via SSH.
+A Flask-based control panel for generating and deploying static affiliate websites. The operator selects a GEO, vertical, brands, and page types — the system generates LLM-written content, populates pre-built HTML templates, outputs a complete static site folder, and deploys it to a VPS via SSH. After initial creation, the site detail page serves as an ongoing management hub — add new pages, update content with custom LLM directions, manage the sitemap and robots.txt, and redeploy.
 
 ---
 
@@ -63,7 +63,13 @@ A Flask-based control panel for generating and deploying static affiliate websit
 | affiliate_link | TEXT | Your tracked affiliate link |
 | description | TEXT | Short brand description |
 | founded_year | INTEGER | Optional |
-| rating | FLOAT | e.g. `4.5` out of 5 |
+| rating | FLOAT | e.g. `4.5` out of 5 — headline rating used across all pages |
+| parent_company | TEXT | Optional — e.g. `LeoVegas Gaming PLC` |
+| support_methods | TEXT | e.g. `Live Chat, Phone, Email` |
+| support_email | TEXT | Optional — e.g. `support@betmgm.co.uk` |
+| available_languages | TEXT | e.g. `EN, DE, FR` |
+| has_ios_app | BOOLEAN | Default False |
+| has_android_app | BOOLEAN | Default False |
 
 ### `brand_geos`
 | Column | Type | Notes |
@@ -75,6 +81,15 @@ A Flask-based control panel for generating and deploying static affiliate websit
 | bonus_code | TEXT | Optional promo code |
 | license_info | TEXT | e.g. "UKGC License #12345" |
 | is_active | BOOLEAN | Whether brand is live in this GEO |
+| payment_methods | TEXT | e.g. "PayPal, Apple Pay, Visa, Mastercard" |
+| withdrawal_timeframe | TEXT | e.g. "1–7 Days" |
+| rating_bonus | FLOAT | Category rating out of 5 — Bonus & Free Bets |
+| rating_usability | FLOAT | Category rating — Usability, Look & Feel |
+| rating_mobile_app | FLOAT | Category rating — Mobile App |
+| rating_payments | FLOAT | Category rating — Payment Methods |
+| rating_support | FLOAT | Category rating — Customer Service |
+| rating_licensing | FLOAT | Category rating — Licence & Security |
+| rating_rewards | FLOAT | Category rating — Rewards & Loyalty Program |
 | **UNIQUE** | | **(brand_id, geo_id)** |
 
 ### `brand_verticals`
@@ -102,7 +117,7 @@ A Flask-based control panel for generating and deploying static affiliate websit
 | registrar | TEXT | Optional |
 | status | TEXT | `available`, `assigned`, `deployed` |
 
-> **Note:** No `assigned_site_id` FK here. The Domain↔Site link is derived from `sites.domain_id`. This avoids a bidirectional FK conflict in SQLAlchemy. Use `domain.site` (via `uselist=False` back_populates) to access the assigned site.
+**Note:** The Domain→Site relationship is derived from `sites.domain_id`, not a FK on this table. SQLAlchemy uses `back_populates` with `uselist=False` to give `domain.site` access without a bidirectional FK conflict.
 
 ### `sites`
 | Column | Type | Notes |
@@ -116,7 +131,9 @@ A Flask-based control panel for generating and deploying static affiliate websit
 | output_path | TEXT | Local path to the generated static folder |
 | created_at | DATETIME | Auto |
 | deployed_at | DATETIME | Nullable |
+| built_at | DATETIME | Nullable — timestamp of last successful build |
 | current_version | INTEGER | Default 1, incremented on each rebuild |
+| custom_robots_txt | TEXT | Nullable — if set, used instead of the default robots.txt template during build |
 
 ### `site_brands`
 | Column | Type | Notes |
@@ -141,6 +158,7 @@ A Flask-based control panel for generating and deploying static affiliate websit
 | content_json | TEXT | JSON blob of generated content sections |
 | is_generated | BOOLEAN | Whether LLM content has been generated |
 | generated_at | DATETIME | Nullable — timestamp of last generation |
+| regeneration_notes | TEXT | Nullable — custom instructions for the next generation (e.g. "focus on mobile app", "target keyword: best UK betting sites") |
 | **UNIQUE (partial indexes)** | | **Brand pages:** `(site_id, page_type_id, brand_id)` WHERE `brand_id IS NOT NULL` |
 | | | **Evergreen pages:** `(site_id, page_type_id, evergreen_topic)` WHERE `evergreen_topic IS NOT NULL` |
 | | | **Global pages:** `(site_id, page_type_id)` WHERE `brand_id IS NULL AND evergreen_topic IS NULL` |
@@ -152,6 +170,7 @@ A Flask-based control panel for generating and deploying static affiliate websit
 | site_page_id | INTEGER FK | → site_pages.id |
 | content_json | TEXT | Snapshot of the generated content |
 | generated_at | DATETIME | When this version was generated |
+| regeneration_notes | TEXT | Nullable — the custom instructions that were used for this generation (copied from site_pages at generation time) |
 | version | INTEGER | Auto-incrementing per page |
 
 This table stores previous versions of generated content. Every time content is regenerated for a `site_page`, the old `content_json` is copied here before being overwritten. This enables rollbacks.
@@ -179,7 +198,7 @@ affiliate-factory/
 │   │   ├── brands.py               ← CRUD for brands (including logo upload)
 │   │   ├── domains.py              ← CRUD for domains
 │   │   ├── sites.py                ← Site config, generation, deployment
-│   │   └── api.py                  ← AJAX endpoints (e.g. brand search, generation progress)
+│   │   └── api.py                  ← AJAX endpoints (generation progress, page CRUD, robots.txt save)
 │   ├── services/
 │   │   ├── __init__.py
 │   │   ├── content_generator.py    ← OpenAI API integration (runs in background thread)
@@ -197,7 +216,9 @@ affiliate-factory/
 │   │   └── sites/
 │   │       ├── list.html
 │   │       ├── create.html         ← The main wizard (GEO → vertical → brands → pages)
-│   │       ├── detail.html         ← Includes generation progress indicator
+│   │       ├── detail.html         ← Site hub: pages list, sitemap, robots.txt, generation & build controls
+│   │       ├── add_page.html       ← Add a new page to an existing site
+│   │       ├── edit_page.html      ← Edit page settings + regeneration notes
 │   │       └── deploy.html
 │   └── static/                     ← Control panel static assets
 │       ├── css/
@@ -344,6 +365,7 @@ All generated sites follow a consistent URL and navigation structure:
    For evergreen pages, the prompt receives the `evergreen_topic` and generates content around that topic in the context of the vertical and GEO.
 5. Add a "Generate Content" button on the site detail page (with progress bar)
 6. Add a "Regenerate" button per individual page (also saves to `content_history` first)
+7. **Regeneration with directions:** When regenerating a single page, the operator can provide `regeneration_notes` — custom instructions that are appended to the base prompt before calling the API (e.g. "focus more on the mobile app experience", "target keyword: best UK betting sites 2026", "make the tone more casual"). These notes are stored on the `site_pages` row and also copied into `content_history` alongside the snapshot, so you can always see what instructions produced each version.
 
 **Test:** Hit generate, see progress bar update, inspect JSON output per page. Regenerate a single page and verify the old version is in `content_history`.
 
@@ -359,7 +381,7 @@ All generated sites follow a consistent URL and navigation structure:
    - Copies assets (CSS, JS) into the output folder
    - **Copies brand logos** from `uploads/logos/` into `output/{site}/v{n}/assets/logos/` for all brands in the site
    - Generates `sitemap.xml` from the sitemap template (lists all pages with lastmod dates)
-   - Generates `robots.txt` from the robots template (points to sitemap URL using the assigned domain)
+   - Generates `robots.txt`: if `sites.custom_robots_txt` is set, uses that verbatim; otherwise renders from the robots.txt Jinja2 template (points to sitemap URL using the assigned domain)
    - Outputs to versioned folder: `output/{site_id}_{slug}/v{version}/`
    - Increments `sites.current_version`
 2. Create the Jinja2 site templates in `site_templates/`:
@@ -424,7 +446,98 @@ All generated sites follow a consistent URL and navigation structure:
 
 ---
 
+### Phase 7: Site Management Hub
+**Goal:** Turn the site detail page (`/sites/<id>`) into a full management hub for ongoing site operations — adding pages, updating content with custom directions, and managing SEO config.
+
+The site detail page is the central control point for each site. After initial creation (Phase 2), the operator will spend most of their time here. These features make it a proper CMS-like hub rather than a one-shot generator.
+
+#### 7.1 — Add New Pages
+
+Allow adding pages to an existing site without re-running the creation wizard.
+
+1. Add an "Add Page" button on the site detail page that opens `add_page.html`
+2. The form presents a page type dropdown:
+   - **Evergreen** — shows a text input for the topic title (e.g. "How to Bet on Football"). Slug auto-generated from topic.
+   - **Brand Review** — shows a dropdown of site brands (from `site_brands`) that don't already have a review page. Slug auto-generated from brand slug.
+   - **Bonus Review** — same as brand review, filtered to brands without a bonus page.
+   - **Homepage / Comparison** — only shown if the site doesn't already have one (partial unique constraint enforces this).
+3. On submit:
+   - Create the `site_pages` record with `is_generated = False`
+   - Redirect back to site detail page
+   - The new page appears in the page list as "Not Generated" — operator can then hit Generate on it individually
+4. **Validation:** Enforce the same partial unique constraints from the schema. If the operator tries to add a duplicate (e.g. a second homepage, or a brand review for a brand that already has one), show a clear error message.
+
+**Note:** After adding new pages, the site must be **rebuilt** for the sitemap, nav links, and footer to include the new page. The site detail page should show a warning banner if there are pages that were generated/updated after the last build (i.e. site needs rebuilding).
+
+#### 7.2 — Update Pages with Directions
+
+Allow the operator to regenerate content for a specific page with custom instructions that steer the LLM output.
+
+1. Add an "Edit / Regenerate" action per page on the site detail page that opens `edit_page.html`
+2. The edit page form includes:
+   - **Page title** — editable (pre-filled from `site_pages.title`)
+   - **Meta description** — editable (pre-filled from `site_pages.meta_description`)
+   - **Slug** — editable with caution warning ("changing the slug will break existing links")
+   - **Regeneration Notes** — a textarea for custom instructions to the LLM. Examples:
+     - "Focus more on the mobile app experience"
+     - "Target keyword: best UK betting sites 2026"
+     - "Make the tone more casual and conversational"
+     - "Add a section about live streaming features"
+     - "Mention the new welcome bonus: Bet £20 Get £40"
+   - **Current content preview** — read-only JSON viewer or rendered preview of the current `content_json`
+   - **Content history** — list of previous versions from `content_history` with timestamps and the regeneration notes used, plus a "Restore" button per version
+3. On "Save" — updates title, meta_description, slug, and regeneration_notes on the `site_pages` row (does NOT regenerate)
+4. On "Save & Regenerate" — saves the above, then triggers content generation for this single page in a background thread:
+   - Snapshots current `content_json` → `content_history` (with the `regeneration_notes` that produced it)
+   - Appends the `regeneration_notes` to the base `page_types.content_prompt` before calling the API
+   - Updates `content_json`, `is_generated`, `generated_at`
+   - Clears `regeneration_notes` after successful generation (they've been consumed and archived in `content_history`)
+5. The site detail page polls for single-page generation progress (reuse the existing AJAX progress endpoint, scoped to one page)
+
+#### 7.3 — Sitemap Viewer
+
+Show the full URL structure of the site on the detail page so the operator can see at a glance what exists and what state it's in.
+
+1. Add a "Site Map" tab/section on the site detail page
+2. Display a table or tree view of all `site_pages` for the site, showing:
+   - **URL** — the full path as it will appear on the live site (e.g. `/index.html`, `/reviews/bet365.html`, `/how-to-bet-on-football.html`)
+   - **Page Type** — homepage, comparison, brand review, bonus review, evergreen
+   - **Status** — Not Generated | Generated (with timestamp) | Stale (generated before last page addition)
+   - **Actions** — Edit, Regenerate, Delete (with confirmation), Preview
+3. If a domain is assigned, show the full live URLs (e.g. `https://bestbets.co.uk/reviews/bet365.html`)
+4. Highlight pages that are generated but not yet built (i.e. newer than the last build) with a visual indicator
+5. Show a count summary at the top: "12 pages (10 generated, 2 pending)"
+
+#### 7.4 — Robots.txt Editor
+
+Allow the operator to customise the robots.txt for each site directly from the admin.
+
+1. Add a "robots.txt" tab/section on the site detail page
+2. Display a textarea pre-filled with:
+   - The current `sites.custom_robots_txt` if it exists, OR
+   - The default rendered output from the `site_templates/robots.txt` Jinja2 template (as a preview of what would be generated)
+3. A "Save Custom robots.txt" button saves the textarea content to `sites.custom_robots_txt`
+4. A "Reset to Default" button clears `sites.custom_robots_txt` (sets to NULL), reverting to template-based generation
+5. The `site_builder.py` build step checks: if `sites.custom_robots_txt` is not null, write it verbatim to the output folder; otherwise, render the Jinja2 template as before.
+6. Show a note: "Custom robots.txt will be used on next build. Hit 'Rebuild Site' to apply changes."
+
+#### 7.5 — Rebuild Awareness
+
+Since pages can now be added or updated independently, the site detail page needs to clearly communicate when a rebuild is needed.
+
+1. Track the latest `generated_at` across all `site_pages` for the site
+2. Compare against `sites.built_at` (updated by `site_builder.py` on each successful build)
+3. If any page was generated after the last build, show a **warning banner**: "Content has changed since last build. Rebuild to update the static site."
+4. The "Rebuild Site" button triggers the existing `site_builder.py` flow — it picks up all current `site_pages` (including newly added ones), regenerates the sitemap and nav links, and outputs a new versioned folder.
+
+**Test:** Add a new evergreen page to an existing site. Generate its content. Verify the warning banner appears. Rebuild. Verify the new page appears in the sitemap, nav, and footer of the rebuilt site. Edit an existing page with regeneration notes, regenerate it, verify the content_history snapshot includes the notes.
+
+---
+
 ## Key Design Decisions
+
+### Site Management Hub
+The site detail page (`/sites/<id>`) is the operator's primary workspace after initial site creation. It should feel like a lightweight CMS dashboard for that specific site — not just a status page. The Phase 2 wizard handles initial setup, but all ongoing work (adding pages, tweaking content, managing SEO, deploying) happens from the detail page. Design it accordingly.
 
 ### Content Structure
 LLM-generated content is stored as **JSON blobs** in `site_pages.content_json`. This keeps things flexible — you can add new sections to templates without DB migrations. The site templates read from this JSON to populate the HTML. Previous versions are preserved in `content_history` for rollback.
@@ -554,6 +667,7 @@ uploads/logos/
 
 ## Notes for Claude Code
 
+- **DEVIATION POLICY: If you need to change anything from this plan (schema, file structure, architecture, tech choices), you MUST explicitly state what you're changing and why BEFORE implementing it.** Do not silently deviate. The operator will confirm or reject the change. This applies to everything — column removals, new dependencies, relationship changes, file reorganization, all of it.
 - **Always check this plan before building anything.** It's the source of truth for architecture and naming.
 - **Follow the phase order.** Each phase builds on the last.
 - **Use the exact file structure above.** Don't reorganize unless asked.
@@ -567,4 +681,7 @@ uploads/logos/
 - **Logo uploads go to `uploads/logos/`** and are copied into the output folder during build.
 - **Symlink-based deployment:** `current` → `releases/v{n}` on the VPS. Never overwrite in-place.
 - **Content versioning:** Always snapshot to `content_history` before overwriting `content_json`.
+- **Regeneration notes flow:** When regenerating with notes, append them to the base prompt, snapshot the old content + notes to `content_history`, then clear the notes from `site_pages` after successful generation.
+- **Rebuild awareness:** After any page is added, updated, or regenerated, the site detail page must show a warning if the site hasn't been rebuilt since. Compare `site_pages.generated_at` against `sites.built_at`.
+- **Custom robots.txt:** If `sites.custom_robots_txt` is not null, `site_builder.py` writes it verbatim. Otherwise, render the Jinja2 template as default.
 - **`.env` must never be committed.** A `.env.example` with placeholder values is committed instead.

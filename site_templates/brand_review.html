@@ -1,108 +1,369 @@
 {% extends "base.html" %}
 
-{% block content %}
-<section class="hero">
-    <h1>{{ content.hero_title }}</h1>
-    <p class="hero-subtitle">{{ content.hero_subtitle }}</p>
+{% block body_content %}
+<!-- HERO -->
+<section class="review-hero">
+    <div class="review-hero-inner">
+        <div class="review-hero-brand">
+            {% if brand_info and brand_info.logo_filename %}
+            <img src="../assets/logos/{{ brand_info.logo_filename }}" alt="{{ brand_info.name }}" class="review-hero-logo">
+            {% else %}
+            <div class="review-hero-logo-placeholder">{{ brand_info.name if brand_info else '' }}</div>
+            {% endif %}
+            <div class="review-hero-text">
+                <h1>{{ content.hero_title }}</h1>
+                <p class="review-hero-sub">{{ content.hero_subtitle }}</p>
+            </div>
+        </div>
+        <div class="review-hero-rating">
+            {% if brand_info and brand_info.rating %}
+            <div class="review-overall-score">{{ brand_info.rating }}</div>
+            <div class="review-overall-label">Overall Rating</div>
+            <div class="review-stars">
+                {% set full_stars = brand_info.rating | int %}
+                {% for i in range(5) %}
+                <svg viewBox="0 0 24 24" fill="currentColor"{% if i >= full_stars %} style="opacity:0.3"{% endif %}><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+                {% endfor %}
+            </div>
+            {% endif %}
+        </div>
+    </div>
 </section>
 
-<section class="intro">
-    <p>{{ content.intro_paragraph }}</p>
-</section>
+<!-- MAIN LAYOUT -->
+<main class="review-main">
 
-<section class="review-overview">
-    {% if brand_info and brand_info.logo_filename %}
-    <img src="../assets/logos/{{ brand_info.logo_filename }}" alt="{{ brand_info.name }}" class="brand-logo-large">
-    {% endif %}
+    <!-- LEFT: CONTENT -->
+    <div class="review-content">
 
-    {% if content.rating %}
-    <div class="rating-large">{{ content.rating }}/5</div>
-    {% endif %}
+        <!-- Quick Info Bar -->
+        <div class="review-quick-info">
+            {% if brand_info and brand_info.welcome_bonus %}
+            <div class="review-qi-item">
+                <span class="review-qi-label">Welcome Bonus</span>
+                <span class="review-qi-value">{{ brand_info.welcome_bonus }}</span>
+            </div>
+            {% endif %}
+            {% if brand_info and brand_info.bonus_code %}
+            <div class="review-qi-item">
+                <span class="review-qi-label">Bonus Code</span>
+                <span class="review-qi-value">
+                    <span class="bonus-code-value">{{ brand_info.bonus_code }}</span>
+                    <button class="bonus-code-copy" data-code="{{ brand_info.bonus_code }}" title="Copy code">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+                    </button>
+                </span>
+            </div>
+            {% endif %}
+            {% if brand_info and brand_info.founded_year %}
+            <div class="review-qi-item">
+                <span class="review-qi-label">Founded</span>
+                <span class="review-qi-value">{{ brand_info.founded_year }}</span>
+            </div>
+            {% endif %}
+            {% if brand_info and brand_info.license_info %}
+            <div class="review-qi-item">
+                <span class="review-qi-label">License</span>
+                <span class="review-qi-value">{{ brand_info.license_info }}</span>
+            </div>
+            {% endif %}
+        </div>
 
-    <div class="cta-section">
-        {% if brand_info and brand_info.welcome_bonus %}
-        <p class="bonus-highlight">{{ brand_info.welcome_bonus }}</p>
+        <!-- Intro -->
+        {% if content.intro_paragraphs %}
+        <div class="review-section">
+            {% for para in content.intro_paragraphs %}
+            <p>{{ para }}</p>
+            {% endfor %}
+        </div>
+        {% elif content.intro_paragraph %}
+        <div class="review-section">
+            <p>{{ content.intro_paragraph }}</p>
+        </div>
         {% endif %}
+
+        <!-- Category Ratings -->
+        {% set ratings = [] %}
         {% if brand_info %}
-        <a href="{{ brand_info.affiliate_link }}" class="cta-button cta-large" target="_blank" rel="nofollow noopener">Visit {{ brand_info.name }}</a>
+            {% if brand_info.rating_bonus is not none %}{% set _ = ratings.append(('Bonus', brand_info.rating_bonus)) %}{% endif %}
+            {% if brand_info.rating_usability is not none %}{% set _ = ratings.append(('Usability', brand_info.rating_usability)) %}{% endif %}
+            {% if brand_info.rating_mobile_app is not none %}{% set _ = ratings.append(('Mobile App', brand_info.rating_mobile_app)) %}{% endif %}
+            {% if brand_info.rating_payments is not none %}{% set _ = ratings.append(('Payments', brand_info.rating_payments)) %}{% endif %}
+            {% if brand_info.rating_support is not none %}{% set _ = ratings.append(('Support', brand_info.rating_support)) %}{% endif %}
+            {% if brand_info.rating_licensing is not none %}{% set _ = ratings.append(('Licensing', brand_info.rating_licensing)) %}{% endif %}
+            {% if brand_info.rating_rewards is not none %}{% set _ = ratings.append(('Rewards', brand_info.rating_rewards)) %}{% endif %}
         {% endif %}
-        <a href="../bonuses/{{ brand_slug }}.html" class="bonus-link">View Bonus Details</a>
-    </div>
-</section>
+        {% if ratings %}
+        <div class="review-section">
+            <h2>Category Ratings</h2>
+            <div class="review-ratings-grid">
+                {% for label, value in ratings %}
+                <div class="review-rating-row">
+                    <span class="review-rating-label">{{ label }}</span>
+                    <div class="review-rating-bar">
+                        <div class="review-rating-fill" style="width: {{ (value / 5 * 100) | round }}%"></div>
+                    </div>
+                    <span class="review-rating-score">{{ value }}/5</span>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
 
-{% if content.pros or content.cons %}
-<section class="pros-cons">
-    <div class="pros">
-        <h2>Pros</h2>
-        <ul>
-        {% for pro in content.pros %}
-            <li>{{ pro }}</li>
+        <!-- Pros & Cons -->
+        {% if content.pros or content.cons %}
+        <div class="review-section">
+            <h2>Pros &amp; Cons</h2>
+            <div class="review-pros-cons">
+                {% if content.pros %}
+                <div class="review-pros">
+                    <h3>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg>
+                        Pros
+                    </h3>
+                    <ul>
+                    {% for pro in content.pros %}
+                        <li>{{ pro }}</li>
+                    {% endfor %}
+                    </ul>
+                </div>
+                {% endif %}
+                {% if content.cons %}
+                <div class="review-cons">
+                    <h3>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 6L6 18M6 6l12 12"/></svg>
+                        Cons
+                    </h3>
+                    <ul>
+                    {% for con in content.cons %}
+                        <li>{{ con }}</li>
+                    {% endfor %}
+                    </ul>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Editorial Sections -->
+        {% if content.features_sections %}
+        {% for section in content.features_sections %}
+        <div class="review-section">
+            <h2>{{ section.heading }}</h2>
+            <p>{{ section.content }}</p>
+        </div>
         {% endfor %}
-        </ul>
+        {% elif content.features_review %}
+        <div class="review-section">
+            <h2>Features Review</h2>
+            <p>{{ content.features_review }}</p>
+        </div>
+        {% endif %}
+
+        {% if content.user_experience %}
+        <div class="review-section">
+            <h2>User Experience</h2>
+            <p>{{ content.user_experience }}</p>
+        </div>
+        {% endif %}
+
+        <!-- Payment Methods (from DB) -->
+        {% if brand_info and brand_info.payment_methods %}
+        <div class="review-section">
+            <h2>Payment Methods</h2>
+            <div class="review-payment-grid">
+                {% for method in brand_info.payment_methods.split(',') %}
+                <span class="review-payment-badge">{{ method | trim }}</span>
+                {% endfor %}
+            </div>
+            {% if brand_info.withdrawal_timeframe %}
+            <p class="review-withdrawal-time">Withdrawal timeframe: <strong>{{ brand_info.withdrawal_timeframe }}</strong></p>
+            {% endif %}
+        </div>
+        {% elif content.payment_methods %}
+        <div class="review-section">
+            <h2>Payment Methods</h2>
+            <p>{{ content.payment_methods }}</p>
+        </div>
+        {% endif %}
+
+        <!-- Company Info -->
+        {% if brand_info and (brand_info.parent_company or brand_info.support_methods or brand_info.available_languages) %}
+        <div class="review-section">
+            <h2>Company Information</h2>
+            <div class="review-company-grid">
+                {% if brand_info.parent_company %}
+                <div class="review-company-item">
+                    <span class="review-company-label">Parent Company</span>
+                    <span class="review-company-value">{{ brand_info.parent_company }}</span>
+                </div>
+                {% endif %}
+                {% if brand_info.founded_year %}
+                <div class="review-company-item">
+                    <span class="review-company-label">Founded</span>
+                    <span class="review-company-value">{{ brand_info.founded_year }}</span>
+                </div>
+                {% endif %}
+                {% if brand_info.support_methods %}
+                <div class="review-company-item">
+                    <span class="review-company-label">Support</span>
+                    <span class="review-company-value">{{ brand_info.support_methods }}</span>
+                </div>
+                {% endif %}
+                {% if brand_info.support_email %}
+                <div class="review-company-item">
+                    <span class="review-company-label">Email</span>
+                    <span class="review-company-value">{{ brand_info.support_email }}</span>
+                </div>
+                {% endif %}
+                {% if brand_info.available_languages %}
+                <div class="review-company-item">
+                    <span class="review-company-label">Languages</span>
+                    <span class="review-company-value">{{ brand_info.available_languages }}</span>
+                </div>
+                {% endif %}
+                {% if brand_info.has_ios_app or brand_info.has_android_app %}
+                <div class="review-company-item">
+                    <span class="review-company-label">Mobile Apps</span>
+                    <span class="review-company-value">
+                        {% if brand_info.has_ios_app %}iOS{% endif %}
+                        {% if brand_info.has_ios_app and brand_info.has_android_app %}, {% endif %}
+                        {% if brand_info.has_android_app %}Android{% endif %}
+                    </span>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Verdict -->
+        {% if content.verdict %}
+        <div class="review-section review-verdict">
+            <h2>Our Verdict</h2>
+            <p>{{ content.verdict }}</p>
+        </div>
+        {% endif %}
+
+        <!-- FAQ -->
+        {% if content.faq %}
+        <div class="review-section">
+            <h2>Frequently Asked Questions</h2>
+            <div class="faq-list">
+                {% for item in content.faq %}
+                <div class="faq-item{% if loop.first %} active{% endif %}">
+                    <button class="faq-question">
+                        {{ item.question }}
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+                    </button>
+                    <div class="faq-answer">{{ item.answer }}</div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
     </div>
-    <div class="cons">
-        <h2>Cons</h2>
-        <ul>
-        {% for con in content.cons %}
-            <li>{{ con }}</li>
-        {% endfor %}
-        </ul>
+
+    <!-- RIGHT: STICKY SIDEBAR -->
+    <aside class="review-sidebar">
+
+        <!-- CTA Card -->
+        <div class="sidebar-card review-sidebar-cta">
+            <div class="sidebar-card-header" style="background: var(--teal);">
+                <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+                <h3>{{ brand_info.name if brand_info else '' }}</h3>
+            </div>
+            <div style="padding: 1rem 1.1rem;">
+                {% if brand_info and brand_info.welcome_bonus %}
+                <div class="review-sidebar-bonus">{{ brand_info.welcome_bonus }}</div>
+                {% endif %}
+                {% if brand_info and brand_info.bonus_code %}
+                <div class="review-sidebar-code">
+                    Code: <strong>{{ brand_info.bonus_code }}</strong>
+                    <button class="bonus-code-copy" data-code="{{ brand_info.bonus_code }}" title="Copy">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+                    </button>
+                </div>
+                {% endif %}
+                {% if brand_info %}
+                <a href="{{ brand_info.affiliate_link }}" class="cta-button" target="_blank" rel="nofollow noopener" style="display:block; text-align:center; margin-top:0.75rem;">
+                    Visit {{ brand_info.name }}
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+                </a>
+                {% endif %}
+                <a href="../bonuses/{{ brand_slug }}.html" class="review-sidebar-bonus-link">View Full Bonus Details &rarr;</a>
+                <p class="review-sidebar-tcs">18+. T&amp;Cs apply. New customers only.</p>
+            </div>
+        </div>
+
+        <!-- Other Brands -->
+        {% if other_brands %}
+        <div class="sidebar-card">
+            <div class="sidebar-card-header">
+                <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+                <h3>Other Top Picks</h3>
+            </div>
+            {% for ob in other_brands %}
+            <a href="{{ ob.slug }}.html" class="sidebar-brand-item">
+                <div class="sidebar-brand-logo">
+                    {% if ob.logo_filename %}
+                    <img src="../assets/logos/{{ ob.logo_filename }}" alt="{{ ob.name }}" style="max-width:36px;max-height:24px;object-fit:contain;">
+                    {% else %}
+                    <span>{{ ob.name[:8] }}</span>
+                    {% endif %}
+                </div>
+                <div class="sidebar-brand-info">
+                    <div class="sidebar-brand-name">{{ ob.name }}</div>
+                    {% if ob.welcome_bonus %}
+                    <div class="sidebar-brand-rating" style="font-size:0.75rem; color:var(--gray-500);">{{ ob.welcome_bonus }}</div>
+                    {% endif %}
+                </div>
+                {% if ob.rating %}
+                <div class="sidebar-brand-score">{{ ob.rating }}</div>
+                {% endif %}
+            </a>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        <!-- Responsible Gambling -->
+        <div class="sidebar-card">
+            <div class="sidebar-card-header" style="background: var(--gray-700);">
+                <svg viewBox="0 0 24 24" fill="none" stroke="var(--amber)" stroke-width="2"><path d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                <h3>Gamble Responsibly</h3>
+            </div>
+            <div style="padding: 1rem 1.1rem;">
+                <p style="font-size:0.82rem; color:var(--gray-600); line-height:1.7; margin-bottom:0.75rem;">If you feel you may have a gambling problem, help is available. Please gamble responsibly.</p>
+                <a href="https://www.gambleaware.org" target="_blank" rel="noopener" style="display:block; text-align:center; font-size:0.82rem; font-weight:600; color:var(--teal); text-decoration:none; padding:0.6rem; background:var(--gray-50); border-radius:var(--radius-sm);">
+                    GambleAware.org &rarr;
+                </a>
+            </div>
+        </div>
+
+    </aside>
+
+</main>
+
+<!-- STICKY BOTTOM BAR -->
+{% if brand_info %}
+<div class="review-bottom-bar">
+    <div class="review-bottom-inner">
+        <div class="review-bottom-info">
+            {% if brand_info.logo_filename %}
+            <img src="../assets/logos/{{ brand_info.logo_filename }}" alt="{{ brand_info.name }}" class="review-bottom-logo">
+            {% endif %}
+            <div>
+                <strong>{{ brand_info.name }}</strong>
+                {% if brand_info.welcome_bonus %}
+                <span class="review-bottom-bonus">{{ brand_info.welcome_bonus }}</span>
+                {% endif %}
+            </div>
+        </div>
+        <a href="{{ brand_info.affiliate_link }}" class="cta-button review-bottom-cta" target="_blank" rel="nofollow noopener">
+            Claim Bonus
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+        </a>
     </div>
-</section>
+</div>
 {% endif %}
-
-{% if content.bonus_section %}
-<section class="bonus-details">
-    <h2>{{ content.bonus_section.title }}</h2>
-    <p>{{ content.bonus_section.description }}</p>
-    {% if content.bonus_section.how_to_claim %}
-    <h3>How to Claim</h3>
-    <ol>
-    {% for step in content.bonus_section.how_to_claim %}
-        <li>{{ step }}</li>
-    {% endfor %}
-    </ol>
-    {% endif %}
-</section>
-{% endif %}
-
-{% if content.features_review %}
-<section class="features">
-    <h2>Features Review</h2>
-    <p>{{ content.features_review }}</p>
-</section>
-{% endif %}
-
-{% if content.user_experience %}
-<section class="ux-review">
-    <h2>User Experience</h2>
-    <p>{{ content.user_experience }}</p>
-</section>
-{% endif %}
-
-{% if content.payment_methods %}
-<section class="payments">
-    <h2>Payment Methods</h2>
-    <p>{{ content.payment_methods }}</p>
-</section>
-{% endif %}
-
-{% if content.verdict %}
-<section class="verdict">
-    <h2>Our Verdict</h2>
-    <p>{{ content.verdict }}</p>
-</section>
-{% endif %}
-
-{% if content.faq %}
-<section class="faq">
-    <h2>Frequently Asked Questions</h2>
-    {% for item in content.faq %}
-    <div class="faq-item">
-        <h3>{{ item.question }}</h3>
-        <p>{{ item.answer }}</p>
-    </div>
-    {% endfor %}
-</section>
-{% endif %}
-{% endblock %}
+{% endblock body_content %}

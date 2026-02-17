@@ -7,35 +7,76 @@
     {% if meta_description %}
     <meta name="description" content="{{ meta_description }}">
     {% endif %}
-    <link rel="stylesheet" href="{{ 'assets/css/style.css' if not subdirectory else '../assets/css/style.css' }}">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=Plus+Jakarta+Sans:wght@700;800&display=swap" rel="stylesheet">
+    {% set prefix = '../' if subdirectory else '' %}
+    <link rel="stylesheet" href="{{ prefix }}assets/css/style.css">
 </head>
 <body>
-    <nav class="site-nav">
-        <div class="nav-container">
-            <a href="index.html" class="nav-brand">{{ site_name }}</a>
-            <ul class="nav-links">
-                {% for link in nav_links %}
-                <li><a href="{{ link.url }}">{{ link.label }}</a></li>
+
+<nav class="navbar">
+    <div class="navbar-inner">
+        <a href="{{ prefix }}index.html" class="nav-logo">
+            <span class="logo-icon">&#9889;</span>
+            {{ site_name }}
+        </a>
+        <ul class="nav-links">
+            {% for link in nav_links %}
+            <li><a href="{{ prefix }}{{ link.url }}">{{ link.label }}</a></li>
+            {% endfor %}
+        </ul>
+    </div>
+</nav>
+
+{% block body_content %}
+<main class="main-content">
+    {% block content %}{% endblock %}
+</main>
+{% endblock body_content %}
+
+<footer class="footer">
+    <div class="footer-inner">
+        <div class="footer-grid">
+            <div class="footer-about">
+                <h4>{{ site_name }}</h4>
+                <p>We are an independent comparison site helping you find the best {{ vertical_name | lower }} options. Our recommendations are based on rigorous testing and expert analysis.</p>
+            </div>
+            <div class="footer-col">
+                <h4>{{ vertical_name }}</h4>
+                {% for brand in site_brands[:4] %}
+                <a href="{{ prefix }}reviews/{{ brand.slug }}.html">{{ brand.name }}</a>
                 {% endfor %}
-            </ul>
-        </div>
-    </nav>
-
-    <main class="main-content">
-        {% block content %}{% endblock %}
-    </main>
-
-    <footer class="site-footer">
-        <div class="footer-container">
-            <div class="footer-links">
-                {% for link in footer_links %}
-                <a href="{{ link.url }}">{{ link.label }}</a>
+                {% for link in nav_links %}
+                {% if link.url == 'comparison.html' %}
+                <a href="{{ prefix }}{{ link.url }}">Compare All</a>
+                {% endif %}
                 {% endfor %}
             </div>
-            <p class="footer-copy">&copy; {{ year }} {{ site_name }}. All rights reserved.</p>
+            <div class="footer-col">
+                <h4>Guides</h4>
+                {% for link in nav_links %}
+                {% if link.url != 'index.html' and link.url != 'comparison.html' %}
+                <a href="{{ prefix }}{{ link.url }}">{{ link.label }}</a>
+                {% endif %}
+                {% endfor %}
+            </div>
+            <div class="footer-col">
+                <h4>Bonuses</h4>
+                {% for brand in site_brands[:4] %}
+                <a href="{{ prefix }}bonuses/{{ brand.slug }}.html">{{ brand.name }} Bonus</a>
+                {% endfor %}
+            </div>
         </div>
-    </footer>
+        <div class="footer-bottom">
+            <p class="footer-disclaimer">18+ only. Gambling can be addictive. Please gamble responsibly. All offers subject to T&amp;Cs. BeGambleAware.org. This site contains affiliate links.</p>
+            <div class="footer-badges">
+                <span class="footer-badge">18+</span>
+                <span class="footer-badge">{{ year }}</span>
+            </div>
+        </div>
+    </div>
+</footer>
 
-    <script src="{{ 'assets/js/main.js' if not subdirectory else '../assets/js/main.js' }}"></script>
+<script src="{{ prefix }}assets/js/main.js"></script>
 </body>
 </html>

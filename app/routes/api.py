@@ -1,4 +1,4 @@
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, jsonify, request, abort
 
 from ..models import db, Brand, BrandGeo, BrandVertical, Site, SitePage
 
@@ -56,3 +56,21 @@ def generation_status(site_id):
         'total_pages': total_pages,
         'generated_pages': generated_pages,
     })
+
+
+@bp.route('/sites/<int:site_id>/robots-txt', methods=['POST'])
+def save_robots_txt(site_id):
+    """Save or reset custom robots.txt for a site."""
+    site = db.session.get(Site, site_id)
+    if not site:
+        return jsonify({'error': 'Site not found'}), 404
+
+    data = request.get_json()
+    if data is None:
+        return jsonify({'error': 'Invalid JSON'}), 400
+
+    content = data.get('content')
+    site.custom_robots_txt = content  # None = reset to default
+    db.session.commit()
+
+    return jsonify({'success': True})

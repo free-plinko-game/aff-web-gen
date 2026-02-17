@@ -65,11 +65,56 @@ def create():
     return render_template('sites/create.html', geos=geos, verticals=verticals)
 
 
+def _needs_rebuild(site):
+    """Check if the site needs rebuilding.
+
+    Returns True if any page was generated/updated after the last build,
+    or if there are ungenerated pages.
+    """
+    if not site.built_at:
+        # Never built — need rebuild if any pages are generated
+        return any(p.is_generated for p in site.site_pages)
+
+    # Check for ungenerated pages (added but not yet generated)
+    if any(not p.is_generated for p in site.site_pages):
+        return True
+
+    # Check if any page was generated after the last build
+    return any(
+        p.generated_at and p.generated_at > site.built_at
+        for p in site.site_pages
+    )
+
+
+def _page_url(page):
+    """Return the site-relative URL for a page."""
+    slug = page.page_type.slug
+    if slug == 'homepage':
+        return '/index.html'
+    elif slug == 'comparison':
+        return '/comparison.html'
+    elif slug == 'brand-review':
+        return f'/reviews/{page.slug}.html'
+    elif slug == 'bonus-review':
+        return f'/bonuses/{page.slug}.html'
+    elif slug == 'evergreen':
+        return f'/{page.slug}.html'
+    return f'/{page.slug}.html'
+
+
 @bp.route('/<int:site_id>')
 def detail(site_id):
     site = db.session.get(Site, site_id) or abort(404)
     available_domains = Domain.query.filter_by(status='available').order_by(Domain.domain).all()
-    return render_template('sites/detail.html', site=site, available_domains=available_domains)
+    rebuild_needed = _needs_rebuild(site)
+
+    # Render default robots.txt for the robots tab preview
+    domain_name = site.domain.domain if site.domain else 'example.com'
+    default_robots_txt = f"User-agent: *\nAllow: /\n\nSitemap: https://{domain_name}/sitemap.xml"
+
+    return render_template('sites/detail.html', site=site, available_domains=available_domains,
+                           rebuild_needed=rebuild_needed, page_url=_page_url,
+                           default_robots_txt=default_robots_txt)
 
 
 @bp.route('/<int:site_id>/generate', methods=['POST'])
@@ -287,6 +332,193 @@ def restore_content(site_id, page_id, history_id):
 
     flash(f'Content restored to version {history_entry.version} for "{page.title}".', 'success')
     return redirect(url_for('sites.page_history', site_id=site.id, page_id=page.id))
+
+
+@bp.route('/<int:site_id>/add-page', methods=['GET', 'POST'])
+def add_page(site_id):
+    """Add a new page to an existing site."""
+    site = db.session.get(Site, site_id) or abort(404)
+
+    if request.method == 'POST':
+        page_type_slug = request.form.get('page_type', '').strip()
+        pt = PageType.query.filter_by(slug=page_type_slug).first()
+        if not pt:
+            flash('Invalid page type.', 'error')
+            return redirect(url_for('sites.add_page', site_id=site.id))
+
+        try:
+            if page_type_slug in ('homepage', 'comparison'):
+                # Check if already exists (partial unique constraint)
+                existing = SitePage.query.filter_by(
+                    site_id=site.id, page_type_id=pt.id, brand_id=None, evergreen_topic=None
+                ).first()
+                if existing:
+                    flash(f'This site already has a {pt.name} page.', 'error')
+                    return redirect(url_for('sites.add_page', site_id=site.id))
+                page = SitePage(
+                    site_id=site.id,
+                    page_type_id=pt.id,
+                    slug='index' if page_type_slug == 'homepage' else page_type_slug,
+                    title=pt.name,
+                )
+
+            elif page_type_slug in ('brand-review', 'bonus-review'):
+                brand_id = request.form.get('brand_id', type=int)
+                if not brand_id:
+                    flash('Please select a brand.', 'error')
+                    return redirect(url_for('sites.add_page', site_id=site.id))
+                brand = db.session.get(Brand, brand_id)
+                if not brand:
+                    flash('Brand not found.', 'error')
+                    return redirect(url_for('sites.add_page', site_id=site.id))
+                # Check if brand is assigned to this site
+                sb = SiteBrand.query.filter_by(site_id=site.id, brand_id=brand_id).first()
+                if not sb:
+                    flash('That brand is not assigned to this site.', 'error')
+                    return redirect(url_for('sites.add_page', site_id=site.id))
+                # Check duplicate
+                existing = SitePage.query.filter_by(
+                    site_id=site.id, page_type_id=pt.id, brand_id=brand_id
+                ).first()
+                if existing:
+                    flash(f'A {pt.name} for {brand.name} already exists.', 'error')
+                    return redirect(url_for('sites.add_page', site_id=site.id))
+                title_suffix = 'Review' if page_type_slug == 'brand-review' else 'Bonus Review'
+                page = SitePage(
+                    site_id=site.id,
+                    page_type_id=pt.id,
+                    brand_id=brand_id,
+                    slug=brand.slug,
+                    title=f'{brand.name} {title_suffix}',
+                )
+
+            elif page_type_slug == 'evergreen':
+                topic = request.form.get('evergreen_topic', '').strip()
+                if not topic:
+                    flash('Please enter a topic.', 'error')
+                    return redirect(url_for('sites.add_page', site_id=site.id))
+                slug = _slugify(topic)
+                existing = SitePage.query.filter_by(
+                    site_id=site.id, page_type_id=pt.id, evergreen_topic=topic
+                ).first()
+                if existing:
+                    flash(f'An evergreen page for "{topic}" already exists.', 'error')
+                    return redirect(url_for('sites.add_page', site_id=site.id))
+                page = SitePage(
+                    site_id=site.id,
+                    page_type_id=pt.id,
+                    evergreen_topic=topic,
+                    slug=slug,
+                    title=topic,
+                )
+            else:
+                flash('Unknown page type.', 'error')
+                return redirect(url_for('sites.add_page', site_id=site.id))
+
+            db.session.add(page)
+            db.session.commit()
+            flash(f'Page "{page.title}" added. Generate content when ready.', 'success')
+            return redirect(url_for('sites.detail', site_id=site.id))
+
+        except Exception as e:
+            db.session.rollback()
+            flash(f'Failed to add page: {e}', 'error')
+            return redirect(url_for('sites.add_page', site_id=site.id))
+
+    # GET — build context for the form
+    page_types = PageType.query.order_by(PageType.name).all()
+
+    # Determine which global page types are available
+    existing_global = {
+        p.page_type.slug
+        for p in site.site_pages
+        if p.brand_id is None and p.evergreen_topic is None
+    }
+
+    # Determine which brands already have review/bonus pages
+    existing_brand_reviews = {
+        p.brand_id for p in site.site_pages
+        if p.page_type.slug == 'brand-review' and p.brand_id
+    }
+    existing_bonus_reviews = {
+        p.brand_id for p in site.site_pages
+        if p.page_type.slug == 'bonus-review' and p.brand_id
+    }
+
+    # Brands available for each type
+    site_brand_ids = [sb.brand_id for sb in site.site_brands]
+    available_review_brands = Brand.query.filter(
+        Brand.id.in_(site_brand_ids),
+        ~Brand.id.in_(existing_brand_reviews) if existing_brand_reviews else True
+    ).order_by(Brand.name).all()
+    available_bonus_brands = Brand.query.filter(
+        Brand.id.in_(site_brand_ids),
+        ~Brand.id.in_(existing_bonus_reviews) if existing_bonus_reviews else True
+    ).order_by(Brand.name).all()
+
+    return render_template('sites/add_page.html', site=site, page_types=page_types,
+                           existing_global=existing_global,
+                           available_review_brands=available_review_brands,
+                           available_bonus_brands=available_bonus_brands)
+
+
+@bp.route('/<int:site_id>/pages/<int:page_id>/edit', methods=['GET', 'POST'])
+def edit_page(site_id, page_id):
+    """Edit page settings and regeneration notes."""
+    site = db.session.get(Site, site_id) or abort(404)
+    page = db.session.get(SitePage, page_id) or abort(404)
+    if page.site_id != site.id:
+        abort(404)
+
+    if request.method == 'POST':
+        action = request.form.get('action', 'save')
+
+        page.title = request.form.get('title', page.title).strip()
+        page.meta_description = request.form.get('meta_description', '').strip() or None
+        page.slug = request.form.get('slug', page.slug).strip()
+        page.regeneration_notes = request.form.get('regeneration_notes', '').strip() or None
+
+        db.session.commit()
+
+        if action == 'save_and_regenerate':
+            api_key = current_app.config.get('OPENAI_API_KEY', '')
+            model = current_app.config.get('OPENAI_MODEL', 'gpt-4o-mini')
+
+            from ..services.content_generator import start_single_page_generation
+            start_single_page_generation(
+                current_app._get_current_object(), site_id, page_id, api_key, model
+            )
+            flash(f'Saved and regeneration started for "{page.title}".', 'info')
+        else:
+            flash(f'Page "{page.title}" updated.', 'success')
+
+        return redirect(url_for('sites.detail', site_id=site.id))
+
+    # GET — load content history
+    history = (
+        ContentHistory.query
+        .filter_by(site_page_id=page.id)
+        .order_by(ContentHistory.version.desc())
+        .all()
+    )
+
+    return render_template('sites/edit_page.html', site=site, page=page,
+                           history=history, page_url=_page_url)
+
+
+@bp.route('/<int:site_id>/pages/<int:page_id>/delete', methods=['POST'])
+def delete_page(site_id, page_id):
+    """Delete a page from the site."""
+    site = db.session.get(Site, site_id) or abort(404)
+    page = db.session.get(SitePage, page_id) or abort(404)
+    if page.site_id != site.id:
+        abort(404)
+
+    title = page.title
+    db.session.delete(page)
+    db.session.commit()
+    flash(f'Page "{title}" deleted.', 'success')
+    return redirect(url_for('sites.detail', site_id=site.id))
 
 
 def _create_site_pages(site, brand_ids, form):

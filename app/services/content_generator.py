@@ -29,11 +29,14 @@ Top brands (ranked): {brand_list}
 
 Return a JSON object with:
 - "hero_title": string (compelling headline, 8-12 words)
-- "hero_subtitle": string (supporting tagline, 15-20 words)
-- "intro_paragraph": string (2-3 sentences introducing the site)
-- "top_brands": [{{ "name": string, "slug": string, "bonus": string, "rating": float, "short_description": string }}]
-- "why_trust_us": string (2-3 sentences)
-- "faq": [{{ "question": string, "answer": string }}] (3-5 FAQs)
+- "hero_subtitle": string (2-3 sentences describing what visitors will find on this site)
+- "hero_stats": [{{"number": string, "label": string}}] (exactly 3 impressive statistics)
+- "trust_items": [string] (exactly 4 short trust signals, e.g. "Expert Reviewed")
+- "section_title": string (heading for the brand listing, e.g. "Top Rated Betting Sites")
+- "section_subtitle": string (one sentence explaining the ranking criteria)
+- "top_brands": [{{"name": string, "slug": string, "bonus": string, "rating": float, "selling_points": [string, string, string]}}]
+- "why_trust_us": string (2-3 paragraphs about review methodology)
+- "faq": [{{"question": string, "answer": string}}] (4-5 FAQs)
 - "closing_paragraph": string (1-2 sentences with call to action)
 
 Write naturally in {language}. Use {currency} for all monetary values. Be informative and engaging.""",
@@ -57,19 +60,17 @@ Write naturally in {language}. Use {currency} for all monetary values. Be balanc
 Language: {language}. Currency: {currency}.
 Welcome Bonus: {welcome_bonus}
 
+NOTE: Factual data (ratings, bonus details, payment methods, company info) comes from the database and will be rendered separately. Focus ONLY on editorial content.
+
 Return a JSON object with:
-- "hero_title": string (review headline including brand name)
-- "hero_subtitle": string
-- "intro_paragraph": string (2-3 sentences overview)
-- "rating": float (out of 5)
+- "hero_title": string (review headline including brand name, 8-12 words)
+- "hero_subtitle": string (15-20 words)
+- "intro_paragraphs": [string] (2-3 paragraphs introducing the brand and what makes it notable)
 - "pros": [string] (4-6 pros)
 - "cons": [string] (2-4 cons)
-- "bonus_section": {{ "title": string, "description": string, "how_to_claim": [string] }}
-- "features_review": string (3-4 paragraphs covering key features)
-- "user_experience": string (2-3 paragraphs)
-- "payment_methods": string (1-2 paragraphs)
-- "verdict": string (2-3 sentences final verdict)
-- "faq": [{{ "question": string, "answer": string }}] (3-5 FAQs)
+- "features_sections": [{{ "heading": string, "content": string }}] (3-5 editorial sections, each 2-3 paragraphs covering different aspects like betting markets, live betting, promotions, etc.)
+- "verdict": string (2-3 paragraphs final verdict and recommendation)
+- "faq": [{{ "question": string, "answer": string }}] (4-6 FAQs)
 
 Write naturally in {language}. Use {currency} for all monetary values. Be thorough and honest.""",
 
@@ -217,6 +218,101 @@ def save_content_to_page(site_page, content_json_data, session):
     site_page.content_json = json.dumps(content_json_data)
     site_page.is_generated = True
     site_page.generated_at = now
+
+
+def generate_page_content_with_notes(site_page, site, api_key, model='gpt-4o-mini'):
+    """Generate content for a single page, appending regeneration_notes to the prompt.
+
+    Like generate_page_content but incorporates any regeneration_notes from the page.
+    Returns the parsed JSON content and the prompt used.
+    """
+    geo = site.geo
+    vertical = site.vertical
+    page_type_slug = site_page.page_type.slug
+
+    brands = None
+    brand = None
+    brand_geo = None
+    evergreen_topic = None
+
+    if page_type_slug in ('homepage', 'comparison'):
+        brands = sorted(site.site_brands, key=lambda sb: sb.rank)
+    elif page_type_slug in ('brand-review', 'bonus-review'):
+        brand = site_page.brand
+        brand_geo = next((bg for bg in brand.brand_geos if bg.geo_id == geo.id), None)
+    elif page_type_slug == 'evergreen':
+        evergreen_topic = site_page.evergreen_topic
+
+    prompt = build_prompt(
+        page_type_slug, geo, vertical,
+        brands=brands, brand=brand, brand_geo=brand_geo,
+        evergreen_topic=evergreen_topic,
+    )
+
+    # Append regeneration notes if present
+    if site_page.regeneration_notes:
+        prompt += f"\n\nAdditional instructions:\n{site_page.regeneration_notes}"
+
+    return call_openai(prompt, api_key, model), prompt
+
+
+def save_content_to_page_with_notes(site_page, content_json_data, session):
+    """Save generated content, archiving regeneration_notes in history, then clearing them."""
+    now = datetime.now(timezone.utc)
+
+    # Content versioning: save old content + notes to history
+    if site_page.content_json and site_page.is_generated:
+        max_version = (
+            session.query(ContentHistory.version)
+            .filter_by(site_page_id=site_page.id)
+            .order_by(ContentHistory.version.desc())
+            .first()
+        )
+        next_version = (max_version[0] + 1) if max_version else 1
+
+        history = ContentHistory(
+            site_page_id=site_page.id,
+            content_json=site_page.content_json,
+            generated_at=site_page.generated_at or now,
+            regeneration_notes=site_page.regeneration_notes,
+            version=next_version,
+        )
+        session.add(history)
+
+    site_page.content_json = json.dumps(content_json_data)
+    site_page.is_generated = True
+    site_page.generated_at = now
+    # Clear regeneration notes — they've been consumed and archived
+    site_page.regeneration_notes = None
+
+
+def _generate_single_page_background(app, site_id, page_id, api_key, model='gpt-4o-mini'):
+    """Background thread function to regenerate a single page with notes."""
+    with app.app_context():
+        site = db.session.get(Site, site_id)
+        page = db.session.get(SitePage, page_id)
+        if not site or not page or page.site_id != site.id:
+            return
+
+        try:
+            content_data, _ = generate_page_content_with_notes(page, site, api_key, model)
+            save_content_to_page_with_notes(page, content_data, db.session)
+            db.session.commit()
+            logger.info('Single page regeneration complete: page %d (%s)', page_id, page.title)
+        except Exception as e:
+            logger.error('Single page regeneration failed for page %d: %s', page_id, e)
+            db.session.rollback()
+
+
+def start_single_page_generation(app, site_id, page_id, api_key, model='gpt-4o-mini'):
+    """Launch single-page regeneration in a background thread."""
+    thread = threading.Thread(
+        target=_generate_single_page_background,
+        args=(app, site_id, page_id, api_key, model),
+        daemon=True,
+    )
+    thread.start()
+    return thread
 
 
 def generate_site_content_background(app, site_id, api_key, model='gpt-4o-mini'):

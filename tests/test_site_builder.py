@@ -49,14 +49,16 @@ COMPARISON_CONTENT = {
 BRAND_REVIEW_CONTENT = {
     'hero_title': 'BrandA Review',
     'hero_subtitle': 'Full review of BrandA',
+    'intro_paragraphs': ['BrandA is a leading bookmaker.', 'They offer great odds.'],
     'intro_paragraph': 'BrandA is a leading bookmaker.',
-    'rating': 4.5,
     'pros': ['Good odds', 'Live streaming'],
     'cons': ['Slow withdrawals'],
-    'bonus_section': {'title': 'Welcome Bonus', 'description': '£30 free', 'how_to_claim': ['Register', 'Deposit']},
+    'features_sections': [
+        {'heading': 'Betting Markets', 'content': 'Wide range of sports.'},
+        {'heading': 'Live Betting', 'content': 'Excellent live platform.'},
+    ],
     'features_review': 'Great features.',
     'user_experience': 'Easy to use.',
-    'payment_methods': 'Cards and e-wallets.',
     'verdict': 'Highly recommended.',
     'faq': [{'question': 'Is BrandA safe?', 'answer': 'Yes.'}],
 }
@@ -113,11 +115,19 @@ def built_site(app, db):
     brands = []
     for i, (name, slug) in enumerate([('BrandA', f'brand-a-{uid}'), ('BrandB', f'brand-b-{uid}'), ('BrandC', f'brand-c-{uid}')]):
         b = Brand(name=name, slug=slug, rating=4.5 - i * 0.5,
-                  affiliate_link=f'https://aff.{slug}.com', logo_filename=f'{slug}.png' if i == 0 else None)
+                  affiliate_link=f'https://aff.{slug}.com', logo_filename=f'{slug}.png' if i == 0 else None,
+                  founded_year=2000 + i, parent_company=f'{name} Holdings',
+                  support_methods='Live Chat, Email', support_email=f'support@{slug}.com',
+                  available_languages='English, German', has_ios_app=True, has_android_app=(i == 0))
         db.session.add(b)
         db.session.flush()
         db.session.add(BrandGeo(brand_id=b.id, geo_id=geo.id, welcome_bonus=f'£{30 - i*10} free',
-                                bonus_code='WELCOME', is_active=True))
+                                bonus_code='WELCOME', is_active=True, license_info='UKGC #12345',
+                                payment_methods='Visa, PayPal, Skrill',
+                                withdrawal_timeframe='1-3 business days',
+                                rating_bonus=4.5 - i * 0.3, rating_usability=4.0,
+                                rating_mobile_app=3.5, rating_payments=4.2,
+                                rating_support=3.8, rating_licensing=5.0, rating_rewards=4.1))
         db.session.add(BrandVertical(brand_id=b.id, vertical_id=vertical.id))
         brands.append(b)
     db.session.flush()
@@ -370,6 +380,67 @@ class TestMissingLogoFallback:
 # --- 4.8 Versioned Builds ---
 
 class TestVersionedBuilds:
+
+    def test_brand_review_contains_hero_title(self, built_site):
+        uid = built_site['uid']
+        review_file = os.path.join(built_site['version_dir'], 'reviews', f'brand-a-{uid}.html')
+        html = open(review_file, encoding='utf-8').read()
+        assert BRAND_REVIEW_CONTENT['hero_title'] in html
+
+    def test_brand_review_contains_pros_cons(self, built_site):
+        uid = built_site['uid']
+        review_file = os.path.join(built_site['version_dir'], 'reviews', f'brand-a-{uid}.html')
+        html = open(review_file, encoding='utf-8').read()
+        assert 'Good odds' in html
+        assert 'Slow withdrawals' in html
+
+    def test_brand_review_contains_category_ratings(self, built_site):
+        uid = built_site['uid']
+        review_file = os.path.join(built_site['version_dir'], 'reviews', f'brand-a-{uid}.html')
+        html = open(review_file, encoding='utf-8').read()
+        assert 'Category Ratings' in html
+        assert '4.5/5' in html
+
+    def test_brand_review_contains_payment_methods(self, built_site):
+        uid = built_site['uid']
+        review_file = os.path.join(built_site['version_dir'], 'reviews', f'brand-a-{uid}.html')
+        html = open(review_file, encoding='utf-8').read()
+        assert 'Visa' in html
+        assert 'PayPal' in html
+
+    def test_brand_review_contains_company_info(self, built_site):
+        uid = built_site['uid']
+        review_file = os.path.join(built_site['version_dir'], 'reviews', f'brand-a-{uid}.html')
+        html = open(review_file, encoding='utf-8').read()
+        assert 'BrandA Holdings' in html
+        assert 'Live Chat, Email' in html
+
+    def test_brand_review_contains_other_brands(self, built_site):
+        uid = built_site['uid']
+        review_file = os.path.join(built_site['version_dir'], 'reviews', f'brand-a-{uid}.html')
+        html = open(review_file, encoding='utf-8').read()
+        assert 'Other Top Picks' in html
+        assert 'BrandB' in html
+
+    def test_brand_review_contains_verdict(self, built_site):
+        uid = built_site['uid']
+        review_file = os.path.join(built_site['version_dir'], 'reviews', f'brand-a-{uid}.html')
+        html = open(review_file, encoding='utf-8').read()
+        assert 'Our Verdict' in html
+        assert 'Highly recommended' in html
+
+    def test_brand_review_contains_faq(self, built_site):
+        uid = built_site['uid']
+        review_file = os.path.join(built_site['version_dir'], 'reviews', f'brand-a-{uid}.html')
+        html = open(review_file, encoding='utf-8').read()
+        assert 'Is BrandA safe?' in html
+
+    def test_brand_review_contains_sticky_bottom_bar(self, built_site):
+        uid = built_site['uid']
+        review_file = os.path.join(built_site['version_dir'], 'reviews', f'brand-a-{uid}.html')
+        html = open(review_file, encoding='utf-8').read()
+        assert 'review-bottom-bar' in html
+        assert 'Claim Bonus' in html
 
     def test_rebuild_creates_v2(self, app, db):
         uid = uuid.uuid4().hex[:8]

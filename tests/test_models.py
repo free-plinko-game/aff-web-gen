@@ -127,3 +127,80 @@ class TestModelRelationships:
         db.session.add(domain)
         db.session.flush()
         assert domain.status == 'available'
+
+    def test_brand_new_columns_defaults(self, db):
+        brand = Brand(name='DefaultsTest', slug='defaults-test-brand')
+        db.session.add(brand)
+        db.session.flush()
+        assert brand.parent_company is None
+        assert brand.support_methods is None
+        assert brand.support_email is None
+        assert brand.available_languages is None
+        assert brand.has_ios_app is False
+        assert brand.has_android_app is False
+
+    def test_brand_new_columns_values(self, db):
+        brand = Brand(
+            name='FullBrand', slug='full-brand-test',
+            parent_company='Acme Corp',
+            support_methods='Live Chat, Email',
+            support_email='support@test.com',
+            available_languages='English, German',
+            has_ios_app=True,
+            has_android_app=True,
+        )
+        db.session.add(brand)
+        db.session.flush()
+        assert brand.parent_company == 'Acme Corp'
+        assert brand.support_methods == 'Live Chat, Email'
+        assert brand.support_email == 'support@test.com'
+        assert brand.available_languages == 'English, German'
+        assert brand.has_ios_app is True
+        assert brand.has_android_app is True
+
+    def test_brand_geo_new_columns_defaults(self, db):
+        brand = Brand(name='BGDefault', slug='bg-defaults-test')
+        db.session.add(brand)
+        db.session.flush()
+        geo = Geo.query.filter_by(code='gb').first()
+        bg = BrandGeo(brand_id=brand.id, geo_id=geo.id)
+        db.session.add(bg)
+        db.session.flush()
+        assert bg.payment_methods is None
+        assert bg.withdrawal_timeframe is None
+        assert bg.rating_bonus is None
+        assert bg.rating_usability is None
+        assert bg.rating_mobile_app is None
+        assert bg.rating_payments is None
+        assert bg.rating_support is None
+        assert bg.rating_licensing is None
+        assert bg.rating_rewards is None
+
+    def test_brand_geo_new_columns_values(self, db):
+        brand = Brand(name='BGValues', slug='bg-values-test')
+        db.session.add(brand)
+        db.session.flush()
+        geo = Geo.query.filter_by(code='de').first()
+        bg = BrandGeo(
+            brand_id=brand.id, geo_id=geo.id,
+            payment_methods='Visa, PayPal, Skrill',
+            withdrawal_timeframe='1-3 business days',
+            rating_bonus=4.5,
+            rating_usability=4.0,
+            rating_mobile_app=3.5,
+            rating_payments=4.2,
+            rating_support=3.8,
+            rating_licensing=5.0,
+            rating_rewards=4.1,
+        )
+        db.session.add(bg)
+        db.session.flush()
+        assert bg.payment_methods == 'Visa, PayPal, Skrill'
+        assert bg.withdrawal_timeframe == '1-3 business days'
+        assert bg.rating_bonus == 4.5
+        assert bg.rating_usability == 4.0
+        assert bg.rating_mobile_app == 3.5
+        assert bg.rating_payments == 4.2
+        assert bg.rating_support == 3.8
+        assert bg.rating_licensing == 5.0
+        assert bg.rating_rewards == 4.1

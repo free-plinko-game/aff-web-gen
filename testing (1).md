@@ -1,4 +1,3 @@
-
 # Affiliate Site Factory — Testing Guide
 
 ## Overview
@@ -107,6 +106,9 @@ def client(app):
 - Create a brand → add 2 brand_geos → assert brand.geos relationship returns both
 - Create a brand → add 2 brand_verticals → assert brand.verticals relationship returns both
 - Create a domain → assert domain.status defaults to "available"
+- Create a brand with all new fields (parent_company, support_methods, support_email, available_languages, has_ios_app, has_android_app) → assert all fields saved correctly
+- Create a brand_geo with all new fields (payment_methods, withdrawal_timeframe, rating_bonus through rating_rewards) → assert all fields saved correctly
+- Create a brand_geo with category ratings as None → assert nullable fields accepted
 ```
 
 ### Automated Tests (`test_brands.py`)
@@ -380,7 +382,33 @@ pytest tests/test_content_gen.py -v
 - Assert brand appears in comparison table with text-only display (no broken image)
 ```
 
-#### 4.8 — Versioned Builds
+#### 4.8 — Brand Review Page Rendering
+```
+- Create a site with a brand that has full data (all new columns populated including category ratings)
+- Build the site
+- Assert reviews/{brand_slug}.html exists
+- Open the review HTML:
+  - Assert brand name, rating, bonus offer, bonus code are present
+  - Assert category ratings section renders with correct scores
+  - Assert pros and cons are present (from content_json)
+  - Assert "How to Claim" steps are present
+  - Assert FAQ section renders
+  - Assert sidebar contains brand info table (parent company, payment methods, withdrawal, etc.)
+  - Assert sidebar contains "Other Top Picks" with links to other brand reviews
+  - Assert sticky bottom bar contains brand name, bonus, and CTA
+  - Assert vertical-aware labels are correct (e.g. "Play Now" for casino, "Bet Now" for sports)
+```
+
+#### 4.9 — Brand Review with Partial Data
+```
+- Create a brand with some category ratings as None and no parent_company
+- Build the site
+- Assert review page renders without errors
+- Assert missing category ratings are NOT rendered (no empty rows)
+- Assert parent company row is absent from info table
+```
+
+#### 4.10 — Versioned Builds
 ```
 - Build a site → assert output at v1/
 - Modify content, rebuild → assert output at v2/
@@ -453,8 +481,9 @@ pytest tests/test_site_builder.py -v
 
 #### 5.5 — Domain Assignment
 ```
-- Assign domain (status "available") to a site → assert domain.status = "assigned"
-- Attempt to assign an already-assigned domain → assert error
+- Assign domain (status "available") to a site via sites.domain_id → assert domain.status = "assigned"
+- Assert domain.site back_populates correctly (domain.site == the assigned site)
+- Attempt to assign an already-assigned domain to another site → assert error
 - Deploy → assert domain.status = "deployed"
 ```
 

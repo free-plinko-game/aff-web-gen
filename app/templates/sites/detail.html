@@ -9,6 +9,19 @@
     <span class="badge bg-{{ status_colors.get(site.status, 'secondary') }} fs-6" id="siteStatus">{{ site.status }}</span>
 </div>
 
+<!-- Rebuild Warning Banner (7.5) -->
+{% if rebuild_needed %}
+<div class="alert alert-warning d-flex align-items-center mb-4">
+    <strong class="me-2">Rebuild needed:</strong>
+    Content has changed since last build. Rebuild to update the static site, sitemap, and navigation.
+    {% if site.status in ('generated', 'built') %}
+    <form method="POST" action="{{ url_for('sites.build', site_id=site.id) }}" class="ms-3">
+        <button type="submit" class="btn btn-sm btn-warning">Rebuild Now</button>
+    </form>
+    {% endif %}
+</div>
+{% endif %}
+
 <!-- Actions -->
 <div class="mb-4">
     {% if site.status in ('draft', 'generated', 'failed') %}
@@ -51,6 +64,9 @@
         Preview
     </a>
     {% endif %}
+    <a href="{{ url_for('sites.add_page', site_id=site.id) }}" class="btn btn-outline-primary">
+        Add Page
+    </a>
 </div>
 
 <!-- Progress Bar (shown during generation) -->
@@ -84,6 +100,9 @@
                     </tr>
                     <tr><th>Created</th><td>{{ site.created_at.strftime('%Y-%m-%d %H:%M') if site.created_at else '' }}</td></tr>
                     <tr><th>Version</th><td>v{{ site.current_version }}</td></tr>
+                    {% if site.built_at %}
+                    <tr><th>Last Build</th><td>{{ site.built_at.strftime('%Y-%m-%d %H:%M') }}</td></tr>
+                    {% endif %}
                     {% if site.deployed_at %}
                     <tr><th>Deployed</th><td>{{ site.deployed_at.strftime('%Y-%m-%d %H:%M') }}</td></tr>
                     {% endif %}
@@ -134,42 +153,110 @@
     </div>
 </div>
 
-<div class="card">
-    <div class="card-header"><strong>Pages ({{ site.site_pages | length }})</strong></div>
-    <div class="card-body">
-        <table class="table table-sm mb-0">
+<!-- Tabs for Pages / Robots.txt -->
+<ul class="nav nav-tabs mb-3" role="tablist">
+    <li class="nav-item">
+        <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tab-sitemap" type="button">
+            Site Map
+            <span class="badge bg-secondary ms-1">{{ site.site_pages | length }}</span>
+        </button>
+    </li>
+    <li class="nav-item">
+        <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-robots" type="button">
+            robots.txt
+        </button>
+    </li>
+</ul>
+
+<div class="tab-content">
+    <!-- Sitemap Tab (7.3) -->
+    <div class="tab-pane fade show active" id="tab-sitemap">
+        {% set generated_count = site.site_pages | selectattr('is_generated') | list | length %}
+        {% set pending_count = site.site_pages | length - generated_count %}
+        <p class="text-muted mb-3">
+            {{ site.site_pages | length }} pages ({{ generated_count }} generated, {{ pending_count }} pending)
+        </p>
+
+        <table class="table table-sm">
             <thead>
-                <tr><th>Type</th><th>Title</th><th>Slug</th><th>Generated</th><th>Actions</th></tr>
+                <tr>
+                    <th>URL</th>
+                    <th>Page Type</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                </tr>
             </thead>
             <tbody>
                 {% for page in site.site_pages %}
+                {% set url = page_url(page) %}
                 <tr>
-                    <td><span class="badge bg-secondary">{{ page.page_type.name }}</span></td>
-                    <td>{{ page.title }}</td>
-                    <td><code>{{ page.slug }}</code></td>
                     <td>
-                        {% if page.is_generated %}
-                            <span class="text-success">Yes</span>
-                            {% if page.generated_at %}
-                                <small class="text-muted ms-1">{{ page.generated_at.strftime('%Y-%m-%d %H:%M') }}</small>
-                            {% endif %}
+                        <code>
+                        {% if site.domain %}
+                            https://{{ site.domain.domain }}{{ url }}
                         {% else %}
-                            <span class="text-muted">No</span>
+                            {{ url }}
+                        {% endif %}
+                        </code>
+                    </td>
+                    <td><span class="badge bg-secondary">{{ page.page_type.name }}</span></td>
+                    <td>
+                        {% if not page.is_generated %}
+                            <span class="badge bg-light text-dark">Not Generated</span>
+                        {% elif site.built_at and page.generated_at and page.generated_at > site.built_at %}
+                            <span class="badge bg-warning text-dark">Needs Rebuild</span>
+                            <small class="text-muted ms-1">{{ page.generated_at.strftime('%Y-%m-%d %H:%M') }}</small>
+                        {% elif not site.built_at %}
+                            <span class="badge bg-info">Generated</span>
+                            <small class="text-muted ms-1">{{ page.generated_at.strftime('%Y-%m-%d %H:%M') if page.generated_at else '' }}</small>
+                        {% else %}
+                            <span class="badge bg-success">Built</span>
+                            <small class="text-muted ms-1">{{ page.generated_at.strftime('%Y-%m-%d %H:%M') if page.generated_at else '' }}</small>
                         {% endif %}
                     </td>
                     <td>
+                        <a href="{{ url_for('sites.edit_page', site_id=site.id, page_id=page.id) }}"
+                           class="btn btn-sm btn-outline-primary">Edit</a>
                         {% if page.is_generated and site.status != 'generating' %}
                         <form method="POST" action="{{ url_for('sites.regenerate_page', site_id=site.id, page_id=page.id) }}" class="d-inline">
                             <button type="submit" class="btn btn-sm btn-outline-secondary">Regenerate</button>
                         </form>
-                        <a href="{{ url_for('sites.page_history', site_id=site.id, page_id=page.id) }}"
-                           class="btn btn-sm btn-outline-info">History</a>
+                        {% endif %}
+                        <form method="POST" action="{{ url_for('sites.delete_page', site_id=site.id, page_id=page.id) }}" class="d-inline">
+                            <button type="submit" class="btn btn-sm btn-outline-danger"
+                                    onclick="return confirm('Delete this page? This cannot be undone.')">Delete</button>
+                        </form>
+                        {% if page.is_generated and site.output_path %}
+                        <a href="{{ url_for('sites.preview', site_id=site.id, filename=url[1:]) }}"
+                           target="_blank" class="btn btn-sm btn-outline-info">Preview</a>
                         {% endif %}
                     </td>
                 </tr>
                 {% endfor %}
             </tbody>
         </table>
+    </div>
+
+    <!-- Robots.txt Tab (7.4) -->
+    <div class="tab-pane fade" id="tab-robots">
+        <form id="robotsForm">
+            <div class="mb-3">
+                <label for="robotsTxt" class="form-label">
+                    {% if site.custom_robots_txt %}
+                        <strong>Custom robots.txt</strong> (will be used verbatim on next build)
+                    {% else %}
+                        <strong>Default robots.txt</strong> (auto-generated from template)
+                    {% endif %}
+                </label>
+                <textarea id="robotsTxt" class="form-control font-monospace" rows="10"
+                >{{ site.custom_robots_txt or default_robots_txt }}</textarea>
+            </div>
+            <button type="button" class="btn btn-primary" onclick="saveRobotsTxt()">Save Custom robots.txt</button>
+            {% if site.custom_robots_txt %}
+            <button type="button" class="btn btn-outline-secondary" onclick="resetRobotsTxt()">Reset to Default</button>
+            {% endif %}
+            <small class="text-muted ms-2">Changes take effect on next build.</small>
+        </form>
     </div>
 </div>
 {% endblock %}
@@ -192,7 +279,6 @@
             if (data.status === 'generating') {
                 setTimeout(pollProgress, 2000);
             } else {
-                // Generation finished — reload to show updated state
                 window.location.reload();
             }
         })
@@ -200,4 +286,39 @@
 })();
 </script>
 {% endif %}
+<script>
+function saveRobotsTxt() {
+    const content = document.getElementById('robotsTxt').value;
+    fetch('{{ url_for("api.save_robots_txt", site_id=site.id) }}', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({content: content})
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            window.location.reload();
+        } else {
+            alert('Failed to save: ' + (data.error || 'Unknown error'));
+        }
+    });
+}
+
+function resetRobotsTxt() {
+    if (!confirm('Reset to default robots.txt? Your custom version will be removed.')) return;
+    fetch('{{ url_for("api.save_robots_txt", site_id=site.id) }}', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({content: null})
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            window.location.reload();
+        } else {
+            alert('Failed to reset: ' + (data.error || 'Unknown error'));
+        }
+    });
+}
+</script>
 {% endblock %}

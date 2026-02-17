@@ -78,6 +78,24 @@ def _build_brand_info_list(site, geo):
             'welcome_bonus': bg.welcome_bonus if bg else None,
             'bonus_code': bg.bonus_code if bg else None,
             'rank': sb.rank,
+            'founded_year': brand.founded_year,
+            'parent_company': brand.parent_company,
+            'support_methods': brand.support_methods,
+            'support_email': brand.support_email,
+            'available_languages': brand.available_languages,
+            'has_ios_app': brand.has_ios_app,
+            'has_android_app': brand.has_android_app,
+            'description': brand.description,
+            'license_info': bg.license_info if bg else None,
+            'payment_methods': bg.payment_methods if bg else None,
+            'withdrawal_timeframe': bg.withdrawal_timeframe if bg else None,
+            'rating_bonus': bg.rating_bonus if bg else None,
+            'rating_usability': bg.rating_usability if bg else None,
+            'rating_mobile_app': bg.rating_mobile_app if bg else None,
+            'rating_payments': bg.rating_payments if bg else None,
+            'rating_support': bg.rating_support if bg else None,
+            'rating_licensing': bg.rating_licensing if bg else None,
+            'rating_rewards': bg.rating_rewards if bg else None,
         })
     return brands
 
@@ -176,6 +194,22 @@ def build_site(site, output_base_dir, upload_folder):
 
         if pt_slug == 'homepage':
             output_file = os.path.join(version_dir, 'index.html')
+            # Merge AI-generated top_brands data into site_brands for richer rendering
+            top_brands_ai = content.get('top_brands', [])
+            ai_map = {}
+            for tb in top_brands_ai:
+                if tb.get('slug'):
+                    ai_map[tb['slug']] = tb
+                if tb.get('name'):
+                    ai_map[tb['name']] = tb
+            enriched = []
+            for b in brand_info_list:
+                merged = dict(b)
+                ai = ai_map.get(b['slug']) or ai_map.get(b['name'], {})
+                merged['selling_points'] = ai.get('selling_points', [])
+                merged['short_description'] = ai.get('short_description', '')
+                enriched.append(merged)
+            ctx['site_brands'] = enriched
         elif pt_slug == 'comparison':
             output_file = os.path.join(version_dir, 'comparison.html')
         elif pt_slug == 'brand-review':
@@ -186,6 +220,9 @@ def build_site(site, output_base_dir, upload_folder):
             brand_info = brand_lookup.get(page.slug) or brand_lookup.get(page.brand.slug if page.brand else '')
             ctx['brand_info'] = brand_info
             ctx['brand_slug'] = page.slug
+            ctx['other_brands'] = [b for b in brand_info_list if b['slug'] != page.slug][:3]
+            ctx['vertical_slug'] = vertical.slug
+            ctx['geo'] = {'name': geo.name, 'code': geo.code, 'language': geo.language, 'currency': geo.currency}
         elif pt_slug == 'bonus-review':
             bonuses_dir = os.path.join(version_dir, 'bonuses')
             os.makedirs(bonuses_dir, exist_ok=True)
@@ -194,6 +231,7 @@ def build_site(site, output_base_dir, upload_folder):
             brand_info = brand_lookup.get(page.slug) or brand_lookup.get(page.brand.slug if page.brand else '')
             ctx['brand_info'] = brand_info
             ctx['brand_slug'] = page.slug
+            ctx['other_brands'] = [b for b in brand_info_list if b['slug'] != page.slug][:4]
         elif pt_slug == 'evergreen':
             output_file = os.path.join(version_dir, f'{page.slug}.html')
         else:
@@ -229,13 +267,17 @@ def build_site(site, output_base_dir, upload_folder):
         f.write(sitemap_html)
 
     # Generate robots.txt
-    robots_template = env.get_template('robots.txt')
-    robots_txt = robots_template.render(domain=domain)
+    if site.custom_robots_txt:
+        robots_txt = site.custom_robots_txt
+    else:
+        robots_template = env.get_template('robots.txt')
+        robots_txt = robots_template.render(domain=domain)
     with open(os.path.join(version_dir, 'robots.txt'), 'w', encoding='utf-8') as f:
         f.write(robots_txt)
 
     # Update site record
     site.output_path = version_dir
     site.status = 'built'
+    site.built_at = datetime.now(timezone.utc)
 
     return version_dir

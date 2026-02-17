@@ -1,82 +1,260 @@
 {% extends "base.html" %}
 
-{% block content %}
+{% block body_content %}
+<!-- HERO -->
 <section class="hero">
-    <h1>{{ content.hero_title }}</h1>
-    <p class="hero-subtitle">{{ content.hero_subtitle }}</p>
-</section>
-
-<section class="intro">
-    <p>{{ content.intro_paragraph }}</p>
-</section>
-
-<section class="comparison-table">
-    <h2>Compare {{ vertical_name }} Sites</h2>
-    <table class="comparison">
-        <thead>
-            <tr>
-                <th>Rank</th>
-                <th>Brand</th>
-                <th>Bonus</th>
-                <th>Rating</th>
-                <th>Pros</th>
-                <th>Cons</th>
-                <th></th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for row in content.comparison_rows %}
-            <tr>
-                <td>{{ loop.index }}</td>
-                <td>
-                    {% set brand_info = brand_lookup.get(row.slug or row.brand) %}
-                    {% if brand_info and brand_info.logo_filename %}
-                    <img src="assets/logos/{{ brand_info.logo_filename }}" alt="{{ row.brand }}" class="table-logo">
-                    {% endif %}
-                    <a href="reviews/{{ row.slug or row.brand | lower }}.html">{{ row.brand }}</a>
-                </td>
-                <td>{{ row.bonus }}</td>
-                <td>{{ row.rating }}/5</td>
-                <td>
-                    <ul>
-                    {% for pro in row.pros %}
-                        <li>{{ pro }}</li>
-                    {% endfor %}
-                    </ul>
-                </td>
-                <td>
-                    <ul>
-                    {% for con in row.cons %}
-                        <li>{{ con }}</li>
-                    {% endfor %}
-                    </ul>
-                </td>
-                <td>
-                    {% if brand_info %}
-                    <a href="{{ brand_info.affiliate_link }}" class="cta-button" target="_blank" rel="nofollow noopener">Visit Site</a>
-                    {% endif %}
-                </td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
-</section>
-
-{% if content.faq %}
-<section class="faq">
-    <h2>Frequently Asked Questions</h2>
-    {% for item in content.faq %}
-    <div class="faq-item">
-        <h3>{{ item.question }}</h3>
-        <p>{{ item.answer }}</p>
+    <div class="hero-inner">
+        <div class="hero-badge">&#128200; {{ content.hero_badge | default('Side-by-Side Comparison') }}</div>
+        <h1>{{ content.hero_title }}</h1>
+        <p class="hero-sub">{{ content.hero_subtitle }}</p>
+        <div class="hero-stats">
+            <div class="hero-stat">
+                <div class="hero-stat-number">{{ content.comparison_rows | length if content.comparison_rows else site_brands | length }}</div>
+                <div class="hero-stat-label">Brands Compared</div>
+            </div>
+            <div class="hero-stat">
+                <div class="hero-stat-number">{{ year }}</div>
+                <div class="hero-stat-label">Last Updated</div>
+            </div>
+            <div class="hero-stat">
+                <div class="hero-stat-number">100%</div>
+                <div class="hero-stat-label">Independent</div>
+            </div>
+        </div>
     </div>
-    {% endfor %}
 </section>
-{% endif %}
 
-{% if content.closing_paragraph %}
-<section class="closing">
-    <p>{{ content.closing_paragraph }}</p>
-</section>
-{% endif %}
-{% endblock %}
+<!-- TRUST BAR -->
+<div class="trust-bar">
+    <div class="trust-bar-inner">
+        <div class="trust-item">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 12l2 2 4-4"/><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20z"/></svg>
+            Expert Reviewed
+        </div>
+        <div class="trust-item">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 12l2 2 4-4"/><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20z"/></svg>
+            Independently Verified
+        </div>
+        <div class="trust-item">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 12l2 2 4-4"/><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20z"/></svg>
+            Updated Monthly
+        </div>
+    </div>
+</div>
+
+<!-- MAIN -->
+<main class="main">
+
+    <!-- LEFT: COMPARISON CONTENT -->
+    <div class="content-area">
+
+        {% if content.intro_paragraph %}
+        <div class="content-block">
+            <p>{{ content.intro_paragraph }}</p>
+        </div>
+        {% endif %}
+
+        <div class="section-header">
+            <h2>Compare {{ vertical_name }} Sites</h2>
+            <p>Our experts ranked these sites based on bonuses, user experience, and trustworthiness.</p>
+        </div>
+
+        <!-- COMPARISON CARDS -->
+        {% if content.comparison_rows %}
+        {% for row in content.comparison_rows %}
+        {% set bi = brand_lookup.get(row.slug or row.brand) %}
+        <div class="comp-card">
+            <div class="comp-card-header">
+                <div class="comp-card-rank">
+                    {% if loop.index <= 3 %}
+                    <span class="rank-badge rank-{{ loop.index }}">
+                        {%- if loop.index == 1 %}Recommended{% elif loop.index == 2 %}Hot Offer{% elif loop.index == 3 %}3rd{% endif -%}
+                    </span>
+                    {% else %}
+                    <span class="rank-badge rank-default">{{ loop.index }}th</span>
+                    {% endif %}
+                </div>
+                <div class="comp-card-brand">
+                    {% if bi and bi.logo_filename %}
+                    <img src="assets/logos/{{ bi.logo_filename }}" alt="{{ row.brand }}" class="comp-card-logo">
+                    {% else %}
+                    <div class="comp-card-logo-placeholder">{{ row.brand }}</div>
+                    {% endif %}
+                    <div>
+                        <h3><a href="reviews/{{ row.slug or row.brand | lower }}.html">{{ row.brand }}</a></h3>
+                        {% if row.rating %}
+                        <div class="brand-rating">
+                            <div class="stars">
+                                {% set full_stars = row.rating | int %}
+                                {% for i in range(5) %}
+                                <svg viewBox="0 0 24 24" fill="currentColor"{% if i >= full_stars %} style="opacity:0.3"{% endif %}><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+                                {% endfor %}
+                            </div>
+                            <span class="brand-rating-score">{{ row.rating }}/5</span>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="comp-card-cta">
+                    {% if bi and bi.welcome_bonus %}
+                    <div class="bonus-offer">{{ bi.welcome_bonus }}</div>
+                    {% elif row.bonus %}
+                    <div class="bonus-offer">{{ row.bonus }}</div>
+                    {% endif %}
+                    {% if bi and bi.bonus_code %}
+                    <div class="bonus-code-box">
+                        <span class="bonus-code-value">{{ bi.bonus_code }}</span>
+                        <button class="bonus-code-copy" data-code="{{ bi.bonus_code }}" title="Copy code">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+                        </button>
+                    </div>
+                    {% endif %}
+                    {% if bi %}
+                    <a href="{{ bi.affiliate_link }}" class="cta-button" target="_blank" rel="nofollow noopener">
+                        Visit Site
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+                    </a>
+                    {% endif %}
+                </div>
+            </div>
+            <div class="comp-card-body">
+                {% if row.pros or row.cons %}
+                <div class="comp-card-pros-cons">
+                    {% if row.pros %}
+                    <div class="comp-card-pros">
+                        {% for pro in row.pros %}
+                        <span class="comp-pro-item">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg>
+                            {{ pro }}
+                        </span>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                    {% if row.cons %}
+                    <div class="comp-card-cons">
+                        {% for con in row.cons %}
+                        <span class="comp-con-item">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 6L6 18M6 6l12 12"/></svg>
+                            {{ con }}
+                        </span>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                </div>
+                {% endif %}
+                {% if row.verdict %}
+                <div class="comp-card-verdict">
+                    <strong>Verdict:</strong> {{ row.verdict }}
+                </div>
+                {% endif %}
+            </div>
+            <div class="brand-card-tcs">
+                <span class="tcs-text">18+. T&amp;Cs apply. New customers only. Please gamble responsibly.</span>
+            </div>
+        </div>
+        {% endfor %}
+        {% endif %}
+
+        <!-- FAQ -->
+        {% if content.faq %}
+        <div class="content-block">
+            <h2>Frequently Asked Questions</h2>
+            <div style="height:0.75rem;"></div>
+            <div class="faq-list">
+                {% for item in content.faq %}
+                <div class="faq-item{% if loop.first %} active{% endif %}">
+                    <button class="faq-question">
+                        {{ item.question }}
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+                    </button>
+                    <div class="faq-answer">{{ item.answer }}</div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        {% if content.closing_paragraph %}
+        <div class="content-block">
+            <p>{{ content.closing_paragraph }}</p>
+        </div>
+        {% endif %}
+
+    </div>
+
+    <!-- SIDEBAR -->
+    <aside class="sidebar">
+
+        <!-- Top Rated -->
+        <div class="sidebar-card">
+            <div class="sidebar-card-header">
+                <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+                <h3>Top Rated</h3>
+            </div>
+            {% for brand in site_brands[:5] %}
+            <a href="reviews/{{ brand.slug }}.html" class="sidebar-brand-item">
+                <div class="sidebar-brand-logo">
+                    {% if brand.logo_filename %}
+                    <img src="assets/logos/{{ brand.logo_filename }}" alt="{{ brand.name }}" style="max-width:36px;max-height:24px;object-fit:contain;">
+                    {% else %}
+                    <span>{{ brand.name[:8] }}</span>
+                    {% endif %}
+                </div>
+                <div class="sidebar-brand-info">
+                    <div class="sidebar-brand-name">{{ brand.name }}</div>
+                    {% if brand.rating %}
+                    <div class="sidebar-brand-rating">
+                        {% set full = brand.rating | round | int %}
+                        <span>{{ '\u2605' * full }}{{ '\u2606' * (5 - full) }}</span>
+                    </div>
+                    {% endif %}
+                </div>
+                {% if brand.rating %}
+                <div class="sidebar-brand-score">{{ brand.rating }}</div>
+                {% endif %}
+            </a>
+            {% endfor %}
+        </div>
+
+        <!-- Quick Links -->
+        <div class="sidebar-card">
+            <div class="sidebar-card-header">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+                <h3>Quick Links</h3>
+            </div>
+            <div class="quick-links">
+                {% for link in nav_links %}
+                {% if link.url != 'comparison.html' %}
+                <a href="{{ link.url }}" class="quick-link">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
+                    {{ link.label }}
+                </a>
+                {% endif %}
+                {% endfor %}
+                {% for brand in site_brands[:3] %}
+                <a href="bonuses/{{ brand.slug }}.html" class="quick-link">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 12H4M12 4v16"/></svg>
+                    {{ brand.name }} Bonus
+                </a>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- Responsible Gambling -->
+        <div class="sidebar-card">
+            <div class="sidebar-card-header" style="background: var(--gray-700);">
+                <svg viewBox="0 0 24 24" fill="none" stroke="var(--amber)" stroke-width="2"><path d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                <h3>Gamble Responsibly</h3>
+            </div>
+            <div style="padding: 1rem 1.1rem;">
+                <p style="font-size:0.82rem; color:var(--gray-600); line-height:1.7; margin-bottom:0.75rem;">If you feel you may have a gambling problem, help is available. Please gamble responsibly.</p>
+                <a href="https://www.gambleaware.org" target="_blank" rel="noopener" style="display:block; text-align:center; font-size:0.82rem; font-weight:600; color:var(--teal); text-decoration:none; padding:0.6rem; background:var(--gray-50); border-radius:var(--radius-sm);">
+                    GambleAware.org &rarr;
+                </a>
+            </div>
+        </div>
+
+    </aside>
+
+</main>
+{% endblock body_content %}

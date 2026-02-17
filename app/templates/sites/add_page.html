@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+
+{% block title %}Add Page — {{ site.name }}{% endblock %}
+
+{% block content %}
+<h1>Add Page to {{ site.name }}</h1>
+<p class="text-muted">Add a new page to this site. After adding, generate its content from the site detail page.</p>
+
+<form method="POST" class="card card-body" style="max-width: 600px;">
+    <div class="mb-3">
+        <label for="page_type" class="form-label">Page Type</label>
+        <select name="page_type" id="page_type" class="form-select" required onchange="toggleFields()">
+            <option value="">Select a page type...</option>
+            {% if 'homepage' not in existing_global %}
+            <option value="homepage">Homepage</option>
+            {% endif %}
+            {% if 'comparison' not in existing_global %}
+            <option value="comparison">Comparison Page</option>
+            {% endif %}
+            {% if available_review_brands %}
+            <option value="brand-review">Brand Review</option>
+            {% endif %}
+            {% if available_bonus_brands %}
+            <option value="bonus-review">Bonus Review</option>
+            {% endif %}
+            <option value="evergreen">Evergreen Content</option>
+        </select>
+    </div>
+
+    <!-- Brand dropdown (for brand-review) -->
+    <div class="mb-3 d-none" id="brandReviewField">
+        <label for="brand_id_review" class="form-label">Brand</label>
+        <select name="brand_id" id="brand_id_review" class="form-select">
+            <option value="">Select a brand...</option>
+            {% for brand in available_review_brands %}
+            <option value="{{ brand.id }}">{{ brand.name }}</option>
+            {% endfor %}
+        </select>
+    </div>
+
+    <!-- Brand dropdown (for bonus-review) -->
+    <div class="mb-3 d-none" id="bonusReviewField">
+        <label for="brand_id_bonus" class="form-label">Brand</label>
+        <select name="brand_id" id="brand_id_bonus" class="form-select">
+            <option value="">Select a brand...</option>
+            {% for brand in available_bonus_brands %}
+            <option value="{{ brand.id }}">{{ brand.name }}</option>
+            {% endfor %}
+        </select>
+    </div>
+
+    <!-- Topic input (for evergreen) -->
+    <div class="mb-3 d-none" id="evergreenField">
+        <label for="evergreen_topic" class="form-label">Topic Title</label>
+        <input type="text" name="evergreen_topic" id="evergreen_topic" class="form-control"
+               placeholder="e.g. How to Bet on Football">
+        <small class="form-text text-muted">The URL slug will be auto-generated from the topic.</small>
+    </div>
+
+    <div>
+        <button type="submit" class="btn btn-primary">Add Page</button>
+        <a href="{{ url_for('sites.detail', site_id=site.id) }}" class="btn btn-outline-secondary ms-2">Cancel</a>
+    </div>
+</form>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function toggleFields() {
+    const type = document.getElementById('page_type').value;
+    const brandReview = document.getElementById('brandReviewField');
+    const bonusReview = document.getElementById('bonusReviewField');
+    const evergreen = document.getElementById('evergreenField');
+
+    // Hide all
+    brandReview.classList.add('d-none');
+    bonusReview.classList.add('d-none');
+    evergreen.classList.add('d-none');
+
+    // Disable hidden selects so they don't submit
+    document.getElementById('brand_id_review').disabled = true;
+    document.getElementById('brand_id_bonus').disabled = true;
+    document.getElementById('evergreen_topic').disabled = true;
+
+    if (type === 'brand-review') {
+        brandReview.classList.remove('d-none');
+        document.getElementById('brand_id_review').disabled = false;
+    } else if (type === 'bonus-review') {
+        bonusReview.classList.remove('d-none');
+        document.getElementById('brand_id_bonus').disabled = false;
+    } else if (type === 'evergreen') {
+        evergreen.classList.remove('d-none');
+        document.getElementById('evergreen_topic').disabled = false;
+    }
+}
+// Init on page load
+toggleFields();
+</script>
+{% endblock %}

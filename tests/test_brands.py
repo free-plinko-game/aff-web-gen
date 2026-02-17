@@ -130,3 +130,100 @@ class TestBrandGeoAssociation:
 
         bv = BrandVertical.query.filter_by(brand_id=brand.id, vertical_id=vertical.id).first()
         assert bv is not None
+
+
+class TestBrandNewFields:
+
+    def test_create_brand_with_company_details(self, client, db):
+        data = {
+            'name': 'CompanyBrand',
+            'slug': 'companybrand',
+            'parent_company': 'Acme Corp',
+            'support_methods': 'Live Chat, Email',
+            'support_email': 'help@test.com',
+            'available_languages': 'English, Spanish',
+            'has_ios_app': '1',
+            'has_android_app': '1',
+        }
+        response = client.post('/brands/new', data=data, follow_redirects=True)
+        assert response.status_code == 200
+        brand = Brand.query.filter_by(slug='companybrand').first()
+        assert brand is not None
+        assert brand.parent_company == 'Acme Corp'
+        assert brand.support_methods == 'Live Chat, Email'
+        assert brand.support_email == 'help@test.com'
+        assert brand.available_languages == 'English, Spanish'
+        assert brand.has_ios_app is True
+        assert brand.has_android_app is True
+
+    def test_create_brand_without_apps(self, client, db):
+        data = {
+            'name': 'NoAppBrand',
+            'slug': 'noappbrand',
+        }
+        response = client.post('/brands/new', data=data, follow_redirects=True)
+        assert response.status_code == 200
+        brand = Brand.query.filter_by(slug='noappbrand').first()
+        assert brand is not None
+        assert brand.has_ios_app is False
+        assert brand.has_android_app is False
+
+    def test_create_brand_with_geo_ratings(self, client, db):
+        geo = Geo.query.filter_by(code='gb').first()
+        data = {
+            'name': 'RatingBrand',
+            'slug': 'ratingbrand',
+            f'geo_active_{geo.id}': '1',
+            f'geo_bonus_{geo.id}': '100% up to £50',
+            f'geo_payment_methods_{geo.id}': 'Visa, PayPal',
+            f'geo_withdrawal_timeframe_{geo.id}': '24 hours',
+            f'geo_rating_bonus_{geo.id}': '4.5',
+            f'geo_rating_usability_{geo.id}': '4.0',
+            f'geo_rating_mobile_app_{geo.id}': '3.5',
+            f'geo_rating_payments_{geo.id}': '4.2',
+            f'geo_rating_support_{geo.id}': '3.8',
+            f'geo_rating_licensing_{geo.id}': '5.0',
+            f'geo_rating_rewards_{geo.id}': '4.1',
+        }
+        response = client.post('/brands/new', data=data, follow_redirects=True)
+        assert response.status_code == 200
+
+        brand = Brand.query.filter_by(slug='ratingbrand').first()
+        assert brand is not None
+        bg = BrandGeo.query.filter_by(brand_id=brand.id, geo_id=geo.id).first()
+        assert bg is not None
+        assert bg.payment_methods == 'Visa, PayPal'
+        assert bg.withdrawal_timeframe == '24 hours'
+        assert bg.rating_bonus == 4.5
+        assert bg.rating_usability == 4.0
+        assert bg.rating_mobile_app == 3.5
+        assert bg.rating_payments == 4.2
+        assert bg.rating_support == 3.8
+        assert bg.rating_licensing == 5.0
+        assert bg.rating_rewards == 4.1
+
+    def test_edit_brand_company_details(self, client, db):
+        brand = Brand(name='EditCompany', slug='editcompany')
+        db.session.add(brand)
+        db.session.commit()
+
+        data = {
+            'name': 'EditCompany',
+            'website_url': '',
+            'affiliate_link': '',
+            'description': '',
+            'founded_year': '',
+            'rating': '',
+            'parent_company': 'New Corp',
+            'support_methods': 'Phone',
+            'support_email': 'new@test.com',
+            'available_languages': 'French',
+            'has_ios_app': '1',
+        }
+        response = client.post(f'/brands/{brand.id}/edit', data=data, follow_redirects=True)
+        assert response.status_code == 200
+
+        db.session.refresh(brand)
+        assert brand.parent_company == 'New Corp'
+        assert brand.has_ios_app is True
+        assert brand.has_android_app is False

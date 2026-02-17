@@ -1,0 +1,114 @@
+{% extends "base.html" %}
+
+{% block title %}Edit: {{ page.title }} — {{ site.name }}{% endblock %}
+
+{% block content %}
+<nav aria-label="breadcrumb">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="{{ url_for('sites.detail', site_id=site.id) }}">{{ site.name }}</a></li>
+        <li class="breadcrumb-item active">Edit: {{ page.title }}</li>
+    </ol>
+</nav>
+
+<h1>Edit Page</h1>
+<p class="text-muted">
+    <span class="badge bg-secondary">{{ page.page_type.name }}</span>
+    URL: <code>{{ page_url(page) }}</code>
+</p>
+
+<form method="POST">
+    <div class="row">
+        <div class="col-md-8">
+            <div class="card mb-3">
+                <div class="card-header"><strong>Page Settings</strong></div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label for="title" class="form-label">Page Title</label>
+                        <input type="text" name="title" id="title" class="form-control"
+                               value="{{ page.title }}" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="meta_description" class="form-label">Meta Description</label>
+                        <textarea name="meta_description" id="meta_description" class="form-control"
+                                  rows="2">{{ page.meta_description or '' }}</textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label for="slug" class="form-label">Slug</label>
+                        <input type="text" name="slug" id="slug" class="form-control"
+                               value="{{ page.slug }}">
+                        <small class="form-text text-warning">Changing the slug will break existing links to this page.</small>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card mb-3">
+                <div class="card-header"><strong>Regeneration Notes</strong></div>
+                <div class="card-body">
+                    <textarea name="regeneration_notes" id="regeneration_notes" class="form-control"
+                              rows="4" placeholder="e.g. Focus more on the mobile app experience, target keyword: best UK betting sites 2026">{{ page.regeneration_notes or '' }}</textarea>
+                    <small class="form-text text-muted">
+                        Custom instructions for the LLM on next regeneration. These will be appended to the base prompt,
+                        archived in content history, and cleared after successful generation.
+                    </small>
+                </div>
+            </div>
+
+            <div class="d-flex gap-2 mb-4">
+                <button type="submit" name="action" value="save" class="btn btn-primary">Save</button>
+                <button type="submit" name="action" value="save_and_regenerate" class="btn btn-success"
+                        onclick="return confirm('This will regenerate content using the current notes. The old content will be archived. Continue?')">
+                    Save &amp; Regenerate
+                </button>
+                <a href="{{ url_for('sites.detail', site_id=site.id) }}" class="btn btn-outline-secondary">Cancel</a>
+            </div>
+        </div>
+
+        <div class="col-md-4">
+            <!-- Current Content Preview -->
+            {% if page.content_json %}
+            <div class="card mb-3">
+                <div class="card-header"><strong>Current Content</strong></div>
+                <div class="card-body">
+                    <pre class="bg-light p-2 rounded" style="max-height: 300px; overflow-y: auto; font-size: 0.8em;">{{ page.content_json }}</pre>
+                    {% if page.generated_at %}
+                    <small class="text-muted">Generated: {{ page.generated_at.strftime('%Y-%m-%d %H:%M') }}</small>
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Content History -->
+            {% if history %}
+            <div class="card">
+                <div class="card-header"><strong>Content History</strong> ({{ history | length }} versions)</div>
+                <div class="card-body p-0">
+                    <div class="list-group list-group-flush">
+                        {% for h in history %}
+                        <div class="list-group-item">
+                            <div class="d-flex justify-content-between align-items-start">
+                                <div>
+                                    <strong>v{{ h.version }}</strong>
+                                    <br>
+                                    <small class="text-muted">{{ h.generated_at.strftime('%Y-%m-%d %H:%M') }}</small>
+                                    {% if h.regeneration_notes %}
+                                    <br>
+                                    <small class="text-info">Notes: {{ h.regeneration_notes[:80] }}{{ '...' if h.regeneration_notes|length > 80 else '' }}</small>
+                                    {% endif %}
+                                </div>
+                                <form method="POST" action="{{ url_for('sites.restore_content', site_id=site.id, page_id=page.id, history_id=h.id) }}">
+                                    <button type="submit" class="btn btn-sm btn-outline-secondary"
+                                            onclick="return confirm('Restore to version {{ h.version }}? Current content will be archived.')">
+                                        Restore
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</form>
+{% endblock %}
