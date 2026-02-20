@@ -24,10 +24,14 @@
 
 <!-- Actions -->
 <div class="mb-4">
-    {% if site.status in ('draft', 'generated', 'failed') %}
+    {% set ungenerated = site.site_pages | rejectattr('is_generated') | list | length %}
+    {% if site.status in ('draft', 'generated', 'built', 'deployed', 'failed') %}
     <form method="POST" action="{{ url_for('sites.generate', site_id=site.id) }}" class="d-inline">
         <button type="submit" class="btn btn-primary">
-            {{ 'Regenerate All Content' if site.status == 'generated' else 'Generate Content' }}
+            {% if site.status == 'draft' %}Generate Content
+            {% elif ungenerated %}Generate {{ ungenerated }} New Page{{ 's' if ungenerated != 1 }}
+            {% else %}Regenerate All Content
+            {% endif %}
         </button>
     </form>
     {% endif %}
@@ -189,6 +193,11 @@
             Site Map
             <span class="badge bg-secondary ms-1">{{ site.site_pages | length }}</span>
         </button>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link" href="{{ url_for('sites.menu', site_id=site.id) }}">
+            Menu
+        </a>
     </li>
     <li class="nav-item">
         <a class="nav-link" href="{{ url_for('sites.cta_table_list', site_id=site.id) }}">

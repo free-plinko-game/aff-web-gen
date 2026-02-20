@@ -1,3 +1,5 @@
+import csv
+import io
 import os
 import re
 from datetime import datetime, timezone, timedelta
@@ -22,6 +24,28 @@ def _slugify(text):
     text = re.sub(r'[\s_]+', '-', text)
     text = re.sub(r'-+', '-', text)
     return text.strip('-')
+
+
+def _menu_defaults_for_page_type(slug):
+    """Return default menu settings for a given page type."""
+    defaults = {
+        'homepage':     {'show_in_nav': False, 'show_in_footer': False, 'nav_order': 0,   'nav_label': None},
+        'comparison':   {'show_in_nav': True,  'show_in_footer': True,  'nav_order': 10,  'nav_label': 'Compare'},
+        'brand-review': {'show_in_nav': False, 'show_in_footer': True,  'nav_order': 100, 'nav_label': None},
+        'bonus-review': {'show_in_nav': False, 'show_in_footer': True,  'nav_order': 100, 'nav_label': None},
+        'evergreen':    {'show_in_nav': True,  'show_in_footer': True,  'nav_order': 50,  'nav_label': None},
+    }
+    return defaults.get(slug, {'show_in_nav': False, 'show_in_footer': False, 'nav_order': 0, 'nav_label': None})
+
+
+def _apply_menu_defaults(page, page_type_slug):
+    """Apply default menu settings to a SitePage based on its page type."""
+    defaults = _menu_defaults_for_page_type(page_type_slug)
+    page.show_in_nav = defaults['show_in_nav']
+    page.show_in_footer = defaults['show_in_footer']
+    page.nav_order = defaults['nav_order']
+    page.nav_label = defaults['nav_label']
+    page.nav_parent_id = None
 
 
 @bp.route('/')
@@ -153,7 +177,11 @@ def update_freshness(site_id):
 
 @bp.route('/<int:site_id>/generate', methods=['POST'])
 def generate(site_id):
-    """Trigger content generation for all pages of a site (background thread)."""
+    """Trigger content generation for all pages of a site (background thread).
+
+    If the site is already built/deployed and has ungenerated pages,
+    only the new pages are generated (preserving existing content).
+    """
     site = db.session.get(Site, site_id) or abort(404)
     if site.status == 'generating':
         flash('Generation already in progress.', 'warning')
@@ -162,12 +190,21 @@ def generate(site_id):
     api_key = current_app.config.get('OPENAI_API_KEY', '')
     model = current_app.config.get('OPENAI_MODEL', 'gpt-4o-mini')
 
+    # If site already has content, only generate new (ungenerated) pages
+    ungenerated = SitePage.query.filter_by(site_id=site.id, is_generated=False).count()
+    previous_status = site.status
+    only_new = previous_status in ('generated', 'built', 'deployed') and ungenerated > 0
+
     site.status = 'generating'
     db.session.commit()
 
-    start_generation(current_app._get_current_object(), site_id, api_key, model)
+    start_generation(current_app._get_current_object(), site_id, api_key, model,
+                     only_new=only_new, previous_status=previous_status)
 
-    flash('Content generation started. Progress will update below.', 'info')
+    if only_new:
+        flash(f'Generating content for {ungenerated} new page{"s" if ungenerated != 1 else ""}...', 'info')
+    else:
+        flash('Content generation started. Progress will update below.', 'info')
     return redirect(url_for('sites.detail', site_id=site.id))
 
 
@@ -418,6 +455,7 @@ def add_page(site_id):
                     slug='index' if page_type_slug == 'homepage' else page_type_slug,
                     title=pt.name,
                 )
+                _apply_menu_defaults(page, page_type_slug)
 
             elif page_type_slug in ('brand-review', 'bonus-review'):
                 brand_id = request.form.get('brand_id', type=int)
@@ -448,6 +486,7 @@ def add_page(site_id):
                     slug=brand.slug,
                     title=f'{brand.name} {title_suffix}',
                 )
+                _apply_menu_defaults(page, page_type_slug)
 
             elif page_type_slug == 'evergreen':
                 topic = request.form.get('evergreen_topic', '').strip()
@@ -468,6 +507,7 @@ def add_page(site_id):
                     slug=slug,
                     title=topic,
                 )
+                _apply_menu_defaults(page, 'evergreen')
             else:
                 flash('Unknown page type.', 'error')
                 return redirect(url_for('sites.add_page', site_id=site.id))
@@ -517,6 +557,218 @@ def add_page(site_id):
                            existing_global=existing_global,
                            available_review_brands=available_review_brands,
                            available_bonus_brands=available_bonus_brands)
+
+
+@bp.route('/<int:site_id>/bulk-add-pages', methods=['POST'])
+def bulk_add_pages(site_id):
+    """Bulk-add pages from a CSV upload.
+
+    CSV columns: page_type, brand_slug, evergreen_topic
+    """
+    site = db.session.get(Site, site_id) or abort(404)
+
+    csv_file = request.files.get('csv_file')
+    if not csv_file or not csv_file.filename:
+        flash('Please select a CSV file.', 'error')
+        return redirect(url_for('sites.add_page', site_id=site.id))
+
+    try:
+        stream = io.StringIO(csv_file.stream.read().decode('utf-8'))
+        reader = csv.DictReader(stream)
+
+        # Pre-fetch lookups
+        page_type_map = {pt.slug: pt for pt in PageType.query.all()}
+        site_brand_slugs = {
+            sb.brand.slug: sb.brand
+            for sb in site.site_brands
+        }
+        existing_global = {
+            p.page_type.slug
+            for p in site.site_pages
+            if p.brand_id is None and p.evergreen_topic is None
+        }
+        existing_brand_pages = {
+            (p.page_type.slug, p.brand_id)
+            for p in site.site_pages
+            if p.brand_id is not None
+        }
+        existing_evergreen = {
+            (p.page_type.slug, p.evergreen_topic)
+            for p in site.site_pages
+            if p.evergreen_topic is not None
+        }
+
+        added = 0
+        skipped = 0
+        errors = []
+
+        for row_num, row in enumerate(reader, start=2):
+            pt_slug = row.get('page_type', '').strip()
+            brand_slug = row.get('brand_slug', '').strip()
+            topic = row.get('evergreen_topic', '').strip()
+
+            pt = page_type_map.get(pt_slug)
+            if not pt:
+                errors.append(f'Row {row_num}: unknown page type "{pt_slug}"')
+                continue
+
+            if pt_slug in ('homepage', 'comparison'):
+                if pt_slug in existing_global:
+                    skipped += 1
+                    continue
+                page = SitePage(
+                    site_id=site.id,
+                    page_type_id=pt.id,
+                    slug='index' if pt_slug == 'homepage' else pt_slug,
+                    title=pt.name,
+                )
+                _apply_menu_defaults(page, pt_slug)
+                db.session.add(page)
+                existing_global.add(pt_slug)
+                added += 1
+
+            elif pt_slug in ('brand-review', 'bonus-review'):
+                if not brand_slug:
+                    errors.append(f'Row {row_num}: brand_slug required for {pt_slug}')
+                    continue
+                brand = site_brand_slugs.get(brand_slug)
+                if not brand:
+                    errors.append(f'Row {row_num}: brand "{brand_slug}" not assigned to site')
+                    continue
+                if (pt_slug, brand.id) in existing_brand_pages:
+                    skipped += 1
+                    continue
+                title_suffix = 'Review' if pt_slug == 'brand-review' else 'Bonus Review'
+                page = SitePage(
+                    site_id=site.id,
+                    page_type_id=pt.id,
+                    brand_id=brand.id,
+                    slug=brand.slug,
+                    title=f'{brand.name} {title_suffix}',
+                )
+                _apply_menu_defaults(page, pt_slug)
+                db.session.add(page)
+                existing_brand_pages.add((pt_slug, brand.id))
+                added += 1
+
+            elif pt_slug == 'evergreen':
+                if not topic:
+                    errors.append(f'Row {row_num}: evergreen_topic required')
+                    continue
+                if (pt_slug, topic) in existing_evergreen:
+                    skipped += 1
+                    continue
+                page = SitePage(
+                    site_id=site.id,
+                    page_type_id=pt.id,
+                    evergreen_topic=topic,
+                    slug=_slugify(topic),
+                    title=topic,
+                )
+                _apply_menu_defaults(page, 'evergreen')
+                db.session.add(page)
+                existing_evergreen.add((pt_slug, topic))
+                added += 1
+
+        db.session.commit()
+
+        parts = [f'{added} pages added']
+        if skipped:
+            parts.append(f'{skipped} duplicates skipped')
+        if errors:
+            parts.append(f'{len(errors)} errors')
+            for err in errors[:5]:
+                flash(err, 'warning')
+        flash(', '.join(parts) + '.', 'success' if added else 'info')
+
+    except Exception as e:
+        db.session.rollback()
+        flash(f'CSV import failed: {e}', 'error')
+
+    return redirect(url_for('sites.add_page', site_id=site.id))
+
+
+@bp.route('/<int:site_id>/add-suggested-pages', methods=['POST'])
+def add_suggested_pages(site_id):
+    """Bulk-create pages from AI suggestions (JSON body)."""
+    site = db.session.get(Site, site_id) or abort(404)
+    data = request.get_json()
+    if not data or 'pages' not in data:
+        return {'error': 'No pages provided'}, 400
+
+    page_type_map = {pt.slug: pt for pt in PageType.query.all()}
+    site_brand_slugs = {sb.brand.slug: sb.brand for sb in site.site_brands}
+    existing_global = {
+        p.page_type.slug for p in site.site_pages
+        if p.brand_id is None and p.evergreen_topic is None
+    }
+    existing_brand_pages = {
+        (p.page_type.slug, p.brand_id) for p in site.site_pages
+        if p.brand_id is not None
+    }
+    existing_evergreen = {
+        (p.page_type.slug, p.evergreen_topic) for p in site.site_pages
+        if p.evergreen_topic is not None
+    }
+
+    added = 0
+    skipped = 0
+
+    for item in data['pages']:
+        pt_slug = item.get('page_type', '').strip()
+        brand_slug = item.get('brand_slug', '').strip()
+        topic = item.get('evergreen_topic', '').strip()
+
+        pt = page_type_map.get(pt_slug)
+        if not pt:
+            continue
+
+        if pt_slug in ('homepage', 'comparison'):
+            if pt_slug in existing_global:
+                skipped += 1
+                continue
+            page = SitePage(
+                site_id=site.id, page_type_id=pt.id,
+                slug='index' if pt_slug == 'homepage' else pt_slug,
+                title=pt.name,
+            )
+            _apply_menu_defaults(page, pt_slug)
+            db.session.add(page)
+            existing_global.add(pt_slug)
+            added += 1
+
+        elif pt_slug in ('brand-review', 'bonus-review'):
+            brand = site_brand_slugs.get(brand_slug)
+            if not brand or (pt_slug, brand.id) in existing_brand_pages:
+                skipped += 1
+                continue
+            suffix = 'Review' if pt_slug == 'brand-review' else 'Bonus Review'
+            page = SitePage(
+                site_id=site.id, page_type_id=pt.id,
+                brand_id=brand.id, slug=brand.slug,
+                title=f'{brand.name} {suffix}',
+            )
+            _apply_menu_defaults(page, pt_slug)
+            db.session.add(page)
+            existing_brand_pages.add((pt_slug, brand.id))
+            added += 1
+
+        elif pt_slug == 'evergreen':
+            if not topic or (pt_slug, topic) in existing_evergreen:
+                skipped += 1
+                continue
+            page = SitePage(
+                site_id=site.id, page_type_id=pt.id,
+                evergreen_topic=topic, slug=_slugify(topic),
+                title=topic,
+            )
+            _apply_menu_defaults(page, 'evergreen')
+            db.session.add(page)
+            existing_evergreen.add((pt_slug, topic))
+            added += 1
+
+    db.session.commit()
+    return {'added': added, 'skipped': skipped}
 
 
 @bp.route('/<int:site_id>/pages/<int:page_id>/edit', methods=['GET', 'POST'])
@@ -589,6 +841,8 @@ def delete_page(site_id, page_id):
         abort(404)
 
     title = page.title
+    # Clear nav_parent_id on any children before deleting
+    SitePage.query.filter_by(nav_parent_id=page.id).update({'nav_parent_id': None})
     db.session.delete(page)
     db.session.commit()
     flash(f'Page "{title}" deleted.', 'success')
@@ -705,6 +959,45 @@ def brand_overrides(site_id):
         })
 
     return render_template('sites/brand_overrides.html', site=site, brands_data=brands_data)
+
+
+@bp.route('/<int:site_id>/menu', methods=['GET', 'POST'])
+def menu(site_id):
+    """Manage navigation bar and footer settings for site pages."""
+    site = db.session.get(Site, site_id) or abort(404)
+
+    if request.method == 'POST':
+        # First pass: save all fields except nav_parent_id
+        parent_map = {}
+        for page in site.site_pages:
+            prefix = f'page_{page.id}_'
+            page.show_in_nav = request.form.get(f'{prefix}show_in_nav') == 'on'
+            page.show_in_footer = request.form.get(f'{prefix}show_in_footer') == 'on'
+            page.nav_order = request.form.get(f'{prefix}nav_order', type=int) or 0
+            nav_label = request.form.get(f'{prefix}nav_label', '').strip()
+            page.nav_label = nav_label if nav_label else None
+            raw_parent = request.form.get(f'{prefix}nav_parent_id', '')
+            parent_map[page.id] = int(raw_parent) if raw_parent else None
+
+        # Second pass: validate and save nav_parent_id
+        page_lookup = {p.id: p for p in site.site_pages}
+        for page in site.site_pages:
+            pid = parent_map.get(page.id)
+            if pid is not None:
+                parent = page_lookup.get(pid)
+                if (parent is None or pid == page.id
+                        or parent_map.get(pid) is not None):
+                    pid = None  # Invalid: missing, self-ref, or multi-level
+            page.nav_parent_id = pid
+
+        db.session.commit()
+        flash('Menu settings saved.', 'success')
+        return redirect(url_for('sites.detail', site_id=site.id))
+
+    # GET — sort pages for display
+    pages = sorted(site.site_pages, key=lambda p: (p.nav_order, p.id))
+
+    return render_template('sites/menu.html', site=site, pages=pages)
 
 
 @bp.route('/<int:site_id>/cta-tables')
@@ -832,6 +1125,7 @@ def _create_site_pages(site, brand_ids, form):
                 slug='index' if pt_slug == 'homepage' else pt_slug,
                 title=pt.name,
             )
+            _apply_menu_defaults(page, pt_slug)
             db.session.add(page)
 
     # Brand-specific pages
@@ -852,6 +1146,7 @@ def _create_site_pages(site, brand_ids, form):
                     slug=brand.slug,
                     title=f'{brand.name} Review',
                 )
+                _apply_menu_defaults(page, 'brand-review')
                 db.session.add(page)
 
         if 'bonus-review' in page_types_selected:
@@ -865,6 +1160,7 @@ def _create_site_pages(site, brand_ids, form):
                     slug=brand.slug,
                     title=f'{brand.name} Bonus Review',
                 )
+                _apply_menu_defaults(page, 'bonus-review')
                 db.session.add(page)
 
     # Evergreen pages
@@ -882,4 +1178,5 @@ def _create_site_pages(site, brand_ids, form):
                 slug=_slugify(topic),
                 title=topic,
             )
+            _apply_menu_defaults(page, 'evergreen')
             db.session.add(page)

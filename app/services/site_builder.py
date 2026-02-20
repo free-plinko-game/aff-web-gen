@@ -29,38 +29,104 @@ def _get_jinja_env():
     )
 
 
+def _page_url_for_link(page):
+    """Return the URL string for a page, used in nav/footer links."""
+    pt_slug = page.page_type.slug
+    if pt_slug == 'homepage':
+        return 'index.html'
+    elif pt_slug == 'comparison':
+        return 'comparison.html'
+    elif pt_slug == 'brand-review':
+        return f'reviews/{page.slug}.html'
+    elif pt_slug == 'bonus-review':
+        return f'bonuses/{page.slug}.html'
+    elif pt_slug == 'evergreen':
+        return f'{page.slug}.html'
+    return f'{page.slug}.html'
+
+
 def _build_nav_links(site_pages):
-    """Build navigation links from site pages."""
+    """Build navigation links from site pages, supporting one level of dropdowns.
+
+    Returns a list of link dicts. Top-level items with children include a
+    'children' key. The Home link is always first and never has children.
+
+    show_in_nav controls top-level visibility. Pages with nav_parent_id set
+    appear in their parent's dropdown automatically (no show_in_nav needed).
+    """
     links = [{'url': 'index.html', 'label': 'Home'}]
 
-    comparison = [p for p in site_pages if p.page_type.slug == 'comparison']
-    if comparison:
-        links.append({'url': 'comparison.html', 'label': 'Compare'})
+    top_level_pages = [p for p in site_pages if p.show_in_nav and p.nav_parent_id is None]
+    child_pages = [p for p in site_pages if p.nav_parent_id is not None]
 
-    evergreen = [p for p in site_pages if p.page_type.slug == 'evergreen']
-    for p in evergreen:
-        links.append({'url': f'{p.slug}.html', 'label': p.title})
+    if top_level_pages or child_pages:
+        # Group children by parent
+        children_by_parent = {}
+        for p in child_pages:
+            children_by_parent.setdefault(p.nav_parent_id, []).append(p)
+
+        top_level_pages.sort(key=lambda p: (p.nav_order, p.id))
+
+        for p in top_level_pages:
+            entry = {'url': _page_url_for_link(p), 'label': p.nav_label or p.title}
+
+            kids = children_by_parent.get(p.id, [])
+            if kids:
+                kids.sort(key=lambda c: (c.nav_order, c.id))
+                entry['children'] = [
+                    {'url': _page_url_for_link(c), 'label': c.nav_label or c.title}
+                    for c in kids
+                ]
+
+            links.append(entry)
+    else:
+        # Legacy fallback for unconfigured sites
+        comparison = [p for p in site_pages if p.page_type.slug == 'comparison']
+        if comparison:
+            links.append({'url': 'comparison.html', 'label': 'Compare'})
+
+        evergreen = [p for p in site_pages if p.page_type.slug == 'evergreen']
+        for p in evergreen:
+            links.append({'url': f'{p.slug}.html', 'label': p.title})
 
     return links
 
 
 def _build_footer_links(site_pages):
-    """Build footer links from site pages."""
-    links = [{'url': 'index.html', 'label': 'Home'}]
+    """Build structured footer links from site pages.
 
-    comparison = [p for p in site_pages if p.page_type.slug == 'comparison']
-    if comparison:
-        links.append({'url': 'comparison.html', 'label': 'Compare'})
+    If any page has show_in_footer=True (menu configured), returns a categorized
+    dict for the 3-column footer. Otherwise returns None for legacy fallback.
+    """
+    footer_pages = [p for p in site_pages if p.show_in_footer]
 
-    evergreen = [p for p in site_pages if p.page_type.slug == 'evergreen']
-    for p in evergreen:
-        links.append({'url': f'{p.slug}.html', 'label': p.title})
+    if not footer_pages:
+        return None
 
-    brand_reviews = [p for p in site_pages if p.page_type.slug == 'brand-review']
-    for p in brand_reviews:
-        links.append({'url': f'reviews/{p.slug}.html', 'label': f'{p.title}'})
+    footer_pages.sort(key=lambda p: (p.nav_order, p.id))
 
-    return links
+    brand_reviews = []
+    guides = []
+    bonuses = []
+
+    for p in footer_pages:
+        label = p.nav_label or p.title
+        url = _page_url_for_link(p)
+        entry = {'url': url, 'label': label}
+
+        pt_slug = p.page_type.slug
+        if pt_slug == 'brand-review':
+            brand_reviews.append(entry)
+        elif pt_slug == 'bonus-review':
+            bonuses.append(entry)
+        else:
+            guides.append(entry)
+
+    return {
+        'brand_reviews': brand_reviews,
+        'guides': guides,
+        'bonuses': bonuses,
+    }
 
 
 def _build_brand_info_list(site, geo):

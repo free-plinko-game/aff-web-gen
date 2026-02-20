@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+
+{% block title %}Menu Settings — {{ site.name }}{% endblock %}
+
+{% block content %}
+<nav aria-label="breadcrumb">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="{{ url_for('sites.detail', site_id=site.id) }}">{{ site.name }}</a></li>
+        <li class="breadcrumb-item active">Menu Settings</li>
+    </ol>
+</nav>
+
+<h1>Menu Settings</h1>
+<p class="text-muted">Configure which pages appear in the navigation bar and footer. The "Home" link is always shown in the nav bar and cannot be removed. Use "Parent" to nest pages in a dropdown sub-menu. Changes take effect on the next build.</p>
+
+<form method="POST">
+    <table class="table table-sm align-middle">
+        <thead>
+            <tr>
+                <th>Page</th>
+                <th>Type</th>
+                <th style="width: 160px;">Parent</th>
+                <th style="width: 160px;">Nav Label</th>
+                <th style="width: 90px;">Order</th>
+                <th class="text-center" style="width: 80px;">Nav</th>
+                <th class="text-center" style="width: 80px;">Footer</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for page in pages %}
+            <tr>
+                <td>
+                    {{ page.title }}
+                    {% if page.page_type.slug == 'homepage' %}
+                    <small class="text-muted ms-1">(Home link always shown in nav)</small>
+                    {% endif %}
+                </td>
+                <td><span class="badge bg-secondary">{{ page.page_type.name }}</span></td>
+                <td>
+                    {% if page.page_type.slug == 'homepage' %}
+                    <select class="form-select form-select-sm" disabled>
+                        <option>&mdash;</option>
+                    </select>
+                    {% else %}
+                    <select name="page_{{ page.id }}_nav_parent_id" class="form-select form-select-sm">
+                        <option value="">&mdash; None &mdash;</option>
+                        {% for other in pages %}
+                        {% if other.id != page.id and other.page_type.slug != 'homepage' and other.nav_parent_id is none %}
+                        <option value="{{ other.id }}" {{ 'selected' if page.nav_parent_id == other.id }}>
+                            {{ other.nav_label or other.title }}
+                        </option>
+                        {% endif %}
+                        {% endfor %}
+                    </select>
+                    {% endif %}
+                </td>
+                <td>
+                    <input type="text" name="page_{{ page.id }}_nav_label"
+                           class="form-control form-control-sm"
+                           placeholder="{{ page.title }}"
+                           value="{{ page.nav_label or '' }}">
+                </td>
+                <td>
+                    <input type="number" name="page_{{ page.id }}_nav_order"
+                           class="form-control form-control-sm"
+                           value="{{ page.nav_order }}" min="0" max="999">
+                </td>
+                <td class="text-center">
+                    {% if page.page_type.slug == 'homepage' %}
+                    <input type="checkbox" class="form-check-input" disabled
+                           title="Home link is always shown in nav">
+                    {% else %}
+                    <input type="checkbox" name="page_{{ page.id }}_show_in_nav"
+                           class="form-check-input"
+                           {{ 'checked' if page.show_in_nav }}>
+                    {% endif %}
+                </td>
+                <td class="text-center">
+                    <input type="checkbox" name="page_{{ page.id }}_show_in_footer"
+                           class="form-check-input"
+                           {{ 'checked' if page.show_in_footer }}>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <div class="mb-4">
+        <button type="submit" class="btn btn-primary">Save Menu Settings</button>
+        <a href="{{ url_for('sites.detail', site_id=site.id) }}" class="btn btn-outline-secondary ms-2">Cancel</a>
+    </div>
+</form>
+{% endblock %}

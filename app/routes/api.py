@@ -1,9 +1,14 @@
+import json
+import logging
 import os
 
-from flask import Blueprint, jsonify, request, abort, Response, send_from_directory
+from flask import Blueprint, jsonify, request, abort, Response, send_from_directory, current_app
 
-from ..models import db, Brand, BrandGeo, BrandVertical, Site, SitePage
+from ..models import db, Brand, BrandGeo, BrandVertical, Site, SitePage, PageType
+from ..services.content_generator import call_openai
 from ..services.preview_renderer import render_page_preview
+
+logger = logging.getLogger(__name__)
 
 bp = Blueprint('api', __name__, url_prefix='/api')
 
@@ -114,3 +119,120 @@ def preview_assets(site_id, filename):
         return send_from_directory(os.path.join(upload_folder, 'logos'), filename[6:])
 
     return send_from_directory(assets_dir, filename)
+
+
+@bp.route('/page-csv-template')
+def page_csv_template():
+    """Serve a sample CSV template for bulk page upload."""
+    csv_content = (
+        "page_type,brand_slug,evergreen_topic\n"
+        "homepage,,\n"
+        "comparison,,\n"
+        "brand-review,example-brand,\n"
+        "bonus-review,example-brand,\n"
+        "evergreen,,How to Choose a Betting Site\n"
+        "evergreen,,Beginner Guide to Online Gambling\n"
+    )
+    return Response(
+        csv_content,
+        mimetype='text/csv',
+        headers={'Content-Disposition': 'attachment; filename=page_import_template.csv'},
+    )
+
+
+@bp.route('/sites/<int:site_id>/suggest-pages', methods=['POST'])
+def suggest_pages(site_id):
+    """Analyze a site and suggest missing pages + AI-generated evergreen topics."""
+    site = db.session.get(Site, site_id)
+    if not site:
+        return jsonify({'error': 'Site not found'}), 404
+
+    # --- Gap analysis (pure DB logic) ---
+    existing_pages = SitePage.query.filter_by(site_id=site.id).all()
+
+    existing_global = {
+        p.page_type.slug for p in existing_pages
+        if p.brand_id is None and p.evergreen_topic is None
+    }
+    existing_brand_reviews = {
+        p.brand_id for p in existing_pages
+        if p.page_type.slug == 'brand-review' and p.brand_id
+    }
+    existing_bonus_reviews = {
+        p.brand_id for p in existing_pages
+        if p.page_type.slug == 'bonus-review' and p.brand_id
+    }
+    existing_evergreen_topics = [
+        p.evergreen_topic for p in existing_pages
+        if p.evergreen_topic
+    ]
+
+    missing_pages = []
+
+    # Missing homepage / comparison
+    if 'homepage' not in existing_global:
+        missing_pages.append({
+            'page_type': 'homepage',
+            'brand_slug': '',
+            'brand_name': '',
+            'reason': 'Site has no homepage',
+        })
+    if 'comparison' not in existing_global:
+        missing_pages.append({
+            'page_type': 'comparison',
+            'brand_slug': '',
+            'brand_name': '',
+            'reason': 'Site has no comparison page',
+        })
+
+    # Missing brand reviews / bonus reviews
+    for sb in sorted(site.site_brands, key=lambda x: x.rank):
+        if sb.brand_id not in existing_brand_reviews:
+            missing_pages.append({
+                'page_type': 'brand-review',
+                'brand_slug': sb.brand.slug,
+                'brand_name': sb.brand.name,
+                'reason': f'No review page for {sb.brand.name}',
+            })
+        if sb.brand_id not in existing_bonus_reviews:
+            missing_pages.append({
+                'page_type': 'bonus-review',
+                'brand_slug': sb.brand.slug,
+                'brand_name': sb.brand.name,
+                'reason': f'No bonus review for {sb.brand.name}',
+            })
+
+    # --- AI-generated evergreen suggestions ---
+    suggested_evergreen = []
+    api_key = current_app.config.get('OPENAI_API_KEY')
+    if api_key:
+        try:
+            geo_name = site.geo.name if site.geo else 'Global'
+            vertical_name = site.vertical.name if site.vertical else 'General'
+            existing_topics_str = ', '.join(existing_evergreen_topics) if existing_evergreen_topics else 'None yet'
+
+            prompt = (
+                f"You are an SEO strategist for a {vertical_name} affiliate site targeting {geo_name}.\n"
+                f"The site already has these evergreen content pages: {existing_topics_str}\n\n"
+                f"Suggest 6-8 new evergreen article topics that would attract organic search traffic. "
+                f"Each should be a compelling, SEO-friendly title.\n\n"
+                f"Return a JSON object with:\n"
+                f"- \"suggestions\": [{{\"topic\": string, \"keyword\": string, \"reason\": string}}]\n\n"
+                f"Where:\n"
+                f"- topic: The article title (5-10 words)\n"
+                f"- keyword: Target SEO keyword (2-4 words)\n"
+                f"- reason: Why this topic is valuable (1 sentence)\n\n"
+                f"Do not repeat existing topics. Focus on {vertical_name} in {geo_name}."
+            )
+
+            model = current_app.config.get('OPENAI_MODEL', 'gpt-4o-mini')
+            result = call_openai(prompt, api_key, model)
+            suggested_evergreen = result.get('suggestions', [])
+        except Exception as e:
+            logger.warning('AI suggestion failed: %s', e)
+            # Non-fatal — return gap analysis without AI suggestions
+
+    return jsonify({
+        'missing_pages': missing_pages,
+        'suggested_evergreen': suggested_evergreen,
+    })

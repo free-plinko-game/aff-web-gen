@@ -1,6 +1,7 @@
 from datetime import datetime, timezone
 
 from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy.orm import validates
 
 db = SQLAlchemy()
 
@@ -220,11 +221,32 @@ class SitePage(db.Model):
     regeneration_notes = db.Column(db.Text)
     cta_table_id = db.Column(db.Integer, db.ForeignKey('cta_tables.id'), nullable=True)
 
+    # Menu management
+    show_in_nav = db.Column(db.Boolean, default=False, nullable=False)
+    show_in_footer = db.Column(db.Boolean, default=False, nullable=False)
+    nav_order = db.Column(db.Integer, default=0, nullable=False)
+    nav_label = db.Column(db.Text, nullable=True)  # NULL = use page title
+    nav_parent_id = db.Column(db.Integer, db.ForeignKey('site_pages.id', ondelete='SET NULL'), nullable=True)
+
     site = db.relationship('Site', back_populates='site_pages')
     page_type = db.relationship('PageType', back_populates='site_pages')
     brand = db.relationship('Brand')
     cta_table = db.relationship('CTATable', back_populates='pages')
     content_history = db.relationship('ContentHistory', back_populates='site_page', cascade='all, delete-orphan')
+    nav_parent = db.relationship('SitePage', remote_side='SitePage.id',
+                                 backref=db.backref('nav_children', lazy='select'))
+
+    @validates('nav_parent_id')
+    def _validate_nav_parent(self, key, parent_id):
+        if parent_id is not None:
+            if self.id is not None and parent_id == self.id:
+                raise ValueError('A page cannot be its own parent')
+            parent = db.session.get(SitePage, parent_id)
+            if parent is None:
+                raise ValueError(f'Parent page {parent_id} does not exist')
+            if parent.nav_parent_id is not None:
+                raise ValueError('Cannot nest more than one level deep')
+        return parent_id
 
 
 class ContentHistory(db.Model):

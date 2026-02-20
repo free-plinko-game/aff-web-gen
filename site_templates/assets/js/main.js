@@ -26,4 +26,26 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 
+    // Hamburger menu toggle
+    var hamburger = document.querySelector('.nav-hamburger');
+    var navLinks = document.querySelector('.nav-links');
+    if (hamburger && navLinks) {
+        hamburger.addEventListener('click', function() {
+            hamburger.classList.toggle('active');
+            navLinks.classList.toggle('open');
+            hamburger.setAttribute('aria-expanded',
+                navLinks.classList.contains('open'));
+        });
+
+        // Mobile dropdown toggle (tap to open instead of hover)
+        document.querySelectorAll('.nav-dropdown > a').forEach(function(link) {
+            link.addEventListener('click', function(e) {
+                if (window.innerWidth <= 768) {
+                    e.preventDefault();
+                    this.parentElement.classList.toggle('open');
+                }
+            });
+        });
+    }
+
 });

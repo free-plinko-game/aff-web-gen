@@ -6,62 +6,149 @@
 <h1>Add Page to {{ site.name }}</h1>
 <p class="text-muted">Add a new page to this site. After adding, generate its content from the site detail page.</p>
 
-<form method="POST" class="card card-body" style="max-width: 600px;">
-    <div class="mb-3">
-        <label for="page_type" class="form-label">Page Type</label>
-        <select name="page_type" id="page_type" class="form-select" required onchange="toggleFields()">
-            <option value="">Select a page type...</option>
-            {% if 'homepage' not in existing_global %}
-            <option value="homepage">Homepage</option>
-            {% endif %}
-            {% if 'comparison' not in existing_global %}
-            <option value="comparison">Comparison Page</option>
-            {% endif %}
-            {% if available_review_brands %}
-            <option value="brand-review">Brand Review</option>
-            {% endif %}
-            {% if available_bonus_brands %}
-            <option value="bonus-review">Bonus Review</option>
-            {% endif %}
-            <option value="evergreen">Evergreen Content</option>
-        </select>
+<div class="row">
+    <div class="col-lg-6">
+        <!-- Single Page Form -->
+        <div class="card mb-4">
+            <div class="card-header"><strong>Add Single Page</strong></div>
+            <div class="card-body">
+                <form method="POST">
+                    <div class="mb-3">
+                        <label for="page_type" class="form-label">Page Type</label>
+                        <select name="page_type" id="page_type" class="form-select" required onchange="toggleFields()">
+                            <option value="">Select a page type...</option>
+                            {% if 'homepage' not in existing_global %}
+                            <option value="homepage">Homepage</option>
+                            {% endif %}
+                            {% if 'comparison' not in existing_global %}
+                            <option value="comparison">Comparison Page</option>
+                            {% endif %}
+                            {% if available_review_brands %}
+                            <option value="brand-review">Brand Review</option>
+                            {% endif %}
+                            {% if available_bonus_brands %}
+                            <option value="bonus-review">Bonus Review</option>
+                            {% endif %}
+                            <option value="evergreen">Evergreen Content</option>
+                        </select>
+                    </div>
+
+                    <!-- Brand dropdown (for brand-review) -->
+                    <div class="mb-3 d-none" id="brandReviewField">
+                        <label for="brand_id_review" class="form-label">Brand</label>
+                        <select name="brand_id" id="brand_id_review" class="form-select">
+                            <option value="">Select a brand...</option>
+                            {% for brand in available_review_brands %}
+                            <option value="{{ brand.id }}">{{ brand.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <!-- Brand dropdown (for bonus-review) -->
+                    <div class="mb-3 d-none" id="bonusReviewField">
+                        <label for="brand_id_bonus" class="form-label">Brand</label>
+                        <select name="brand_id" id="brand_id_bonus" class="form-select">
+                            <option value="">Select a brand...</option>
+                            {% for brand in available_bonus_brands %}
+                            <option value="{{ brand.id }}">{{ brand.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <!-- Topic input (for evergreen) -->
+                    <div class="mb-3 d-none" id="evergreenField">
+                        <label for="evergreen_topic" class="form-label">Topic Title</label>
+                        <input type="text" name="evergreen_topic" id="evergreen_topic" class="form-control"
+                               placeholder="e.g. How to Bet on Football">
+                        <small class="form-text text-muted">The URL slug will be auto-generated from the topic.</small>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary">Add Page</button>
+                    <a href="{{ url_for('sites.detail', site_id=site.id) }}" class="btn btn-outline-secondary ms-2">Cancel</a>
+                </form>
+            </div>
+        </div>
+
+        <!-- Bulk CSV Upload -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <a class="text-decoration-none text-reset" data-bs-toggle="collapse" href="#bulkUpload" role="button" aria-expanded="false">
+                    <strong>Bulk Upload via CSV</strong>
+                    <small class="ms-1 text-muted">&#9662;</small>
+                </a>
+            </div>
+            <div class="collapse" id="bulkUpload">
+                <div class="card-body">
+                    <p class="text-muted mb-3">Upload a CSV file to add multiple pages at once. Duplicates are automatically skipped.</p>
+                    <form method="POST" action="{{ url_for('sites.bulk_add_pages', site_id=site.id) }}" enctype="multipart/form-data">
+                        <div class="mb-3">
+                            <label for="csv_file" class="form-label">CSV File</label>
+                            <input type="file" name="csv_file" id="csv_file" class="form-control" accept=".csv" required>
+                        </div>
+                        <button type="submit" class="btn btn-primary">Upload &amp; Import</button>
+                        <a href="{{ url_for('api.page_csv_template') }}" class="btn btn-outline-secondary ms-2" download>Download Template</a>
+                    </form>
+                    <div class="mt-3">
+                        <small class="text-muted">
+                            <strong>CSV columns:</strong> <code>page_type</code>, <code>brand_slug</code>, <code>evergreen_topic</code><br>
+                            <strong>Page types:</strong> homepage, comparison, brand-review, bonus-review, evergreen<br>
+                            <strong>brand_slug</strong> — required for brand-review/bonus-review (must be assigned to site)<br>
+                            <strong>evergreen_topic</strong> — required for evergreen pages
+                        </small>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 
-    <!-- Brand dropdown (for brand-review) -->
-    <div class="mb-3 d-none" id="brandReviewField">
-        <label for="brand_id_review" class="form-label">Brand</label>
-        <select name="brand_id" id="brand_id_review" class="form-select">
-            <option value="">Select a brand...</option>
-            {% for brand in available_review_brands %}
-            <option value="{{ brand.id }}">{{ brand.name }}</option>
-            {% endfor %}
-        </select>
-    </div>
+    <div class="col-lg-6">
+        <!-- AI Suggestions -->
+        <div class="card mb-4">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <strong>AI Page Suggestions</strong>
+                <button type="button" class="btn btn-sm btn-outline-primary" id="btnSuggest" onclick="getSuggestions()">
+                    Get Suggestions
+                </button>
+            </div>
+            <div class="card-body">
+                <p class="text-muted mb-3" id="suggestionsIntro">
+                    Analyze your site to find missing pages and get AI-recommended evergreen topics.
+                </p>
 
-    <!-- Brand dropdown (for bonus-review) -->
-    <div class="mb-3 d-none" id="bonusReviewField">
-        <label for="brand_id_bonus" class="form-label">Brand</label>
-        <select name="brand_id" id="brand_id_bonus" class="form-select">
-            <option value="">Select a brand...</option>
-            {% for brand in available_bonus_brands %}
-            <option value="{{ brand.id }}">{{ brand.name }}</option>
-            {% endfor %}
-        </select>
-    </div>
+                <div id="suggestionsLoading" class="d-none text-center py-3">
+                    <div class="spinner-border spinner-border-sm text-primary" role="status"></div>
+                    <span class="ms-2">Analyzing site and generating suggestions...</span>
+                </div>
 
-    <!-- Topic input (for evergreen) -->
-    <div class="mb-3 d-none" id="evergreenField">
-        <label for="evergreen_topic" class="form-label">Topic Title</label>
-        <input type="text" name="evergreen_topic" id="evergreen_topic" class="form-control"
-               placeholder="e.g. How to Bet on Football">
-        <small class="form-text text-muted">The URL slug will be auto-generated from the topic.</small>
-    </div>
+                <div id="suggestionsError" class="alert alert-danger d-none"></div>
 
-    <div>
-        <button type="submit" class="btn btn-primary">Add Page</button>
-        <a href="{{ url_for('sites.detail', site_id=site.id) }}" class="btn btn-outline-secondary ms-2">Cancel</a>
+                <div id="suggestionsResults" class="d-none">
+                    <!-- Missing Pages -->
+                    <div id="missingPagesSection" class="d-none">
+                        <h6>Missing Pages</h6>
+                        <div id="missingPagesList" class="mb-3"></div>
+                    </div>
+
+                    <!-- Suggested Evergreen Topics -->
+                    <div id="evergreenSection" class="d-none">
+                        <h6>Suggested Evergreen Topics</h6>
+                        <div id="evergreenList" class="mb-3"></div>
+                    </div>
+
+                    <div class="d-flex gap-2">
+                        <button type="button" class="btn btn-success" id="btnAddSelected" onclick="addSelectedSuggestions()">
+                            Add Selected Pages
+                        </button>
+                        <button type="button" class="btn btn-outline-secondary btn-sm" onclick="toggleAll(true)">Select All</button>
+                        <button type="button" class="btn btn-outline-secondary btn-sm" onclick="toggleAll(false)">Select None</button>
+                    </div>
+                </div>
+
+                <div id="suggestionsAdded" class="alert alert-success d-none"></div>
+            </div>
+        </div>
     </div>
-</form>
+</div>
 {% endblock %}
 
 {% block scripts %}
@@ -93,7 +180,149 @@ function toggleFields() {
         document.getElementById('evergreen_topic').disabled = false;
     }
 }
-// Init on page load
 toggleFields();
+
+function getSuggestions() {
+    const btn = document.getElementById('btnSuggest');
+    const loading = document.getElementById('suggestionsLoading');
+    const error = document.getElementById('suggestionsError');
+    const results = document.getElementById('suggestionsResults');
+    const added = document.getElementById('suggestionsAdded');
+
+    btn.disabled = true;
+    btn.textContent = 'Analyzing...';
+    loading.classList.remove('d-none');
+    error.classList.add('d-none');
+    results.classList.add('d-none');
+    added.classList.add('d-none');
+
+    fetch('{{ url_for("api.suggest_pages", site_id=site.id) }}', {method: 'POST'})
+        .then(r => r.json())
+        .then(data => {
+            loading.classList.add('d-none');
+            btn.disabled = false;
+            btn.textContent = 'Refresh Suggestions';
+
+            if (data.error) {
+                error.textContent = data.error;
+                error.classList.remove('d-none');
+                return;
+            }
+
+            renderSuggestions(data);
+            results.classList.remove('d-none');
+        })
+        .catch(err => {
+            loading.classList.add('d-none');
+            btn.disabled = false;
+            btn.textContent = 'Get Suggestions';
+            error.textContent = 'Failed to fetch suggestions: ' + err.message;
+            error.classList.remove('d-none');
+        });
+}
+
+function renderSuggestions(data) {
+    const missingSection = document.getElementById('missingPagesSection');
+    const missingList = document.getElementById('missingPagesList');
+    const evergreenSection = document.getElementById('evergreenSection');
+    const evergreenList = document.getElementById('evergreenList');
+
+    missingList.innerHTML = '';
+    evergreenList.innerHTML = '';
+
+    if (data.missing_pages && data.missing_pages.length > 0) {
+        missingSection.classList.remove('d-none');
+        data.missing_pages.forEach((item, i) => {
+            const label = item.brand_name
+                ? `${item.page_type}: ${item.brand_name}`
+                : item.page_type;
+            missingList.innerHTML += `
+                <div class="form-check">
+                    <input class="form-check-input suggestion-check" type="checkbox" checked
+                           id="missing_${i}"
+                           data-page-type="${item.page_type}"
+                           data-brand-slug="${item.brand_slug || ''}"
+                           data-topic="">
+                    <label class="form-check-label" for="missing_${i}">
+                        <strong>${label}</strong>
+                        <small class="text-muted ms-1">— ${item.reason}</small>
+                    </label>
+                </div>`;
+        });
+    } else {
+        missingSection.classList.add('d-none');
+    }
+
+    if (data.suggested_evergreen && data.suggested_evergreen.length > 0) {
+        evergreenSection.classList.remove('d-none');
+        data.suggested_evergreen.forEach((item, i) => {
+            evergreenList.innerHTML += `
+                <div class="form-check">
+                    <input class="form-check-input suggestion-check" type="checkbox" checked
+                           id="evergreen_${i}"
+                           data-page-type="evergreen"
+                           data-brand-slug=""
+                           data-topic="${item.topic}">
+                    <label class="form-check-label" for="evergreen_${i}">
+                        <strong>${item.topic}</strong>
+                        ${item.keyword ? '<br><small class="text-muted">Keyword: ' + item.keyword + '</small>' : ''}
+                        ${item.reason ? '<br><small class="text-muted">' + item.reason + '</small>' : ''}
+                    </label>
+                </div>`;
+        });
+    } else {
+        evergreenSection.classList.add('d-none');
+    }
+}
+
+function toggleAll(checked) {
+    document.querySelectorAll('.suggestion-check').forEach(cb => cb.checked = checked);
+}
+
+function addSelectedSuggestions() {
+    const checks = document.querySelectorAll('.suggestion-check:checked');
+    if (checks.length === 0) {
+        alert('No suggestions selected.');
+        return;
+    }
+
+    const pages = [];
+    checks.forEach(cb => {
+        pages.push({
+            page_type: cb.dataset.pageType,
+            brand_slug: cb.dataset.brandSlug || '',
+            evergreen_topic: cb.dataset.topic || '',
+        });
+    });
+
+    const btn = document.getElementById('btnAddSelected');
+    btn.disabled = true;
+    btn.textContent = 'Adding...';
+
+    fetch('{{ url_for("sites.add_suggested_pages", site_id=site.id) }}', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({pages: pages}),
+    })
+    .then(r => r.json())
+    .then(data => {
+        btn.disabled = false;
+        btn.textContent = 'Add Selected Pages';
+
+        const addedDiv = document.getElementById('suggestionsAdded');
+        addedDiv.textContent = `${data.added} pages added` + (data.skipped ? `, ${data.skipped} skipped` : '') + '.';
+        addedDiv.classList.remove('d-none');
+
+        // Refresh suggestions after adding
+        if (data.added > 0) {
+            setTimeout(() => getSuggestions(), 500);
+        }
+    })
+    .catch(err => {
+        btn.disabled = false;
+        btn.textContent = 'Add Selected Pages';
+        alert('Failed to add pages: ' + err.message);
+    });
+}
 </script>
 {% endblock %}

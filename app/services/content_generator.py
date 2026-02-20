@@ -10,6 +10,7 @@ and DB session — never reuse the request's scoped session.
 import json
 import logging
 import threading
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 
 from openai import OpenAI
@@ -139,21 +140,37 @@ def build_prompt(page_type_slug, geo, vertical, brands=None, brand=None,
     )
 
 
-def call_openai(prompt, api_key, model='gpt-4o-mini'):
-    """Call the OpenAI API and return parsed JSON content."""
-    logger.info('Calling OpenAI API (model=%s)', model)
+def call_openai(prompt, api_key, model='gpt-4o-mini', max_retries=2):
+    """Call the OpenAI API and return parsed JSON content.
+
+    Retries on JSON parse failures (truncated responses) up to max_retries times.
+    """
     client = OpenAI(api_key=api_key)
-    response = client.chat.completions.create(
-        model=model,
-        messages=[
-            {'role': 'system', 'content': 'You are a content writer. Always respond with valid JSON only, no markdown formatting.'},
-            {'role': 'user', 'content': prompt},
-        ],
-        response_format={'type': 'json_object'},
-        temperature=0.7,
-    )
-    content = response.choices[0].message.content
-    return json.loads(content)
+
+    for attempt in range(1, max_retries + 2):
+        logger.info('Calling OpenAI API (model=%s, attempt %d)', model, attempt)
+        response = client.chat.completions.create(
+            model=model,
+            messages=[
+                {'role': 'system', 'content': 'You are a content writer. Always respond with valid JSON only, no markdown formatting. Keep responses concise to avoid truncation.'},
+                {'role': 'user', 'content': prompt},
+            ],
+            response_format={'type': 'json_object'},
+            temperature=0.7,
+            max_tokens=4096,
+        )
+        content = response.choices[0].message.content
+        finish_reason = response.choices[0].finish_reason
+
+        try:
+            return json.loads(content)
+        except json.JSONDecodeError as e:
+            logger.warning(
+                'JSON parse failed (attempt %d/%d, finish_reason=%s): %s',
+                attempt, max_retries + 1, finish_reason, e,
+            )
+            if attempt > max_retries:
+                raise
 
 
 def generate_page_content(site_page, site, api_key, model='gpt-4o-mini'):
@@ -315,11 +332,21 @@ def start_single_page_generation(app, site_id, page_id, api_key, model='gpt-4o-m
     return thread
 
 
-def generate_site_content_background(app, site_id, api_key, model='gpt-4o-mini'):
+# Number of concurrent OpenAI API calls during bulk generation
+GENERATION_WORKERS = 5
+
+
+def generate_site_content_background(app, site_id, api_key, model='gpt-4o-mini',
+                                     only_new=False, previous_status='draft'):
     """Background thread function to generate content for all pages of a site.
 
-    IMPORTANT: Creates its own app context and DB session — does not
-    reuse the request's scoped session.
+    Uses a thread pool to make concurrent API calls (GENERATION_WORKERS at a time)
+    for much faster generation of large sites. API calls are parallelized but
+    all DB reads/writes stay in this single thread to avoid session conflicts.
+
+    If only_new=True, only ungenerated pages are processed and the site
+    status is restored to previous_status (e.g. 'built') instead
+    of being reset to 'generated'.
     """
     with app.app_context():
         site = db.session.get(Site, site_id)
@@ -331,34 +358,112 @@ def generate_site_content_background(app, site_id, api_key, model='gpt-4o-mini')
         db.session.commit()
 
         pages = SitePage.query.filter_by(site_id=site_id).all()
+        if only_new:
+            pages = [p for p in pages if not p.is_generated]
 
+        # Phase 1: Build all prompts (DB reads — single thread)
+        page_prompts = []
+        for page in pages:
+            page = db.session.get(SitePage, page.id)
+            geo = site.geo
+            vertical = site.vertical
+            pt_slug = page.page_type.slug
+
+            brands = None
+            brand = None
+            brand_geo = None
+            evergreen_topic = None
+
+            if pt_slug in ('homepage', 'comparison'):
+                brands = sorted(site.site_brands, key=lambda sb: sb.rank)
+            elif pt_slug in ('brand-review', 'bonus-review'):
+                brand = page.brand
+                brand_geo = next((bg for bg in brand.brand_geos if bg.geo_id == geo.id), None)
+            elif pt_slug == 'evergreen':
+                evergreen_topic = page.evergreen_topic
+
+            prompt = build_prompt(
+                pt_slug, geo, vertical,
+                brands=brands, brand=brand, brand_geo=brand_geo,
+                evergreen_topic=evergreen_topic,
+            )
+            page_prompts.append((page.id, page.title, prompt))
+
+        # Phase 2: Make API calls concurrently (no DB access in workers)
+        results = {}
+        failed = False
+        error_msg = ''
+
+        def _call_api(page_id, title, prompt):
+            logger.info('Generating page: %s (id=%d)', title, page_id)
+            content = call_openai(prompt, api_key, model)
+            logger.info('Completed page: %s (id=%d)', title, page_id)
+            return page_id, content
+
+        with ThreadPoolExecutor(max_workers=GENERATION_WORKERS) as executor:
+            futures = {
+                executor.submit(_call_api, pid, title, prompt): pid
+                for pid, title, prompt in page_prompts
+            }
+            for future in as_completed(futures):
+                pid = futures[future]
+                try:
+                    page_id, content_data = future.result()
+                    results[page_id] = content_data
+                except Exception as e:
+                    logger.error('Content generation failed for page %d: %s', pid, e)
+                    failed = True
+                    error_msg = str(e)
+                    for f in futures:
+                        f.cancel()
+                    break
+
+        # Collect any remaining successfully completed futures
+        if failed:
+            for future, pid in futures.items():
+                if pid not in results and future.done():
+                    try:
+                        page_id, content_data = future.result()
+                        results[page_id] = content_data
+                    except Exception:
+                        pass
+
+        # Phase 3: Save results to DB (single thread)
         try:
-            for i, page in enumerate(pages, 1):
-                # Re-fetch to ensure fresh state
-                page = db.session.get(SitePage, page.id)
-                logger.info('Generating page %d/%d: %s', i, len(pages), page.title)
-                content_data, _ = generate_page_content(page, site, api_key, model)
+            for page_id, content_data in results.items():
+                page = db.session.get(SitePage, page_id)
                 save_content_to_page(page, content_data, db.session)
                 db.session.commit()
         except Exception as e:
-            logger.error('Content generation failed for site %d: %s', site_id, e)
+            logger.error('Failed saving content for site %d: %s', site_id, e)
             db.session.rollback()
             site = db.session.get(Site, site_id)
             site.status = 'failed'
             db.session.commit()
             return
 
+        if failed:
+            site = db.session.get(Site, site_id)
+            site.status = 'failed'
+            db.session.commit()
+            logger.error('Content generation failed for site %d: %s', site_id, error_msg)
+            return
+
         logger.info('Content generation complete for site %d', site_id)
         site = db.session.get(Site, site_id)
-        site.status = 'generated'
+        if only_new and previous_status in ('built', 'deployed'):
+            site.status = previous_status
+        else:
+            site.status = 'generated'
         db.session.commit()
 
 
-def start_generation(app, site_id, api_key, model='gpt-4o-mini'):
+def start_generation(app, site_id, api_key, model='gpt-4o-mini', only_new=False,
+                     previous_status='draft'):
     """Launch content generation in a background thread."""
     thread = threading.Thread(
         target=generate_site_content_background,
-        args=(app, site_id, api_key, model),
+        args=(app, site_id, api_key, model, only_new, previous_status),
         daemon=True,
     )
     thread.start()
