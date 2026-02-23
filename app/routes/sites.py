@@ -404,11 +404,22 @@ def delete_site(site_id):
 @bp.route('/<int:site_id>/preview/')
 @bp.route('/<int:site_id>/preview/<path:filename>')
 def preview(site_id, filename='index.html'):
-    """Serve built site files for preview."""
+    """Serve built site files for preview.
+
+    Mimics Nginx try_files: tries the path as-is, then with .html appended.
+    """
     site = db.session.get(Site, site_id) or abort(404)
     if not site.output_path or not os.path.isdir(site.output_path):
         flash('Site must be built before previewing.', 'error')
         return redirect(url_for('sites.detail', site_id=site.id))
+
+    # Try exact path first, then with .html (mirrors Nginx try_files $uri $uri.html)
+    full_path = os.path.join(site.output_path, filename)
+    if not os.path.isfile(full_path) and not filename.endswith('.html'):
+        html_filename = filename + '.html'
+        if os.path.isfile(os.path.join(site.output_path, html_filename)):
+            filename = html_filename
+
     return send_from_directory(site.output_path, filename)
 
 
