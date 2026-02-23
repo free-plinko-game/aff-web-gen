@@ -76,7 +76,11 @@ def _page_url_for_link(page):
     pt_slug = page.page_type.slug
     if pt_slug == 'homepage':
         return '/'
-    elif pt_slug in ('comparison', 'evergreen'):
+    elif pt_slug == 'comparison':
+        return f'/{page.slug}'
+    elif pt_slug == 'evergreen':
+        if page.nav_parent_id and page.nav_parent:
+            return f'/{page.nav_parent.slug}/{page.slug}'
         return f'/{page.slug}'
     elif pt_slug == 'brand-review':
         return f'/reviews/{page.slug}'
@@ -86,8 +90,6 @@ def _page_url_for_link(page):
         return '/news'
     elif pt_slug == 'news-article':
         return f'/news/{page.slug}'
-    elif pt_slug == 'evergreen':
-        return f'/{page.slug}'
     return f'/{page.slug}'
 
 
@@ -248,7 +250,10 @@ def _build_sitemap_pages(site_pages, domain):
         elif pt_slug == 'news-article':
             url = f'news/{page.slug}'
         elif pt_slug == 'evergreen':
-            url = f'{page.slug}'
+            if page.nav_parent_id and page.nav_parent:
+                url = f'{page.nav_parent.slug}/{page.slug}'
+            else:
+                url = f'{page.slug}'
         else:
             continue
 
@@ -470,7 +475,13 @@ def build_site(site, output_base_dir, upload_folder):
             ctx['subdirectory'] = True
             ctx['published_date'] = page.published_date.strftime('%d %b %Y') if page.published_date else ''
         elif pt_slug == 'evergreen':
-            output_file = os.path.join(version_dir, f'{page.slug}.html')
+            if page.nav_parent_id and page.nav_parent:
+                parent_dir = os.path.join(version_dir, page.nav_parent.slug)
+                os.makedirs(parent_dir, exist_ok=True)
+                output_file = os.path.join(parent_dir, f'{page.slug}.html')
+                ctx['subdirectory'] = True
+            else:
+                output_file = os.path.join(version_dir, f'{page.slug}.html')
         else:
             continue
 
