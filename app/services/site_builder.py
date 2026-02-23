@@ -93,6 +93,25 @@ def _page_url_for_link(page):
     return f'/{page.slug}'
 
 
+def _page_display_title(page):
+    """Return a human-readable title for a page.
+
+    Prefers nav_label, then hero_title from AI-generated content, then
+    page.title. Falls back to a humanised slug if everything else is slug-like.
+    """
+    if page.nav_label:
+        return page.nav_label
+    # Try AI-generated hero_title from content_json
+    if page.content_json:
+        try:
+            hero = json.loads(page.content_json).get('hero_title')
+            if hero:
+                return hero
+        except (json.JSONDecodeError, TypeError):
+            pass
+    return page.title or page.slug
+
+
 def _build_nav_links(site_pages):
     """Build navigation links from site pages, supporting one level of dropdowns.
 
@@ -375,13 +394,13 @@ def build_site(site, output_base_dir, upload_folder):
             if parent_page and parent_page.id != page.id:
                 cluster_links.append({
                     'url': _page_url_for_link(parent_page),
-                    'label': parent_page.nav_label or parent_page.title,
+                    'label': _page_display_title(parent_page),
                 })
             for sib in sorted(siblings, key=lambda s: (s.nav_order, s.id)):
                 if sib.id != page.id:
                     cluster_links.append({
                         'url': _page_url_for_link(sib),
-                        'label': sib.nav_label or sib.title,
+                        'label': _page_display_title(sib),
                     })
 
         ctx = {

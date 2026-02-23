@@ -10,7 +10,7 @@ from datetime import datetime
 from .site_builder import (
     _get_jinja_env, _build_nav_links, _build_footer_links,
     _build_brand_info_list, _build_brand_lookup, _build_cta_table_data,
-    _page_url_for_link, PAYMENT_ICON_MAP,
+    _page_url_for_link, _page_display_title, PAYMENT_ICON_MAP,
 )
 from .schema_generator import generate_schema
 
@@ -63,13 +63,13 @@ def render_page_preview(site_page, site, asset_url_prefix=''):
         if parent_page and parent_page.id != site_page.id:
             cluster_links.append({
                 'url': _page_url_for_link(parent_page),
-                'label': parent_page.nav_label or parent_page.title,
+                'label': _page_display_title(parent_page),
             })
         for sib in sorted(siblings, key=lambda s: (s.nav_order, s.id)):
             if sib.id != site_page.id:
                 cluster_links.append({
                     'url': _page_url_for_link(sib),
-                    'label': sib.nav_label or sib.title,
+                    'label': _page_display_title(sib),
                 })
 
     ctx = {
