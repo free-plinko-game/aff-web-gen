@@ -324,8 +324,10 @@ affiliate-factory/
         │   ├── bonuses/
         │   │   └── bet365.html
         │   ├── news/
+        │   │   ├── index.html             ← News landing page
         │   │   └── article-slug.html
         │   ├── tips/
+        │   │   ├── index.html             ← Tips landing page
         │   │   └── 2026-02-24-arsenal-vs-chelsea.html
         │   ├── how-to-deposit/              ← Parent evergreen page creates a folder
         │   │   └── how-to-deposit-opay.html ← Child evergreen pages nest inside
@@ -352,15 +354,15 @@ All generated sites follow a consistent URL and navigation structure:
 | Bonus Review | `/bonuses/{brand_slug}.html` | `/bonuses/bet365.html` |
 | Evergreen | `/{evergreen_slug}.html` | `/how-to-bet-on-football.html` |
 | Evergreen (child) | `/{parent_slug}/{child_slug}.html` | `/how-to-deposit/how-to-deposit-with-opay.html` |
-| News Landing | `/news.html` | `/news.html` |
+| News Landing | `/news/index.html` | `/news/` |
 | News Article | `/news/{article_slug}.html` | `/news/new-betting-regulations-2026.html` |
-| Tips Landing | `/tips.html` | `/tips.html` |
+| Tips Landing | `/tips/index.html` | `/tips/` |
 | Tips Article | `/tips/{slug}.html` | `/tips/2026-02-24-arsenal-vs-chelsea.html` |
 
 ### Navigation
-- `base.html` renders a nav bar with links to: Homepage, Comparison Page, all Evergreen pages.
+- `base.html` renders a nav bar from each page's `show_in_nav` setting — no hardcoded links.
 - Brand review and bonus review pages are linked from: the comparison table rows, the homepage brand grid, and each other (review ↔ bonus cross-links).
-- Every page includes a footer with links to all top-level pages.
+- Every page includes a footer with links to all pages where `show_in_footer` is True.
 - The site builder (`site_builder.py`) generates a `nav_links` list and a `footer_links` list from the site's `site_pages` records and passes them to every template.
 
 ---
