@@ -112,9 +112,8 @@ def _build_footer_links(site_pages):
     for p in footer_pages:
         label = p.nav_label or p.title
         url = _page_url_for_link(p)
-        entry = {'url': url, 'label': label, 'type': pt_slug}
-
         pt_slug = p.page_type.slug
+        entry = {'url': url, 'label': label, 'type': pt_slug}
         if pt_slug == 'brand-review':
             brand_reviews.append(entry)
         elif pt_slug == 'bonus-review':
@@ -258,9 +257,8 @@ def build_site(site, output_base_dir, upload_folder):
     pages = site.site_pages
     version = site.current_version
 
-    # Build output path
-    site_slug = site.name.lower().replace(' ', '-')
-    site_dir = os.path.join(output_base_dir, f'{site.id}_{site_slug}')
+    # Build output path — per-site isolation by ID
+    site_dir = os.path.join(output_base_dir, str(site.id))
     version_dir = os.path.join(site_dir, f'v{version}')
     os.makedirs(version_dir, exist_ok=True)
 
