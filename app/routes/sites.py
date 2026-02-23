@@ -123,8 +123,8 @@ def _page_url(page):
     slug = page.page_type.slug
     if slug == 'homepage':
         return '/'
-    elif slug == 'comparison':
-        return '/comparison'
+    elif slug in ('comparison', 'evergreen'):
+        return f'/{page.slug}'
     elif slug == 'brand-review':
         return f'/reviews/{page.slug}'
     elif slug == 'bonus-review':

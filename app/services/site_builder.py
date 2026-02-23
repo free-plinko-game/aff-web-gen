@@ -34,8 +34,8 @@ def _page_url_for_link(page):
     pt_slug = page.page_type.slug
     if pt_slug == 'homepage':
         return '/'
-    elif pt_slug == 'comparison':
-        return '/comparison'
+    elif pt_slug in ('comparison', 'evergreen'):
+        return f'/{page.slug}'
     elif pt_slug == 'brand-review':
         return f'/reviews/{page.slug}'
     elif pt_slug == 'bonus-review':
@@ -54,7 +54,7 @@ def _build_nav_links(site_pages):
     show_in_nav controls top-level visibility. Pages with nav_parent_id set
     appear in their parent's dropdown automatically (no show_in_nav needed).
     """
-    links = [{'url': '/', 'label': 'Home'}]
+    links = [{'url': '/', 'label': 'Home', 'type': 'homepage'}]
 
     top_level_pages = [p for p in site_pages if p.show_in_nav and p.nav_parent_id is None]
     child_pages = [p for p in site_pages if p.nav_parent_id is not None]
@@ -68,13 +68,13 @@ def _build_nav_links(site_pages):
         top_level_pages.sort(key=lambda p: (p.nav_order, p.id))
 
         for p in top_level_pages:
-            entry = {'url': _page_url_for_link(p), 'label': p.nav_label or p.title}
+            entry = {'url': _page_url_for_link(p), 'label': p.nav_label or p.title, 'type': p.page_type.slug}
 
             kids = children_by_parent.get(p.id, [])
             if kids:
                 kids.sort(key=lambda c: (c.nav_order, c.id))
                 entry['children'] = [
-                    {'url': _page_url_for_link(c), 'label': c.nav_label or c.title}
+                    {'url': _page_url_for_link(c), 'label': c.nav_label or c.title, 'type': c.page_type.slug}
                     for c in kids
                 ]
 
@@ -83,11 +83,11 @@ def _build_nav_links(site_pages):
         # Legacy fallback for unconfigured sites
         comparison = [p for p in site_pages if p.page_type.slug == 'comparison']
         if comparison:
-            links.append({'url': '/comparison', 'label': 'Compare'})
+            links.append({'url': f'/{comparison[0].slug}', 'label': 'Compare', 'type': 'comparison'})
 
         evergreen = [p for p in site_pages if p.page_type.slug == 'evergreen']
         for p in evergreen:
-            links.append({'url': f'/{p.slug}', 'label': p.title})
+            links.append({'url': f'/{p.slug}', 'label': p.title, 'type': 'evergreen'})
 
     return links
 
@@ -112,7 +112,7 @@ def _build_footer_links(site_pages):
     for p in footer_pages:
         label = p.nav_label or p.title
         url = _page_url_for_link(p)
-        entry = {'url': url, 'label': label}
+        entry = {'url': url, 'label': label, 'type': pt_slug}
 
         pt_slug = p.page_type.slug
         if pt_slug == 'brand-review':
@@ -192,7 +192,7 @@ def _build_sitemap_pages(site_pages, domain):
         if pt_slug == 'homepage':
             url = ''
         elif pt_slug == 'comparison':
-            url = 'comparison'
+            url = page.slug
         elif pt_slug == 'brand-review':
             url = f'reviews/{page.slug}'
         elif pt_slug == 'bonus-review':
@@ -323,7 +323,7 @@ def build_site(site, output_base_dir, upload_folder):
                 enriched.append(merged)
             ctx['site_brands'] = enriched
         elif pt_slug == 'comparison':
-            output_file = os.path.join(version_dir, 'comparison.html')
+            output_file = os.path.join(version_dir, f'{page.slug}.html')
         elif pt_slug == 'brand-review':
             reviews_dir = os.path.join(version_dir, 'reviews')
             os.makedirs(reviews_dir, exist_ok=True)

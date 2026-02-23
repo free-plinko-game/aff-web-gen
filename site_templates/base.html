@@ -72,7 +72,7 @@
                 <a href="{{ link.url }}">{{ link.label }}</a>
                 {% endfor %}
                 {% for link in footer_links.guides %}
-                {% if link.url == '/comparison' %}
+                {% if link.type == 'comparison' %}
                 <a href="{{ link.url }}">Compare All</a>
                 {% endif %}
                 {% endfor %}
@@ -80,7 +80,7 @@
             <div class="footer-col">
                 <h4>Guides</h4>
                 {% for link in footer_links.guides %}
-                {% if link.url != '/comparison' %}
+                {% if link.type != 'comparison' %}
                 <a href="{{ link.url }}">{{ link.label }}</a>
                 {% endif %}
                 {% endfor %}
@@ -98,7 +98,7 @@
                 <a href="/reviews/{{ brand.slug }}">{{ brand.name }}</a>
                 {% endfor %}
                 {% for link in nav_links %}
-                {% if link.url == '/comparison' %}
+                {% if link.type == 'comparison' %}
                 <a href="{{ link.url }}">Compare All</a>
                 {% endif %}
                 {% endfor %}
@@ -106,7 +106,7 @@
             <div class="footer-col">
                 <h4>Guides</h4>
                 {% for link in nav_links %}
-                {% if link.url != '/' and link.url != '/comparison' %}
+                {% if link.type != 'homepage' and link.type != 'comparison' %}
                 <a href="{{ link.url }}">{{ link.label }}</a>
                 {% endif %}
                 {% endfor %}
