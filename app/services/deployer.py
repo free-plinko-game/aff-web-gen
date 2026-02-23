@@ -121,15 +121,17 @@ def deploy_site(site, app_config):
     sites_available = app_config.get('NGINX_SITES_AVAILABLE', '/etc/nginx/sites-available')
     sites_enabled = app_config.get('NGINX_SITES_ENABLED', '/etc/nginx/sites-enabled')
 
-    version = site.current_version
+    # Derive version from the local build output path (e.g. "v7")
+    # rather than current_version which may be incremented already.
+    local_version = os.path.basename(site.output_path)
     site_dir = posixpath.join(web_root, domain)
     releases_dir = posixpath.join(site_dir, 'releases')
-    version_dir = posixpath.join(releases_dir, f'v{version}')
+    version_dir = posixpath.join(releases_dir, local_version)
     current_link = posixpath.join(site_dir, 'current')
 
     is_first_deploy = site.deployed_at is None
 
-    logger.info('Deploying site %d to %s (v%d, first_deploy=%s)', site.id, domain, version, is_first_deploy)
+    logger.info('Deploying site %d to %s (%s, first_deploy=%s)', site.id, domain, local_version, is_first_deploy)
     conn = _get_connection(app_config)
 
     # Create directory structure
@@ -148,6 +150,11 @@ def deploy_site(site, app_config):
             remote_dir = posixpath.dirname(remote_path)
             conn.run(f'mkdir -p {remote_dir}')
             conn.put(local_path, remote=remote_path)
+
+    # Verify release directory has files before updating symlink
+    check = conn.run(f'find {version_dir} -type f | head -1', hide=True)
+    if not check.stdout.strip():
+        raise RuntimeError(f'Release directory {version_dir} is empty after upload — aborting symlink update')
 
     # Update current symlink
     conn.run(f'ln -sfn {version_dir} {current_link}')
@@ -178,8 +185,8 @@ def deploy_site(site, app_config):
         except Exception as e:
             logger.warning('Certbot failed for %s (non-fatal): %s', domain, e)
 
-    # Prune old releases (keep last MAX_RELEASES)
-    _prune_releases(conn, releases_dir)
+    # Prune old releases (keep last MAX_RELEASES, never prune active)
+    _prune_releases(conn, releases_dir, active_version=local_version)
 
     # Update site record
     site.status = 'deployed'
@@ -236,13 +243,30 @@ def rollback_site(site, app_config, target_version=None):
     return target_version
 
 
-def _prune_releases(conn, releases_dir):
-    """Remove old releases, keeping only the last MAX_RELEASES versions."""
+def _prune_releases(conn, releases_dir, active_version):
+    """Remove old releases, keeping only the last MAX_RELEASES versions.
+
+    Args:
+        active_version: The version dir name the symlink points to (e.g. 'v7').
+                        This version is never pruned regardless of age.
+    """
     result = conn.run(f'ls -1 {releases_dir}', hide=True)
-    versions = sorted(result.stdout.strip().split('\n')) if result.stdout.strip() else []
+    entries = result.stdout.strip().split('\n') if result.stdout.strip() else []
+
+    # Sort numerically by extracting the number from "v{N}"
+    def version_key(name):
+        try:
+            return int(name.lstrip('v'))
+        except ValueError:
+            return 0
+
+    versions = sorted(entries, key=version_key)
 
     if len(versions) > MAX_RELEASES:
         to_delete = versions[:len(versions) - MAX_RELEASES]
         for v in to_delete:
+            if v == active_version:
+                logger.info('Skipping prune of active release: %s', v)
+                continue
             logger.info('Pruning old release: %s', v)
             conn.run(f'rm -rf {posixpath.join(releases_dir, v)}')
