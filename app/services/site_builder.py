@@ -40,6 +40,10 @@ def _page_url_for_link(page):
         return f'/reviews/{page.slug}'
     elif pt_slug == 'bonus-review':
         return f'/bonuses/{page.slug}'
+    elif pt_slug == 'news':
+        return '/news'
+    elif pt_slug == 'news-article':
+        return f'/news/{page.slug}'
     elif pt_slug == 'evergreen':
         return f'/{page.slug}'
     return f'/{page.slug}'
@@ -197,6 +201,10 @@ def _build_sitemap_pages(site_pages, domain):
             url = f'reviews/{page.slug}'
         elif pt_slug == 'bonus-review':
             url = f'bonuses/{page.slug}'
+        elif pt_slug == 'news':
+            url = 'news'
+        elif pt_slug == 'news-article':
+            url = f'news/{page.slug}'
         elif pt_slug == 'evergreen':
             url = f'{page.slug}'
         else:
@@ -370,6 +378,32 @@ def build_site(site, output_base_dir, upload_folder):
             ctx['brand_info'] = brand_info
             ctx['brand_slug'] = page.slug
             ctx['other_brands'] = [b for b in brand_info_list if b['slug'] != page.slug][:4]
+        elif pt_slug == 'news':
+            output_file = os.path.join(version_dir, 'news.html')
+            # Collect news articles for listing
+            news_articles = []
+            for p in pages:
+                if p.page_type.slug == 'news-article' and p.content_json:
+                    p_content = json.loads(p.content_json) if p.content_json else {}
+                    pub_date = p.published_date.strftime('%d %b %Y') if p.published_date else ''
+                    news_articles.append({
+                        'slug': p.slug,
+                        'title': p.title,
+                        'published_date': pub_date,
+                        'summary': p_content.get('hero_subtitle', ''),
+                    })
+            # Sort by published_date descending (newest first)
+            news_articles.sort(
+                key=lambda a: a['published_date'],
+                reverse=True,
+            )
+            ctx['news_articles'] = news_articles
+        elif pt_slug == 'news-article':
+            news_dir = os.path.join(version_dir, 'news')
+            os.makedirs(news_dir, exist_ok=True)
+            output_file = os.path.join(news_dir, f'{page.slug}.html')
+            ctx['subdirectory'] = True
+            ctx['published_date'] = page.published_date.strftime('%d %b %Y') if page.published_date else ''
         elif pt_slug == 'evergreen':
             output_file = os.path.join(version_dir, f'{page.slug}.html')
         else:

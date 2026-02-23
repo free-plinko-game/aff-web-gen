@@ -109,6 +109,34 @@ Return a JSON object with:
 - "closing_paragraph": string (1-2 sentences)
 
 Write naturally in {language}. Use {currency} for monetary references. Be educational and authoritative.""",
+
+    'news': """You are writing the intro content for a news/blog landing page on a {vertical_name} site for users in {geo_name}.
+Language: {language}. Currency: {currency}.
+
+This page is a news hub that will list individual articles below. Write only the introductory content.
+
+Return a JSON object with:
+- "hero_title": string (e.g. "Latest {vertical_name} News & Updates")
+- "hero_subtitle": string (1-2 sentences explaining what readers will find)
+- "intro_paragraph": string (2-3 sentences setting the scene for the news section)
+
+Write naturally in {language}. Keep it concise — the article listings fill the rest of the page.""",
+
+    'news-article': """You are writing a news article about "{evergreen_topic}" for a {vertical_name} audience in {geo_name}.
+Language: {language}. Currency: {currency}.
+
+This is a timely news/opinion article — it should be engaging, well-structured, and informative.
+
+Return a JSON object with:
+- "hero_title": string (compelling news headline, 8-14 words)
+- "hero_subtitle": string (1-2 sentence summary / deck)
+- "intro_paragraph": string (2-3 sentences opening the story)
+- "sections": [{{ "heading": string, "content": string }}] (3-5 content sections, each 1-3 paragraphs)
+- "key_takeaways": [string] (3-5 bullet points summarising the key facts)
+- "faq": [{{ "question": string, "answer": string }}] (2-4 FAQs)
+- "closing_paragraph": string (1-2 sentences wrapping up)
+
+Write naturally in {language}. Use {currency} for monetary references. Be factual and engaging.""",
 }
 
 
@@ -209,8 +237,8 @@ def generate_page_content(site_page, site, api_key, model='gpt-4o-mini'):
     elif page_type_slug in ('brand-review', 'bonus-review'):
         brand = site_page.brand
         brand_geo = next((bg for bg in brand.brand_geos if bg.geo_id == geo.id), None)
-    elif page_type_slug == 'evergreen':
-        evergreen_topic = site_page.evergreen_topic
+    elif page_type_slug in ('evergreen', 'news-article'):
+        evergreen_topic = site_page.evergreen_topic or site_page.title
 
     prompt = build_prompt(
         page_type_slug, geo, vertical,
@@ -272,8 +300,8 @@ def generate_page_content_with_notes(site_page, site, api_key, model='gpt-4o-min
     elif page_type_slug in ('brand-review', 'bonus-review'):
         brand = site_page.brand
         brand_geo = next((bg for bg in brand.brand_geos if bg.geo_id == geo.id), None)
-    elif page_type_slug == 'evergreen':
-        evergreen_topic = site_page.evergreen_topic
+    elif page_type_slug in ('evergreen', 'news-article'):
+        evergreen_topic = site_page.evergreen_topic or site_page.title
 
     prompt = build_prompt(
         page_type_slug, geo, vertical,
@@ -395,8 +423,8 @@ def generate_site_content_background(app, site_id, api_key, model='gpt-4o-mini',
                 elif pt_slug in ('brand-review', 'bonus-review'):
                     brand = page.brand
                     brand_geo = next((bg for bg in brand.brand_geos if bg.geo_id == geo.id), None)
-                elif pt_slug == 'evergreen':
-                    evergreen_topic = page.evergreen_topic
+                elif pt_slug in ('evergreen', 'news-article'):
+                    evergreen_topic = page.evergreen_topic or page.title
 
                 prompt = build_prompt(
                     pt_slug, geo, vertical,

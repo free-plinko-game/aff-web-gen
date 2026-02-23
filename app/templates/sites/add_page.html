@@ -30,6 +30,10 @@
                             <option value="bonus-review">Bonus Review</option>
                             {% endif %}
                             <option value="evergreen">Evergreen Content</option>
+                            {% if 'news' not in existing_global %}
+                            <option value="news">News Landing Page</option>
+                            {% endif %}
+                            <option value="news-article">News Article</option>
                         </select>
                     </div>
 
@@ -55,12 +59,12 @@
                         </select>
                     </div>
 
-                    <!-- Topic input (for evergreen) -->
+                    <!-- Topic input (for evergreen / news-article) -->
                     <div class="mb-3 d-none" id="evergreenField">
-                        <label for="evergreen_topic" class="form-label">Topic Title</label>
+                        <label for="evergreen_topic" class="form-label" id="evergreenLabel">Topic Title</label>
                         <input type="text" name="evergreen_topic" id="evergreen_topic" class="form-control"
                                placeholder="e.g. How to Bet on Football">
-                        <small class="form-text text-muted">The URL slug will be auto-generated from the topic.</small>
+                        <small class="form-text text-muted">The URL slug will be auto-generated from the title.</small>
                     </div>
 
                     <button type="submit" class="btn btn-primary">Add Page</button>
@@ -178,6 +182,13 @@ function toggleFields() {
     } else if (type === 'evergreen') {
         evergreen.classList.remove('d-none');
         document.getElementById('evergreen_topic').disabled = false;
+        document.getElementById('evergreenLabel').textContent = 'Topic Title';
+        document.getElementById('evergreen_topic').placeholder = 'e.g. How to Bet on Football';
+    } else if (type === 'news-article') {
+        evergreen.classList.remove('d-none');
+        document.getElementById('evergreen_topic').disabled = false;
+        document.getElementById('evergreenLabel').textContent = 'Article Headline';
+        document.getElementById('evergreen_topic').placeholder = 'e.g. New Regulations for Online Betting in 2026';
     }
 }
 toggleFields();

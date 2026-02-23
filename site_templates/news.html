@@ -1,0 +1,159 @@
+{% extends "base.html" %}
+
+{% block body_content %}
+<!-- HERO -->
+<section class="hero">
+    <div class="hero-inner">
+        <div class="hero-badge">&#128240; News</div>
+        <h1>{{ content.hero_title }}</h1>
+        <p class="hero-sub">{{ content.hero_subtitle }}</p>
+        <div class="hero-stats">
+            {% if news_articles %}
+            <div class="hero-stat">
+                <div class="hero-stat-number">{{ news_articles | length }}</div>
+                <div class="hero-stat-label">Articles</div>
+            </div>
+            {% endif %}
+            <div class="hero-stat">
+                <div class="hero-stat-number">{{ year }}</div>
+                <div class="hero-stat-label">Updated</div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- MAIN -->
+<main class="main">
+
+    <!-- LEFT: CONTENT -->
+    <div class="content-area">
+
+        {% if content.intro_paragraph %}
+        <div class="content-block">
+            <p>{{ content.intro_paragraph }}</p>
+        </div>
+        {% endif %}
+
+        <!-- CTA TABLE -->
+        {% include '_cta_table.html' %}
+
+        <!-- Article Listing -->
+        {% if news_articles %}
+        <div class="section-header">
+            <h2>Latest Articles</h2>
+        </div>
+
+        {% for article in news_articles %}
+        <div class="comp-card" style="cursor:pointer;" onclick="window.location='/news/{{ article.slug }}'">
+            <div class="comp-card-header" style="flex-wrap:wrap;">
+                <div class="comp-card-brand" style="flex:1; min-width:0;">
+                    <div>
+                        <h3 style="margin:0;"><a href="/news/{{ article.slug }}" style="text-decoration:none; color:inherit;">{{ article.title }}</a></h3>
+                        {% if article.published_date %}
+                        <div style="font-size:0.82rem; color:var(--gray-500); margin-top:0.3rem;">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px;vertical-align:-2px;margin-right:4px;"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+                            {{ article.published_date }}
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="comp-card-cta" style="flex-shrink:0;">
+                    <a href="/news/{{ article.slug }}" class="cta-button" style="white-space:nowrap;">
+                        Read More
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+                    </a>
+                </div>
+            </div>
+            {% if article.summary %}
+            <div class="comp-card-body">
+                <div class="comp-card-verdict">{{ article.summary }}</div>
+            </div>
+            {% endif %}
+        </div>
+        {% endfor %}
+
+        {% else %}
+        <div class="content-block">
+            <p style="color:var(--gray-500);">No articles published yet. Check back soon!</p>
+        </div>
+        {% endif %}
+
+    </div>
+
+    <!-- SIDEBAR -->
+    <aside class="sidebar">
+
+        <!-- Top Picks -->
+        <div class="sidebar-card">
+            <div class="sidebar-card-header">
+                <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+                <h3>Top Picks</h3>
+            </div>
+            {% for brand in site_brands[:5] %}
+            <a href="/reviews/{{ brand.slug }}" class="sidebar-brand-item">
+                <div class="sidebar-brand-logo">
+                    {% if brand.logo_filename %}
+                    <img src="assets/logos/{{ brand.logo_filename }}" alt="{{ brand.name }}" style="max-width:36px;max-height:24px;object-fit:contain;">
+                    {% else %}
+                    <span>{{ brand.name[:8] }}</span>
+                    {% endif %}
+                </div>
+                <div class="sidebar-brand-info">
+                    <div class="sidebar-brand-name">{{ brand.name }}</div>
+                    {% if brand.rating %}
+                    <div class="sidebar-brand-rating">
+                        {% set full = brand.rating | round | int %}
+                        <span>{{ '\u2605' * full }}{{ '\u2606' * (5 - full) }}</span>
+                    </div>
+                    {% endif %}
+                </div>
+                {% if brand.rating %}
+                <div class="sidebar-brand-score">{{ brand.rating }}</div>
+                {% endif %}
+            </a>
+            {% endfor %}
+        </div>
+
+        <!-- Quick Links / Cluster Links -->
+        <div class="sidebar-card">
+            <div class="sidebar-card-header">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+                <h3>{{ 'Related Articles' if cluster_links else 'Quick Links' }}</h3>
+            </div>
+            <div class="quick-links">
+                {% if cluster_links %}
+                {% for link in cluster_links %}
+                <a href="{{ link.url }}" class="quick-link">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
+                    {{ link.label }}
+                </a>
+                {% endfor %}
+                {% else %}
+                {% for link in nav_links %}
+                <a href="{{ link.url }}" class="quick-link">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
+                    {{ link.label }}
+                </a>
+                {% endfor %}
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Responsible Gambling -->
+        <div class="sidebar-card">
+            <div class="sidebar-card-header" style="background: var(--gray-700);">
+                <svg viewBox="0 0 24 24" fill="none" stroke="var(--amber)" stroke-width="2"><path d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                <h3>Gamble Responsibly</h3>
+            </div>
+            <div style="padding: 1rem 1.1rem;">
+                <p style="font-size:0.82rem; color:var(--gray-600); line-height:1.7; margin-bottom:0.75rem;">If you feel you may have a gambling problem, help is available. Please gamble responsibly.</p>
+                <a href="https://www.gambleaware.org" target="_blank" rel="noopener" style="display:block; text-align:center; font-size:0.82rem; font-weight:600; color:var(--teal); text-decoration:none; padding:0.6rem; background:var(--gray-50); border-radius:var(--radius-sm);">
+                    GambleAware.org &rarr;
+                </a>
+            </div>
+        </div>
+
+    </aside>
+
+</main>
+{% endblock body_content %}

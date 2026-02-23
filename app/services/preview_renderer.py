@@ -42,7 +42,7 @@ def render_page_preview(site_page, site, asset_url_prefix=''):
     template_file = site_page.page_type.template_file
 
     # For preview, override prefix to point at our asset-serving endpoint
-    subdirectory = pt_slug in ('brand-review', 'bonus-review')
+    subdirectory = pt_slug in ('brand-review', 'bonus-review', 'news-article')
 
     # CTA table
     cta_table_data = None
@@ -123,6 +123,22 @@ def render_page_preview(site_page, site, asset_url_prefix=''):
         ctx['brand_info'] = brand_info
         ctx['brand_slug'] = site_page.slug
         ctx['other_brands'] = [b for b in brand_info_list if b['slug'] != site_page.slug][:4]
+    elif pt_slug == 'news':
+        news_articles = []
+        for p in pages:
+            if p.page_type.slug == 'news-article' and p.content_json:
+                p_content = json.loads(p.content_json)
+                pub_date = p.published_date.strftime('%d %b %Y') if p.published_date else ''
+                news_articles.append({
+                    'slug': p.slug,
+                    'title': p.title,
+                    'published_date': pub_date,
+                    'summary': p_content.get('hero_subtitle', ''),
+                })
+        news_articles.sort(key=lambda a: a['published_date'], reverse=True)
+        ctx['news_articles'] = news_articles
+    elif pt_slug == 'news-article':
+        ctx['published_date'] = site_page.published_date.strftime('%d %b %Y') if site_page.published_date else ''
 
     # Override asset prefix for preview
     if asset_url_prefix:

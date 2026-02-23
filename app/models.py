@@ -221,6 +221,7 @@ class SitePage(db.Model):
     generated_at = db.Column(db.DateTime)
     regeneration_notes = db.Column(db.Text)
     cta_table_id = db.Column(db.Integer, db.ForeignKey('cta_tables.id'), nullable=True)
+    published_date = db.Column(db.DateTime, nullable=True)  # For news articles: display date
 
     # Menu management
     show_in_nav = db.Column(db.Boolean, default=False, nullable=False)

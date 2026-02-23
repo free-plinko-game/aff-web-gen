@@ -29,11 +29,13 @@ def _slugify(text):
 def _menu_defaults_for_page_type(slug):
     """Return default menu settings for a given page type."""
     defaults = {
-        'homepage':     {'show_in_nav': False, 'show_in_footer': False, 'nav_order': 0,   'nav_label': None},
-        'comparison':   {'show_in_nav': True,  'show_in_footer': True,  'nav_order': 10,  'nav_label': 'Compare'},
-        'brand-review': {'show_in_nav': False, 'show_in_footer': True,  'nav_order': 100, 'nav_label': None},
-        'bonus-review': {'show_in_nav': False, 'show_in_footer': True,  'nav_order': 100, 'nav_label': None},
-        'evergreen':    {'show_in_nav': True,  'show_in_footer': True,  'nav_order': 50,  'nav_label': None},
+        'homepage':      {'show_in_nav': False, 'show_in_footer': False, 'nav_order': 0,   'nav_label': None},
+        'comparison':    {'show_in_nav': True,  'show_in_footer': True,  'nav_order': 10,  'nav_label': 'Compare'},
+        'brand-review':  {'show_in_nav': False, 'show_in_footer': True,  'nav_order': 100, 'nav_label': None},
+        'bonus-review':  {'show_in_nav': False, 'show_in_footer': True,  'nav_order': 100, 'nav_label': None},
+        'evergreen':     {'show_in_nav': True,  'show_in_footer': True,  'nav_order': 50,  'nav_label': None},
+        'news':          {'show_in_nav': True,  'show_in_footer': True,  'nav_order': 20,  'nav_label': 'News'},
+        'news-article':  {'show_in_nav': False, 'show_in_footer': False, 'nav_order': 0,   'nav_label': None},
     }
     return defaults.get(slug, {'show_in_nav': False, 'show_in_footer': False, 'nav_order': 0, 'nav_label': None})
 
@@ -129,8 +131,10 @@ def _page_url(page):
         return f'/reviews/{page.slug}'
     elif slug == 'bonus-review':
         return f'/bonuses/{page.slug}'
-    elif slug == 'evergreen':
-        return f'/{page.slug}'
+    elif slug == 'news':
+        return '/news'
+    elif slug == 'news-article':
+        return f'/news/{page.slug}'
     return f'/{page.slug}'
 
 
@@ -560,6 +564,52 @@ def add_page(site_id):
                     title=topic,
                 )
                 _apply_menu_defaults(page, 'evergreen')
+
+            elif page_type_slug == 'news':
+                # Unique per site (like homepage/comparison)
+                existing = SitePage.query.filter_by(
+                    site_id=site.id, page_type_id=pt.id, brand_id=None, evergreen_topic=None
+                ).first()
+                if existing:
+                    flash('This site already has a News Landing page.', 'error')
+                    return redirect(url_for('sites.add_page', site_id=site.id))
+                page = SitePage(
+                    site_id=site.id,
+                    page_type_id=pt.id,
+                    slug='news',
+                    title='News',
+                )
+                _apply_menu_defaults(page, 'news')
+
+            elif page_type_slug == 'news-article':
+                topic = request.form.get('evergreen_topic', '').strip()
+                if not topic:
+                    flash('Please enter an article headline.', 'error')
+                    return redirect(url_for('sites.add_page', site_id=site.id))
+                slug = _slugify(topic)
+                existing = SitePage.query.filter_by(
+                    site_id=site.id, page_type_id=pt.id, evergreen_topic=topic
+                ).first()
+                if existing:
+                    flash(f'A news article "{topic}" already exists.', 'error')
+                    return redirect(url_for('sites.add_page', site_id=site.id))
+                page = SitePage(
+                    site_id=site.id,
+                    page_type_id=pt.id,
+                    evergreen_topic=topic,
+                    slug=slug,
+                    title=topic,
+                    published_date=datetime.now(timezone.utc),
+                )
+                _apply_menu_defaults(page, 'news-article')
+                # Auto-set news landing page as parent
+                news_landing = SitePage.query.join(PageType).filter(
+                    SitePage.site_id == site.id,
+                    PageType.slug == 'news',
+                ).first()
+                if news_landing:
+                    page.nav_parent_id = news_landing.id
+
             else:
                 flash('Unknown page type.', 'error')
                 return redirect(url_for('sites.add_page', site_id=site.id))
@@ -664,14 +714,14 @@ def bulk_add_pages(site_id):
                 errors.append(f'Row {row_num}: unknown page type "{pt_slug}"')
                 continue
 
-            if pt_slug in ('homepage', 'comparison'):
+            if pt_slug in ('homepage', 'comparison', 'news'):
                 if pt_slug in existing_global:
                     skipped += 1
                     continue
                 page = SitePage(
                     site_id=site.id,
                     page_type_id=pt.id,
-                    slug='index' if pt_slug == 'homepage' else pt_slug,
+                    slug='index' if pt_slug == 'homepage' else ('news' if pt_slug == 'news' else pt_slug),
                     title=pt.name,
                 )
                 _apply_menu_defaults(page, pt_slug)
@@ -703,9 +753,9 @@ def bulk_add_pages(site_id):
                 existing_brand_pages.add((pt_slug, brand.id))
                 added += 1
 
-            elif pt_slug == 'evergreen':
+            elif pt_slug in ('evergreen', 'news-article'):
                 if not topic:
-                    errors.append(f'Row {row_num}: evergreen_topic required')
+                    errors.append(f'Row {row_num}: evergreen_topic required for {pt_slug}')
                     continue
                 if (pt_slug, topic) in existing_evergreen:
                     skipped += 1
@@ -716,8 +766,9 @@ def bulk_add_pages(site_id):
                     evergreen_topic=topic,
                     slug=_slugify(topic),
                     title=topic,
+                    published_date=datetime.now(timezone.utc) if pt_slug == 'news-article' else None,
                 )
-                _apply_menu_defaults(page, 'evergreen')
+                _apply_menu_defaults(page, pt_slug)
                 db.session.add(page)
                 existing_evergreen.add((pt_slug, topic))
                 added += 1
@@ -775,13 +826,13 @@ def add_suggested_pages(site_id):
         if not pt:
             continue
 
-        if pt_slug in ('homepage', 'comparison'):
+        if pt_slug in ('homepage', 'comparison', 'news'):
             if pt_slug in existing_global:
                 skipped += 1
                 continue
             page = SitePage(
                 site_id=site.id, page_type_id=pt.id,
-                slug='index' if pt_slug == 'homepage' else pt_slug,
+                slug='index' if pt_slug == 'homepage' else ('news' if pt_slug == 'news' else pt_slug),
                 title=pt.name,
             )
             _apply_menu_defaults(page, pt_slug)
@@ -805,7 +856,7 @@ def add_suggested_pages(site_id):
             existing_brand_pages.add((pt_slug, brand.id))
             added += 1
 
-        elif pt_slug == 'evergreen':
+        elif pt_slug in ('evergreen', 'news-article'):
             if not topic or (pt_slug, topic) in existing_evergreen:
                 skipped += 1
                 continue
@@ -813,8 +864,9 @@ def add_suggested_pages(site_id):
                 site_id=site.id, page_type_id=pt.id,
                 evergreen_topic=topic, slug=_slugify(topic),
                 title=topic,
+                published_date=datetime.now(timezone.utc) if pt_slug == 'news-article' else None,
             )
-            _apply_menu_defaults(page, 'evergreen')
+            _apply_menu_defaults(page, pt_slug)
             db.session.add(page)
             existing_evergreen.add((pt_slug, topic))
             added += 1

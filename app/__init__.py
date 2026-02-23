@@ -24,6 +24,7 @@ def create_app(test_config=None):
     with app.app_context():
         db.create_all()
         _auto_migrate(db)
+        _seed_page_types(db)
         _reset_stuck_generating(db)
 
     # Register blueprints
@@ -62,5 +63,27 @@ def _auto_migrate(db):
         db.session.execute(sqlalchemy.text(
             'ALTER TABLE domains ADD COLUMN ssl_provisioned BOOLEAN NOT NULL DEFAULT 0'
         ))
+
+    if 'published_date' not in site_pages_cols:
+        db.session.execute(sqlalchemy.text(
+            'ALTER TABLE site_pages ADD COLUMN published_date DATETIME'
+        ))
+
+    db.session.commit()
+
+
+def _seed_page_types(db):
+    """Ensure all required page types exist in the database."""
+    from .models import PageType
+
+    required = [
+        {'slug': 'news', 'name': 'News Landing', 'template_file': 'news.html'},
+        {'slug': 'news-article', 'name': 'News Article', 'template_file': 'news_article.html'},
+    ]
+
+    for pt_data in required:
+        existing = PageType.query.filter_by(slug=pt_data['slug']).first()
+        if not existing:
+            db.session.add(PageType(**pt_data))
 
     db.session.commit()
