@@ -119,6 +119,7 @@ A Flask-based control panel for generating and deploying static affiliate websit
 | domain | TEXT UNIQUE | e.g. `bestbets.co.uk` |
 | registrar | TEXT | Optional |
 | status | TEXT | `available`, `assigned`, `deployed` |
+| ssl_provisioned | BOOLEAN | Default False — set to True after Certbot successfully provisions SSL. Used by deployer to generate SSL-aware Nginx configs on redeploy. |
 
 **Note:** The Domain→Site relationship is derived from `sites.domain_id`, not a FK on this table. SQLAlchemy uses `back_populates` with `uselist=False` to give `domain.site` access without a bidirectional FK conflict.
 
@@ -166,6 +167,12 @@ A Flask-based control panel for generating and deploying static affiliate websit
 | is_generated | BOOLEAN | Whether LLM content has been generated |
 | generated_at | DATETIME | Nullable — timestamp of last generation |
 | regeneration_notes | TEXT | Nullable — custom instructions for the next generation (e.g. "focus on mobile app", "target keyword: best UK betting sites") |
+| show_in_nav | BOOLEAN | Default False — whether this page appears in the navigation bar |
+| show_in_footer | BOOLEAN | Default False — whether this page appears in the footer |
+| nav_order | INTEGER | Default 0 — sort order for navigation menus |
+| nav_label | TEXT | Nullable — custom nav/footer label. If null, uses page title |
+| nav_parent_id | INTEGER FK | Nullable → site_pages.id — for dropdown sub-menus (max one level deep) |
+| menu_updated_at | DATETIME | Nullable — timestamp of last menu settings change (used for rebuild awareness) |
 | **UNIQUE (partial indexes)** | | **Brand pages:** `(site_id, page_type_id, brand_id)` WHERE `brand_id IS NOT NULL` |
 | | | **Evergreen pages:** `(site_id, page_type_id, evergreen_topic)` WHERE `evergreen_topic IS NOT NULL` |
 | | | **Global pages:** `(site_id, page_type_id)` WHERE `brand_id IS NULL AND evergreen_topic IS NULL` |
@@ -450,7 +457,7 @@ All generated sites follow a consistent URL and navigation structure:
    - `evergreen.html` — informational content page, with relevant brand CTAs woven in
    - `sitemap.xml` — standard XML sitemap
    - `robots.txt` — allows all, points to sitemap
-3. Add a "Build Site" button on the site detail page
+3. Add a "Build Site" button on the site detail page — **always visible** (not gated on site status). The build route checks whether any page has `content_json`, not the status string. This ensures a site stuck in `failed` or `deployed` can still be rebuilt.
 4. Add a preview option (serves the output folder via a temporary Flask route or opens in new tab)
 
 **Test:** Build a site, open the HTML files locally. Check that nav links work, brand logos appear, cross-links between reviews and bonus pages work, sitemap.xml lists all pages, robots.txt is present.
@@ -473,9 +480,9 @@ All generated sites follow a consistent URL and navigation structure:
      ```
    - Uploads the latest versioned build folder to `releases/v{n}/`
    - Updates the `current` symlink to point to the new version
-   - Generates and uploads an Nginx server block config (root set to `/var/www/sites/{domain}/current`)
+   - Generates and uploads an Nginx server block config. If `domain.ssl_provisioned` is True, the config includes SSL directives (listen 443, ssl_certificate paths, HTTP→HTTPS redirect) so Certbot's modifications are preserved on redeploy. If False, generates an HTTP-only config.
    - Reloads Nginx
-   - Runs Certbot to provision SSL for the domain (only on first deploy)
+   - On first deploy (when `ssl_provisioned` is False): runs Certbot to provision SSL, then sets `domain.ssl_provisioned = True`. Certbot failure is a warning, not fatal. On subsequent deploys: SSL config is baked into the Nginx config directly — Certbot does not need to run again.
    - Keeps the last 3 versions in `releases/`, deletes older ones
 2. **Rollback support:** A "Rollback" button on the site detail page re-points the `current` symlink to the previous version without re-uploading anything.
 3. Store VPS connection details in `.env` (host, user, SSH key path)
@@ -524,7 +531,7 @@ Allow adding pages to an existing site without re-running the creation wizard.
    - The new page appears in the page list as "Not Generated" — operator can then hit Generate on it individually
 4. **Validation:** Enforce the same partial unique constraints from the schema. If the operator tries to add a duplicate (e.g. a second homepage, or a brand review for a brand that already has one), show a clear error message.
 
-**Note:** After adding new pages, the site must be **rebuilt** for the sitemap, nav links, and footer to include the new page. The site detail page should show a warning banner if there are pages that were generated/updated after the last build (i.e. site needs rebuilding).
+**Note:** After adding new pages, the site must be **rebuilt** for the sitemap, nav links, and footer to include the new page. The site detail page should show a warning banner if there are pages that were generated/updated after the last build, or if menu settings have changed since the last build (i.e. site needs rebuilding).
 
 #### 7.2 — Update Pages with Directions
 
@@ -582,9 +589,9 @@ Allow the operator to customise the robots.txt for each site directly from the a
 
 Since pages can now be added or updated independently, the site detail page needs to clearly communicate when a rebuild is needed.
 
-1. Track the latest `generated_at` across all `site_pages` for the site
+1. Track the latest `generated_at` and `menu_updated_at` across all `site_pages` for the site
 2. Compare against `sites.built_at` (updated by `site_builder.py` on each successful build)
-3. If any page was generated after the last build, show a **warning banner**: "Content has changed since last build. Rebuild to update the static site."
+3. If any page was generated after the last build, or any page's menu settings were changed after the last build, show a **warning banner**: "Content has changed since last build. Rebuild to update the static site."
 4. The "Rebuild Site" button triggers the existing `site_builder.py` flow — it picks up all current `site_pages` (including newly added ones), regenerates the sitemap and nav links, and outputs a new versioned folder.
 
 **Test:** Add a new evergreen page to an existing site. Generate its content. Verify the warning banner appears. Rebuild. Verify the new page appears in the sitemap, nav, and footer of the rebuilt site. Edit an existing page with regeneration notes, regenerate it, verify the content_history snapshot includes the notes.
@@ -919,7 +926,8 @@ uploads/logos/
 - **Symlink-based deployment:** `current` → `releases/v{n}` on the VPS. Never overwrite in-place.
 - **Content versioning:** Always snapshot to `content_history` before overwriting `content_json`.
 - **Regeneration notes flow:** When regenerating with notes, append them to the base prompt, snapshot the old content + notes to `content_history`, then clear the notes from `site_pages` after successful generation.
-- **Rebuild awareness:** After any page is added, updated, or regenerated, the site detail page must show a warning if the site hasn't been rebuilt since. Compare `site_pages.generated_at` against `sites.built_at`.
+- **Rebuild awareness:** After any page is added, updated, regenerated, or has its menu settings changed, the site detail page must show a warning if the site hasn't been rebuilt since. Compare both `site_pages.generated_at` and `site_pages.menu_updated_at` against `sites.built_at`.
+- **Build button is always visible** on the site detail page. The build route is gated on whether any page has `content_json` (not on `site.status`). This ensures sites in any status (including `failed`, `deployed`) can be rebuilt.
 - **Custom robots.txt:** If `sites.custom_robots_txt` is not null, `site_builder.py` writes it verbatim. Otherwise, render the Jinja2 template as default.
 - **Live preview:** `preview_renderer.py` renders pages in-memory using the same Jinja2 templates and context as `site_builder.py`. It does NOT write files to disk. Asset paths in previews must resolve correctly via Flask routes serving `site_templates/assets/` and `uploads/logos/`.
 - **Structured editor forms:** The content editor form fields must match the JSON structure returned by the LLM for each page type. If the content prompt changes, the form must be updated to match. Keep these in sync.

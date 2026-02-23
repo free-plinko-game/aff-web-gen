@@ -39,24 +39,60 @@ def _get_connection(app_config):
     return Connection(host=host, user=user, connect_kwargs=connect_kwargs)
 
 
-def _generate_nginx_config(domain, web_root):
-    """Generate an Nginx server block config for a domain."""
+def _generate_nginx_config(domain, web_root, ssl=False):
+    """Generate an Nginx server block config for a domain.
+
+    Args:
+        domain: The domain name
+        web_root: VPS web root path
+        ssl: If True, generate config with SSL directives (for domains
+             where Certbot has already provisioned a certificate)
+    """
     site_root = posixpath.join(web_root, domain, 'current')
-    return f"""server {{
+    static_cache = """
+    location ~* \\.(css|js|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ {
+        expires 30d;
+        add_header Cache-Control "public, immutable";
+    }"""
+
+    if ssl:
+        return f"""server {{
     listen 80;
     listen [::]:80;
-    server_name {domain};
+    server_name {domain} www.{domain};
+    return 301 https://{domain}$request_uri;
+}}
+
+server {{
+    listen 443 ssl;
+    listen [::]:443 ssl;
+    server_name {domain} www.{domain};
+    root {site_root};
+    index index.html;
+
+    ssl_certificate /etc/letsencrypt/live/{domain}/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/{domain}/privkey.pem;
+    include /etc/letsencrypt/options-ssl-nginx.conf;
+    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
+
+    location / {{
+        try_files $uri $uri/ =404;
+    }}
+{static_cache}
+}}
+"""
+    else:
+        return f"""server {{
+    listen 80;
+    listen [::]:80;
+    server_name {domain} www.{domain};
     root {site_root};
     index index.html;
 
     location / {{
         try_files $uri $uri/ =404;
     }}
-
-    location ~* \\.(css|js|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ {{
-        expires 30d;
-        add_header Cache-Control "public, immutable";
-    }}
+{static_cache}
 }}
 """
 
@@ -117,12 +153,14 @@ def deploy_site(site, app_config):
     conn.run(f'ln -sfn {version_dir} {current_link}')
 
     # Generate and upload Nginx config
-    nginx_config = _generate_nginx_config(domain, web_root)
+    # If SSL was already provisioned, generate config with SSL directives
+    # so we don't wipe Certbot's modifications on redeploy
+    nginx_config = _generate_nginx_config(domain, web_root, ssl=site.domain.ssl_provisioned)
     nginx_conf_path = posixpath.join(sites_available, domain)
     nginx_enabled_path = posixpath.join(sites_enabled, domain)
 
-    # Write config to a temp file, upload, then move into place
-    conn.run(f"echo '{nginx_config}' > /tmp/{domain}.conf")
+    # Write config via heredoc to avoid quoting issues
+    conn.run(f"cat > /tmp/{domain}.conf << 'NGINX_EOF'\n{nginx_config}NGINX_EOF")
     conn.sudo(f'mv /tmp/{domain}.conf {nginx_conf_path}')
 
     # Symlink to sites-enabled
@@ -131,9 +169,14 @@ def deploy_site(site, app_config):
     # Reload Nginx
     conn.sudo('nginx -s reload')
 
-    # Run Certbot on first deploy only
-    if is_first_deploy:
-        conn.sudo(f'certbot --nginx -d {domain} --non-interactive --agree-tos --redirect')
+    # Provision SSL on first deploy via Certbot
+    if not site.domain.ssl_provisioned:
+        try:
+            conn.sudo(f'certbot --nginx -d {domain} -d www.{domain} --non-interactive --agree-tos --redirect')
+            site.domain.ssl_provisioned = True
+            logger.info('SSL provisioned for %s', domain)
+        except Exception as e:
+            logger.warning('Certbot failed for %s (non-fatal): %s', domain, e)
 
     # Prune old releases (keep last MAX_RELEASES)
     _prune_releases(conn, releases_dir)

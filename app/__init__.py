@@ -36,9 +36,17 @@ def _auto_migrate(db):
     """Add columns that db.create_all() won't add to existing tables."""
     import sqlalchemy
     insp = sqlalchemy.inspect(db.engine)
-    cols = {c['name'] for c in insp.get_columns('site_pages')}
-    if 'menu_updated_at' not in cols:
+
+    site_pages_cols = {c['name'] for c in insp.get_columns('site_pages')}
+    if 'menu_updated_at' not in site_pages_cols:
         db.session.execute(sqlalchemy.text(
             'ALTER TABLE site_pages ADD COLUMN menu_updated_at DATETIME'
         ))
-        db.session.commit()
+
+    domains_cols = {c['name'] for c in insp.get_columns('domains')}
+    if 'ssl_provisioned' not in domains_cols:
+        db.session.execute(sqlalchemy.text(
+            'ALTER TABLE domains ADD COLUMN ssl_provisioned BOOLEAN NOT NULL DEFAULT 0'
+        ))
+
+    db.session.commit()

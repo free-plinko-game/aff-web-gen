@@ -115,6 +115,7 @@ class Domain(db.Model):
     domain = db.Column(db.Text, unique=True, nullable=False)
     registrar = db.Column(db.Text)
     status = db.Column(db.Text, default='available', nullable=False)
+    ssl_provisioned = db.Column(db.Boolean, default=False, nullable=False)
 
     site = db.relationship('Site', back_populates='domain', uselist=False)
 
