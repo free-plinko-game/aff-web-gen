@@ -140,14 +140,24 @@ def build_prompt(page_type_slug, geo, vertical, brands=None, brand=None,
     )
 
 
-def call_openai(prompt, api_key, model='gpt-4o-mini', max_retries=2, max_tokens=16384):
+# Max output tokens per model — avoids requesting more than the model supports
+MODEL_MAX_TOKENS = {
+    'gpt-4o-mini': 16384,
+    'gpt-4o': 16384,
+}
+DEFAULT_MAX_TOKENS = 16384
+
+
+def call_openai(prompt, api_key, model='gpt-4o-mini', max_retries=2, max_tokens=8192):
     """Call the OpenAI API and return parsed JSON content.
 
     Retries on JSON parse failures up to max_retries times.
-    On finish_reason=length (truncated output), doubles max_tokens for the retry.
+    On finish_reason=length (truncated output), doubles max_tokens for the retry,
+    capped at the model's maximum output token limit.
     """
     client = OpenAI(api_key=api_key)
-    current_max_tokens = max_tokens
+    model_cap = MODEL_MAX_TOKENS.get(model, DEFAULT_MAX_TOKENS)
+    current_max_tokens = min(max_tokens, model_cap)
 
     for attempt in range(1, max_retries + 2):
         logger.info('Calling OpenAI API (model=%s, attempt %d, max_tokens=%d)', model, attempt, current_max_tokens)
@@ -172,7 +182,7 @@ def call_openai(prompt, api_key, model='gpt-4o-mini', max_retries=2, max_tokens=
                 attempt, max_retries + 1, finish_reason, e,
             )
             if finish_reason == 'length':
-                current_max_tokens = min(current_max_tokens * 2, 65536)
+                current_max_tokens = min(current_max_tokens * 2, model_cap)
                 logger.info('Increasing max_tokens to %d for next attempt', current_max_tokens)
             if attempt > max_retries:
                 raise
