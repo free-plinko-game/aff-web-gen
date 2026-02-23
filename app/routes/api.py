@@ -107,8 +107,17 @@ def page_preview(site_id, page_id):
 @bp.route('/sites/<int:site_id>/preview-assets/<path:filename>')
 def preview_assets(site_id, filename):
     """Serve static assets (CSS, JS, logos) for the live preview iframe."""
+    from ..services.site_builder import _get_site_templates_path, _generate_favicon_svg
+
+    # Generate favicon on the fly for previews
+    if filename == 'favicon.svg':
+        site = db.session.get(Site, site_id)
+        if site:
+            svg = _generate_favicon_svg(site.name, site.vertical.slug)
+            return Response(svg, content_type='image/svg+xml')
+        return '', 404
+
     # Serve from site_templates/assets/
-    from ..services.site_builder import _get_site_templates_path
     templates_path = _get_site_templates_path()
     assets_dir = os.path.join(templates_path, 'assets')
 

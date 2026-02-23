@@ -4,6 +4,7 @@ Renders generated content into static HTML files using a SEPARATE
 Jinja2 Environment pointed at site_templates/ — NOT Flask's render_template.
 """
 
+import hashlib
 import json
 import os
 import shutil
@@ -15,6 +16,26 @@ from markupsafe import Markup
 
 from ..models import db, Site, SitePage, SiteBrand
 from .schema_generator import generate_schema
+
+
+def _generate_favicon_svg(site_name, vertical_slug):
+    """Generate an SVG favicon using site name initials and a colour from the vertical."""
+    # Pick initials: first letter of first two words, or first two letters
+    words = site_name.split()
+    if len(words) >= 2:
+        initials = (words[0][0] + words[1][0]).upper()
+    else:
+        initials = site_name[:2].upper()
+
+    # Derive a hue from the vertical slug for colour variety
+    hue = int(hashlib.md5(vertical_slug.encode()).hexdigest()[:4], 16) % 360
+    bg_colour = f'hsl({hue}, 55%, 45%)'
+
+    return f'''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+<rect width="32" height="32" rx="6" fill="{bg_colour}"/>
+<text x="16" y="22" text-anchor="middle" font-size="15" font-weight="700"
+      font-family="system-ui, sans-serif" fill="#fff">{initials}</text>
+</svg>'''
 
 
 # Inline SVG payment method icons (monochrome, 28x18)
@@ -469,6 +490,11 @@ def build_site(site, output_base_dir, upload_folder):
             src = os.path.join(src_logos, brand_info['logo_filename'])
             if os.path.exists(src):
                 shutil.copy2(src, os.path.join(logos_dir, brand_info['logo_filename']))
+
+    # Generate favicon
+    favicon_svg = _generate_favicon_svg(site.name, vertical.slug)
+    with open(os.path.join(version_dir, 'favicon.svg'), 'w', encoding='utf-8') as f:
+        f.write(favicon_svg)
 
     # Generate sitemap.xml
     sitemap_pages = _build_sitemap_pages(pages, domain)

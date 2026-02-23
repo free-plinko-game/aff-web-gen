@@ -14,6 +14,7 @@
     {% else %}
     {% set prefix = '../' if subdirectory else '' %}
     {% endif %}
+    <link rel="icon" href="{{ prefix }}favicon.svg" type="image/svg+xml">
     <link rel="stylesheet" href="{{ prefix }}assets/css/style.css">
     {% if schema_json_ld %}
     {{ schema_json_ld | safe }}
