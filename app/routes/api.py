@@ -236,3 +236,57 @@ def suggest_pages(site_id):
         'missing_pages': missing_pages,
         'suggested_evergreen': suggested_evergreen,
     })
+
+
+@bp.route('/sites/<int:site_id>/suggest-news', methods=['POST'])
+def suggest_news(site_id):
+    """AI-generate 10 timely news article topic suggestions for a site."""
+    site = db.session.get(Site, site_id)
+    if not site:
+        return jsonify({'error': 'Site not found'}), 404
+
+    api_key = current_app.config.get('OPENAI_API_KEY')
+    if not api_key:
+        return jsonify({'error': 'OpenAI API key not configured'}), 500
+
+    geo_name = site.geo.name if site.geo else 'Global'
+    language = site.geo.language if site.geo else 'English'
+    vertical_name = site.vertical.name if site.vertical else 'General'
+
+    # Collect existing news-article topics to avoid duplicates
+    existing_articles = [
+        p.title for p in site.site_pages
+        if p.page_type.slug == 'news-article'
+    ]
+    existing_str = ', '.join(existing_articles) if existing_articles else 'None yet'
+
+    prompt = (
+        f"You are a news editor for a {vertical_name} site targeting {geo_name}.\n"
+        f"Language: {language}.\n\n"
+        f"Suggest 10 timely, engaging news article topics. Think about:\n"
+        f"- Recent regulatory changes affecting {vertical_name} in {geo_name}\n"
+        f"- Industry developments, mergers, and market trends\n"
+        f"- New product launches, partnerships, or market entries in {geo_name}\n"
+        f"- Seasonal events or upcoming tournaments relevant to {vertical_name}\n"
+        f"- Consumer tips tied to current events in {geo_name}\n"
+        f"- Search trends like \"{geo_name} {vertical_name.lower()} news\", "
+        f"\"{geo_name} betting regulation\", \"{geo_name} {vertical_name.lower()} industry\"\n\n"
+        f"Already published articles: {existing_str}\n\n"
+        f"Return a JSON object with:\n"
+        f"{{\"suggestions\": [{{\"topic\": string, \"angle\": string, \"reason\": string}}]}}\n\n"
+        f"Where:\n"
+        f"- topic: compelling news headline (8-14 words)\n"
+        f"- angle: the editorial hook (1 sentence)\n"
+        f"- reason: why publish this now (1 sentence)\n\n"
+        f"Do not repeat existing articles. Write topics in {language}."
+    )
+
+    try:
+        model = current_app.config.get('OPENAI_MODEL', 'gpt-4o-mini')
+        result = call_openai(prompt, api_key, model, max_tokens=2048)
+        suggestions = result.get('suggestions', [])
+    except Exception as e:
+        logger.warning('News suggestion failed: %s', e)
+        return jsonify({'error': f'AI suggestion failed: {e}'}), 500
+
+    return jsonify({'suggestions': suggestions})

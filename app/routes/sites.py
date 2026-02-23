@@ -867,6 +867,12 @@ def add_suggested_pages(site_id):
                 published_date=datetime.now(timezone.utc) if pt_slug == 'news-article' else None,
             )
             _apply_menu_defaults(page, pt_slug)
+            if pt_slug == 'news-article':
+                news_landing = SitePage.query.join(PageType).filter(
+                    SitePage.site_id == site.id, PageType.slug == 'news',
+                ).first()
+                if news_landing:
+                    page.nav_parent_id = news_landing.id
             db.session.add(page)
             existing_evergreen.add((pt_slug, topic))
             added += 1

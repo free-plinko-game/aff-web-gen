@@ -194,6 +194,48 @@
     </div>
 </div>
 
+<!-- News Article Suggestions -->
+<div class="card mb-4">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <a class="text-decoration-none text-reset" data-bs-toggle="collapse" href="#newsCollapse" role="button" aria-expanded="false" aria-controls="newsCollapse">
+            <strong>News Articles</strong>
+            {% set news_count = site.site_pages | selectattr('page_type') | selectattr('page_type.slug', 'equalto', 'news-article') | list | length %}
+            <span class="badge bg-secondary ms-1">{{ news_count }}</span>
+            <small class="ms-1 text-muted">&#9662;</small>
+        </a>
+        <button type="button" class="btn btn-sm btn-outline-primary" id="btnSuggestNews" onclick="suggestNews()">
+            Suggest 10 Articles
+        </button>
+    </div>
+    <div class="collapse" id="newsCollapse">
+        <div class="card-body">
+            <p class="text-muted mb-3" id="newsIntro">
+                AI-generate timely news article topics based on your site's geo and vertical. Select the best ones to add as pages.
+            </p>
+
+            <div id="newsLoading" class="d-none text-center py-3">
+                <div class="spinner-border spinner-border-sm text-primary" role="status"></div>
+                <span class="ms-2">Generating news article suggestions...</span>
+            </div>
+
+            <div id="newsError" class="alert alert-danger d-none"></div>
+
+            <div id="newsResults" class="d-none">
+                <div id="newsList" class="mb-3"></div>
+                <div class="d-flex gap-2">
+                    <button type="button" class="btn btn-success" id="btnAddNews" onclick="addSelectedNews()">
+                        Add Selected
+                    </button>
+                    <button type="button" class="btn btn-outline-secondary btn-sm" onclick="toggleAllNews(true)">Select All</button>
+                    <button type="button" class="btn btn-outline-secondary btn-sm" onclick="toggleAllNews(false)">Select None</button>
+                </div>
+            </div>
+
+            <div id="newsAdded" class="alert alert-success d-none mt-3"></div>
+        </div>
+    </div>
+</div>
+
 <!-- Tabs for Pages / Robots.txt -->
 <ul class="nav nav-tabs mb-3" role="tablist">
     <li class="nav-item">
@@ -380,6 +422,135 @@ function resetRobotsTxt() {
         } else {
             alert('Failed to reset: ' + (data.error || 'Unknown error'));
         }
+    });
+}
+
+/* --- News Article Suggestions --- */
+let _newsSuggestions = [];
+
+function suggestNews() {
+    const btn = document.getElementById('btnSuggestNews');
+    const loading = document.getElementById('newsLoading');
+    const error = document.getElementById('newsError');
+    const results = document.getElementById('newsResults');
+    const collapse = document.getElementById('newsCollapse');
+
+    // Expand the collapse if closed
+    const bsCollapse = new bootstrap.Collapse(collapse, {toggle: false});
+    bsCollapse.show();
+
+    btn.disabled = true;
+    loading.classList.remove('d-none');
+    error.classList.add('d-none');
+    results.classList.add('d-none');
+
+    fetch('{{ url_for("api.suggest_news", site_id=site.id) }}', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+    })
+    .then(r => r.json())
+    .then(data => {
+        loading.classList.add('d-none');
+        btn.disabled = false;
+
+        if (data.error) {
+            error.textContent = data.error;
+            error.classList.remove('d-none');
+            return;
+        }
+
+        _newsSuggestions = data.suggestions || [];
+        if (_newsSuggestions.length === 0) {
+            error.textContent = 'No suggestions returned. Try again.';
+            error.classList.remove('d-none');
+            return;
+        }
+
+        const list = document.getElementById('newsList');
+        list.innerHTML = '';
+        _newsSuggestions.forEach((s, i) => {
+            const div = document.createElement('div');
+            div.className = 'form-check mb-2 p-2 border rounded';
+            div.innerHTML = `
+                <input class="form-check-input" type="checkbox" id="news-${i}" checked>
+                <label class="form-check-label" for="news-${i}">
+                    <strong>${s.topic}</strong>
+                    <br><small class="text-muted">${s.angle || ''}</small>
+                    <br><small class="text-info">${s.reason || ''}</small>
+                </label>
+            `;
+            list.appendChild(div);
+        });
+
+        results.classList.remove('d-none');
+    })
+    .catch(err => {
+        loading.classList.add('d-none');
+        btn.disabled = false;
+        error.textContent = 'Request failed: ' + err.message;
+        error.classList.remove('d-none');
+    });
+}
+
+function toggleAllNews(checked) {
+    document.querySelectorAll('#newsList input[type="checkbox"]').forEach(cb => {
+        cb.checked = checked;
+    });
+}
+
+function addSelectedNews() {
+    const pages = [];
+    const checkboxes = document.querySelectorAll('#newsList input[type="checkbox"]');
+    checkboxes.forEach((cb, i) => {
+        if (cb.checked && _newsSuggestions[i]) {
+            pages.push({
+                page_type: 'news-article',
+                evergreen_topic: _newsSuggestions[i].topic,
+            });
+        }
+    });
+
+    if (pages.length === 0) {
+        alert('Select at least one article to add.');
+        return;
+    }
+
+    // Auto-include news landing page if not already present
+    {% set has_news_landing = site.site_pages | selectattr('page_type') | selectattr('page_type.slug', 'equalto', 'news') | list | length > 0 %}
+    {% if not has_news_landing %}
+    pages.unshift({page_type: 'news'});
+    {% endif %}
+
+    const btn = document.getElementById('btnAddNews');
+    btn.disabled = true;
+    btn.textContent = 'Adding...';
+
+    fetch('{{ url_for("sites.add_suggested_pages", site_id=site.id) }}', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({pages: pages}),
+    })
+    .then(r => r.json())
+    .then(data => {
+        btn.disabled = false;
+        btn.textContent = 'Add Selected';
+
+        if (data.error) {
+            alert('Error: ' + data.error);
+            return;
+        }
+
+        const msg = document.getElementById('newsAdded');
+        msg.textContent = `Added ${data.added} page(s)` + (data.skipped ? ` (${data.skipped} skipped)` : '') + '. Reloading...';
+        msg.classList.remove('d-none');
+        document.getElementById('newsResults').classList.add('d-none');
+
+        setTimeout(() => window.location.reload(), 1500);
+    })
+    .catch(err => {
+        btn.disabled = false;
+        btn.textContent = 'Add Selected';
+        alert('Request failed: ' + err.message);
     });
 }
 </script>
