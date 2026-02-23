@@ -34,6 +34,9 @@
                             <option value="news">News Landing Page</option>
                             {% endif %}
                             <option value="news-article">News Article</option>
+                            {% if 'tips' not in existing_global %}
+                            <option value="tips">Tips Landing Page</option>
+                            {% endif %}
                         </select>
                     </div>
 
