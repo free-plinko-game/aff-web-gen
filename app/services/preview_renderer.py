@@ -42,7 +42,7 @@ def render_page_preview(site_page, site, asset_url_prefix=''):
     template_file = site_page.page_type.template_file
 
     # For preview, override prefix to point at our asset-serving endpoint
-    subdirectory = pt_slug in ('brand-review', 'bonus-review', 'news-article', 'tips-article')
+    subdirectory = pt_slug in ('brand-review', 'bonus-review', 'news', 'news-article', 'tips', 'tips-article')
 
     # CTA table
     cta_table_data = None
