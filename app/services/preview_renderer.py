@@ -42,7 +42,7 @@ def render_page_preview(site_page, site, asset_url_prefix=''):
     template_file = site_page.page_type.template_file
 
     # For preview, override prefix to point at our asset-serving endpoint
-    subdirectory = pt_slug in ('brand-review', 'bonus-review', 'news-article')
+    subdirectory = pt_slug in ('brand-review', 'bonus-review', 'news-article', 'tips-article')
 
     # CTA table
     cta_table_data = None
@@ -152,6 +152,34 @@ def render_page_preview(site_page, site, asset_url_prefix=''):
         ctx['news_articles'] = news_articles
     elif pt_slug == 'news-article':
         ctx['published_date'] = site_page.published_date.strftime('%d %b %Y') if site_page.published_date else ''
+
+    elif pt_slug == 'tips':
+        tips_articles = []
+        for p in pages:
+            if p.page_type.slug == 'tips-article' and p.content_json:
+                p_content = json.loads(p.content_json)
+                pub_date = p.published_date.strftime('%d %b %Y') if p.published_date else ''
+                prediction = p_content.get('prediction', {})
+                match_info = p_content.get('match_info', {})
+                tips_articles.append({
+                    'slug': p.slug,
+                    'title': p.title,
+                    'published_date': pub_date,
+                    'summary': p_content.get('hero_subtitle', ''),
+                    'competition': match_info.get('competition', ''),
+                    'match_date': match_info.get('date', ''),
+                    'prediction_result': prediction.get('result', ''),
+                    'prediction_confidence': prediction.get('confidence', ''),
+                })
+        tips_articles.sort(key=lambda a: a['published_date'], reverse=True)
+        ctx['tips_articles'] = tips_articles
+
+    elif pt_slug == 'tips-article':
+        ctx['published_date'] = site_page.published_date.strftime('%d %b %Y') if site_page.published_date else ''
+        ctx['prediction'] = content.get('prediction', {})
+        ctx['betting_tips'] = content.get('betting_tips', [])
+        ctx['match_info'] = content.get('match_info', {})
+        ctx['key_stats'] = content.get('key_stats', [])
 
     # Override asset prefix for preview
     if asset_url_prefix:

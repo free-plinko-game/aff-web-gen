@@ -1,0 +1,290 @@
+{% extends "base.html" %}
+
+{% block body_content %}
+<!-- HERO -->
+<section class="hero">
+    <div class="hero-inner">
+        <div class="hero-badge">&#9917; Match Preview</div>
+        <h1>{{ content.hero_title }}</h1>
+        <p class="hero-sub">{{ content.hero_subtitle }}</p>
+        <div class="hero-stats">
+            {% if published_date %}
+            <div class="hero-stat">
+                <div class="hero-stat-number">{{ published_date }}</div>
+                <div class="hero-stat-label">Published</div>
+            </div>
+            {% endif %}
+            {% if match_info.competition %}
+            <div class="hero-stat">
+                <div class="hero-stat-number">{{ match_info.competition }}</div>
+                <div class="hero-stat-label">Competition</div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</section>
+
+<!-- MAIN -->
+<main class="main">
+
+    <!-- LEFT: CONTENT -->
+    <div class="content-area">
+
+        <!-- Match Info Card -->
+        {% if match_info %}
+        <div class="comp-card">
+            <div class="comp-card-header" style="background:var(--gray-50);">
+                <div class="comp-card-brand" style="flex:1;">
+                    <div>
+                        <h3 style="margin:0; font-size:1rem;">Match Information</h3>
+                    </div>
+                </div>
+            </div>
+            <div class="comp-card-body">
+                <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(140px, 1fr)); gap:0.75rem;">
+                    {% if match_info.date %}
+                    <div>
+                        <div style="font-size:0.75rem; color:var(--gray-500); text-transform:uppercase; letter-spacing:0.05em;">Date</div>
+                        <div style="font-weight:600; margin-top:0.2rem;">{{ match_info.date }}</div>
+                    </div>
+                    {% endif %}
+                    {% if match_info.venue %}
+                    <div>
+                        <div style="font-size:0.75rem; color:var(--gray-500); text-transform:uppercase; letter-spacing:0.05em;">Venue</div>
+                        <div style="font-weight:600; margin-top:0.2rem;">{{ match_info.venue }}</div>
+                    </div>
+                    {% endif %}
+                    {% if match_info.competition %}
+                    <div>
+                        <div style="font-size:0.75rem; color:var(--gray-500); text-transform:uppercase; letter-spacing:0.05em;">Competition</div>
+                        <div style="font-weight:600; margin-top:0.2rem;">{{ match_info.competition }}</div>
+                    </div>
+                    {% endif %}
+                    {% if match_info.round %}
+                    <div>
+                        <div style="font-size:0.75rem; color:var(--gray-500); text-transform:uppercase; letter-spacing:0.05em;">Round</div>
+                        <div style="font-weight:600; margin-top:0.2rem;">{{ match_info.round }}</div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Content Sections -->
+        {% if content.sections %}
+        {% for section in content.sections %}
+        <div class="content-block" id="section-{{ loop.index }}">
+            <h2>{{ section.heading }}</h2>
+            <p>{{ section.content }}</p>
+        </div>
+        {% endfor %}
+        {% endif %}
+
+        <!-- Key Stats -->
+        {% if key_stats %}
+        <div class="evergreen-takeaways">
+            <div class="evergreen-takeaways-header">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 8v8M12 11v5M8 14v2M4 2h16a2 2 0 012 2v16a2 2 0 01-2 2H4a2 2 0 01-2-2V4a2 2 0 012-2z"/></svg>
+                <h3>Key Stats</h3>
+            </div>
+            <ul>
+                {% for stat in key_stats %}
+                <li>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg>
+                    {{ stat }}
+                </li>
+                {% endfor %}
+            </ul>
+        </div>
+        {% endif %}
+
+        <!-- Prediction Card -->
+        {% if prediction %}
+        <div class="comp-card" style="border-left:4px solid var(--teal);">
+            <div class="comp-card-header" style="background:linear-gradient(135deg, var(--teal), var(--dark-teal));">
+                <div class="comp-card-brand" style="flex:1;">
+                    <div>
+                        <h3 style="margin:0; color:white; font-size:1.1rem;">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" style="width:20px;height:20px;vertical-align:-3px;margin-right:6px;"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+                            Our Prediction
+                        </h3>
+                    </div>
+                </div>
+            </div>
+            <div class="comp-card-body">
+                {% if prediction.result %}
+                <div style="display:flex; align-items:center; gap:1rem; margin-bottom:1rem;">
+                    <div style="font-size:1.3rem; font-weight:700; color:var(--gray-900);">{{ prediction.result }}</div>
+                    {% if prediction.confidence %}
+                    <span style="display:inline-flex; align-items:center; gap:4px; font-size:0.8rem; font-weight:600; padding:4px 12px; border-radius:var(--radius-sm);
+                        {% if prediction.confidence == 'High' %}background:rgba(16,185,129,0.1); color:var(--green);
+                        {% elif prediction.confidence == 'Medium' %}background:rgba(245,158,11,0.1); color:var(--amber);
+                        {% else %}background:var(--gray-50); color:var(--gray-600);{% endif %}">
+                        {{ prediction.confidence }} Confidence
+                    </span>
+                    {% endif %}
+                </div>
+                {% endif %}
+                {% if prediction.reasoning %}
+                <p style="color:var(--gray-600); line-height:1.7;">{{ prediction.reasoning }}</p>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Betting Tips Table -->
+        {% if betting_tips %}
+        <div class="content-block">
+            <h2>Betting Tips</h2>
+            <div style="overflow-x:auto; margin-top:0.75rem;">
+                <table style="width:100%; border-collapse:collapse; font-size:0.9rem;">
+                    <thead>
+                        <tr style="background:var(--gray-50); text-align:left;">
+                            <th style="padding:0.75rem 1rem; font-weight:600; color:var(--gray-700);">Market</th>
+                            <th style="padding:0.75rem 1rem; font-weight:600; color:var(--gray-700);">Selection</th>
+                            <th style="padding:0.75rem 1rem; font-weight:600; color:var(--gray-700);">Odds</th>
+                            <th style="padding:0.75rem 1rem; font-weight:600; color:var(--gray-700);">Reasoning</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for tip in betting_tips %}
+                        <tr style="border-bottom:1px solid var(--gray-100);">
+                            <td style="padding:0.75rem 1rem; font-weight:500;">{{ tip.market }}</td>
+                            <td style="padding:0.75rem 1rem;">
+                                <span style="background:var(--teal); color:white; padding:2px 8px; border-radius:var(--radius-sm); font-size:0.82rem; font-weight:600;">{{ tip.selection }}</span>
+                            </td>
+                            <td style="padding:0.75rem 1rem; font-weight:600;">{{ tip.odds }}</td>
+                            <td style="padding:0.75rem 1rem; color:var(--gray-600); font-size:0.85rem;">{{ tip.reasoning }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- CTA TABLE -->
+        {% include '_cta_table.html' %}
+
+        <!-- FAQ -->
+        {% if content.faq %}
+        <div class="content-block">
+            <h2>Frequently Asked Questions</h2>
+            <div style="height:0.75rem;"></div>
+            <div class="faq-list">
+                {% for item in content.faq %}
+                <div class="faq-item{% if loop.first %} active{% endif %}">
+                    <button class="faq-question">
+                        {{ item.question }}
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+                    </button>
+                    <div class="faq-answer">{{ item.answer }}</div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        {% if content.closing_paragraph %}
+        <div class="content-block">
+            <p>{{ content.closing_paragraph }}</p>
+        </div>
+        {% endif %}
+
+        <!-- Back to Tips -->
+        <div style="margin-top:1.5rem;">
+            <a href="{{ '../' if subdirectory else '' }}tips" style="display:inline-flex; align-items:center; gap:6px; color:var(--teal); text-decoration:none; font-weight:600; font-size:0.9rem;">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px;"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+                Back to Tips
+            </a>
+        </div>
+
+    </div>
+
+    <!-- SIDEBAR -->
+    <aside class="sidebar">
+
+        <!-- Top Picks -->
+        <div class="sidebar-card">
+            <div class="sidebar-card-header">
+                <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+                <h3>Top Picks</h3>
+            </div>
+            {% for brand in site_brands[:5] %}
+            <a href="{{ '../' if subdirectory else '' }}reviews/{{ brand.slug }}" class="sidebar-brand-item">
+                <div class="sidebar-brand-logo">
+                    {% if brand.logo_filename %}
+                    <img src="{{ '../' if subdirectory else '' }}assets/logos/{{ brand.logo_filename }}" alt="{{ brand.name }}" style="max-width:36px;max-height:24px;object-fit:contain;">
+                    {% else %}
+                    <span>{{ brand.name[:8] }}</span>
+                    {% endif %}
+                </div>
+                <div class="sidebar-brand-info">
+                    <div class="sidebar-brand-name">{{ brand.name }}</div>
+                    {% if brand.rating %}
+                    <div class="sidebar-brand-rating">
+                        {% set full = brand.rating | round | int %}
+                        <span>{{ '\u2605' * full }}{{ '\u2606' * (5 - full) }}</span>
+                    </div>
+                    {% endif %}
+                </div>
+                {% if brand.rating %}
+                <div class="sidebar-brand-score">{{ brand.rating }}</div>
+                {% endif %}
+            </a>
+            {% endfor %}
+        </div>
+
+        <!-- Related Articles / Cluster Links -->
+        {% if cluster_links %}
+        <div class="sidebar-card">
+            <div class="sidebar-card-header">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+                <h3>Related Tips</h3>
+            </div>
+            <div class="quick-links">
+                {% for link in cluster_links %}
+                <a href="{{ link.url }}" class="quick-link">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
+                    {{ link.label }}
+                </a>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Quick Links -->
+        <div class="sidebar-card">
+            <div class="sidebar-card-header">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+                <h3>Quick Links</h3>
+            </div>
+            <div class="quick-links">
+                {% for link in nav_links %}
+                <a href="{{ link.url }}" class="quick-link">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
+                    {{ link.label }}
+                </a>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- Responsible Gambling -->
+        <div class="sidebar-card">
+            <div class="sidebar-card-header" style="background: var(--gray-700);">
+                <svg viewBox="0 0 24 24" fill="none" stroke="var(--amber)" stroke-width="2"><path d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                <h3>Gamble Responsibly</h3>
+            </div>
+            <div style="padding: 1rem 1.1rem;">
+                <p style="font-size:0.82rem; color:var(--gray-600); line-height:1.7; margin-bottom:0.75rem;">Betting involves risk. Never bet more than you can afford to lose. If you feel you may have a gambling problem, help is available.</p>
+                <a href="https://www.gambleaware.org" target="_blank" rel="noopener" style="display:block; text-align:center; font-size:0.82rem; font-weight:600; color:var(--teal); text-decoration:none; padding:0.6rem; background:var(--gray-50); border-radius:var(--radius-sm);">
+                    GambleAware.org &rarr;
+                </a>
+            </div>
+        </div>
+
+    </aside>
+
+</main>
+{% endblock body_content %}

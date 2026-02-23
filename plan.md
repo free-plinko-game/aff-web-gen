@@ -140,6 +140,7 @@ A Flask-based control panel for generating and deploying static affiliate websit
 | custom_robots_txt | TEXT | Nullable — if set, used instead of the default robots.txt template during build |
 | custom_head | TEXT | Nullable — raw HTML injected into `<head>` on every page of this site (site-wide tracking, analytics, etc.) |
 | freshness_threshold_days | INTEGER | Default 30 — pages older than this are flagged as stale on the dashboard |
+| tips_leagues | TEXT | Nullable — JSON array of league configs for tips pipeline, e.g. `[{"league_id": 39, "name": "Premier League", "season": 2025}]` |
 
 ### `site_brands`
 | Column | Type | Notes |
@@ -175,6 +176,7 @@ A Flask-based control panel for generating and deploying static affiliate websit
 | menu_updated_at | DATETIME | Nullable — timestamp of last menu settings change (used for rebuild awareness) |
 | published_date | DATETIME | Nullable — used for news articles (display and sort order) |
 | cta_table_id | INTEGER FK | Nullable → cta_tables.id — assigns a reusable CTA table to this page (survives LLM regeneration) |
+| fixture_id | INTEGER | Nullable — API-Football fixture ID for tips pipeline deduplication |
 | **UNIQUE (partial indexes)** | | **Brand pages:** `(site_id, page_type_id, brand_id)` WHERE `brand_id IS NOT NULL` |
 | | | **Evergreen pages:** `(site_id, page_type_id, evergreen_topic)` WHERE `evergreen_topic IS NOT NULL` |
 | | | **Global pages:** `(site_id, page_type_id)` WHERE `brand_id IS NULL AND evergreen_topic IS NULL` |
@@ -255,14 +257,16 @@ affiliate-factory/
 │   │   ├── brands.py               ← CRUD for brands (including logo upload)
 │   │   ├── domains.py              ← CRUD for domains
 │   │   ├── sites.py                ← Site config, generation, deployment
-│   │   └── api.py                  ← AJAX endpoints (generation progress, page preview, robots.txt, site rename, menu order)
+│   │   └── api.py                  ← AJAX endpoints (generation progress, page preview, robots.txt, site rename, menu order, tips pipeline)
 │   ├── services/
 │   │   ├── __init__.py
 │   │   ├── content_generator.py    ← OpenAI API integration (runs in background thread)
 │   │   ├── site_builder.py         ← Renders templates → static files (sitemap, robots.txt, linking)
 │   │   ├── deployer.py             ← SSH deployment via Fabric (symlink-based versioning)
 │   │   ├── preview_renderer.py     ← Renders a single page template for live preview (returns HTML string)
-│   │   └── schema_generator.py     ← Generates JSON-LD structured data for each page type
+│   │   ├── schema_generator.py     ← Generates JSON-LD structured data for each page type
+│   │   ├── api_football.py         ← API-Football HTTP client (fixtures, H2H, odds, stats)
+│   │   └── tips_pipeline.py        ← Automated betting tips pipeline (fetch → generate → publish)
 │   ├── templates/                  ← Flask control panel templates (Jinja2)
 │   │   ├── base.html
 │   │   ├── dashboard.html
@@ -296,6 +300,8 @@ affiliate-factory/
 │   ├── evergreen.html
 │   ├── news.html
 │   ├── news_article.html
+│   ├── tips.html                   ← Tips landing page (lists upcoming match tips)
+│   ├── tips_article.html           ← Individual match tip/prediction page
 │   ├── _cta_table.html             ← Reusable CTA table partial ({% include '_cta_table.html' %})
 │   ├── sitemap.xml                 ← Jinja2 template for sitemap generation
 │   ├── robots.txt                  ← Jinja2 template for robots.txt
@@ -305,6 +311,8 @@ affiliate-factory/
 │       ├── js/
 │       │   └── main.js
 │       └── img/
+├── scripts/
+│   └── run_tips.py                 ← Cron entry point for daily tips pipeline
 └── output/                         ← Generated static sites land here
     └── {site_id}_{slug}/
         ├── v1/                     ← Versioned build folders
@@ -317,6 +325,8 @@ affiliate-factory/
         │   │   └── bet365.html
         │   ├── news/
         │   │   └── article-slug.html
+        │   ├── tips/
+        │   │   └── 2026-02-24-arsenal-vs-chelsea.html
         │   ├── how-to-deposit/              ← Parent evergreen page creates a folder
         │   │   └── how-to-deposit-opay.html ← Child evergreen pages nest inside
         │   ├── favicon.svg         ← Auto-generated SVG favicon
@@ -344,6 +354,8 @@ All generated sites follow a consistent URL and navigation structure:
 | Evergreen (child) | `/{parent_slug}/{child_slug}.html` | `/how-to-deposit/how-to-deposit-with-opay.html` |
 | News Landing | `/news.html` | `/news.html` |
 | News Article | `/news/{article_slug}.html` | `/news/new-betting-regulations-2026.html` |
+| Tips Landing | `/tips.html` | `/tips.html` |
+| Tips Article | `/tips/{slug}.html` | `/tips/2026-02-24-arsenal-vs-chelsea.html` |
 
 ### Navigation
 - `base.html` renders a nav bar with links to: Homepage, Comparison Page, all Evergreen pages.
@@ -780,6 +792,86 @@ Flag pages and sites that haven't been updated recently, so stale content doesn'
 
 ---
 
+### Phase 9: Automated Betting Tips Pipeline
+**Goal:** Fully automated daily pipeline that fetches upcoming football fixtures from API-Football, generates AI match tips/predictions, and publishes them as pages under `/tips/`. Runs via daily cron — fully automated after initial config.
+
+#### 9.1 — API-Football Integration
+
+1. **`app/services/api_football.py`** — HTTP client for API-Football (v3, free tier: 100 req/day):
+   - `APIFootballClient` class with per-day rate limiting (`_request_count` ceiling at 100)
+   - `get_fixtures(league_id, season, next_hours=48)` — upcoming matches (status=NS)
+   - `get_h2h(team1_id, team2_id, last=5)` — head-to-head records
+   - `get_odds(fixture_id)` — pre-match odds
+   - `get_team_stats(team_id, league_id, season)` — season stats + form
+   - `build_match_data_package(client, fixture, league_id, season)` — aggregates H2H + odds + stats (3 API calls per match)
+   - Custom exceptions: `APIFootballError`, `RateLimitError`
+   - **Rate math:** Each match = 3 extra API calls (H2H, odds, stats). 20 matches x 3 + ~6 league fixture calls = ~66 of 100 daily quota.
+
+2. **Config:** `API_FOOTBALL_KEY` and `TIPS_MAX_MATCHES_PER_DAY` in `config.py` / `.env`
+
+#### 9.2 — Content Generation
+
+1. **Prompt template `tips`** — short intro for the landing page
+2. **Prompt template `tips-article`** — match preview prompt receiving `{match_data}` JSON. Returns:
+   - `hero_title`, `hero_subtitle`, `match_info` (date, venue, competition, round)
+   - `sections[]` (heading + content — AI match analysis)
+   - `prediction` (result, confidence, reasoning)
+   - `betting_tips[]` (market, selection, odds, reasoning)
+   - `key_stats[]`, `faq[]`, `closing_paragraph`
+
+#### 9.3 — Pipeline Service
+
+**`app/services/tips_pipeline.py`** — `fetch_and_generate_tips(site_id)`:
+1. Load site, parse `tips_leagues` JSON
+2. For each league, fetch fixtures via `client.get_fixtures()` (next 48h)
+3. For each fixture (skip if `fixture_id` already exists on any site page):
+   - `build_match_data_package()` — 3 API calls
+   - Build prompt with match data embedded
+   - Call OpenAI → get content_json
+   - Create SitePage (type: `tips-article`, slug: `{date}-{home}-vs-{away}`, fixture_id set)
+   - Auto-parent to tips landing page
+   - Commit per page (so failures don't lose earlier work)
+4. If any pages created: `build_site()` + `deploy_site()` (if already deployed)
+
+**Key decisions:**
+- Dedup by `fixture_id` — idempotent across multiple cron runs
+- Slug includes date prefix (`2026-02-24-arsenal-vs-chelsea`) to avoid rematch collisions
+- `RateLimitError` breaks loop gracefully — already-created pages are kept
+
+#### 9.4 — Site Templates
+
+- **`tips.html`** — Tips landing page: hero, intro, CTA table, tips listing with competition badge, date, prediction pill (result + confidence), summary, "Read Tip" link
+- **`tips_article.html`** — Individual tip: match info card, AI-generated sections, key stats, prediction card (result + confidence bar + reasoning), betting tips table, FAQ, responsible gambling disclaimer, "Back to Tips" nav
+
+#### 9.5 — Admin UI
+
+"Betting Tips Pipeline" collapsible card on site detail page:
+- Textarea for `tips_leagues` JSON config (with common league ID hints)
+- "Save Config" button → `POST /api/sites/<id>/tips-leagues`
+- "Run Tips Pipeline" button → `POST /api/sites/<id>/run-tips` (background thread)
+- Article count badge
+
+#### 9.6 — Cron Script
+
+**`scripts/run_tips.py`** — standalone entry point:
+- Creates Flask app context
+- Queries all sites where `tips_leagues IS NOT NULL`
+- Runs `fetch_and_generate_tips(site_id)` for each
+- Logs results
+
+Cron entry: `0 6 * * * cd /opt/aff-web-gen && /opt/aff-web-gen/venv/bin/python scripts/run_tips.py >> /var/log/tips-pipeline.log 2>&1`
+
+#### 9.7 — Schema & Model Changes
+
+- `sites.tips_leagues` TEXT nullable — JSON array of league configs
+- `site_pages.fixture_id` INTEGER nullable — API-Football fixture ID for deduplication
+- Page types seeded: `tips` (Tips Landing, `tips.html`) and `tips-article` (Tips Article, `tips_article.html`)
+- Auto-migrated in `_auto_migrate()`
+
+**Test:** On a site detail page, configure tips_leagues JSON and save. Add a "Tips" page. Click "Run Tips Pipeline" — tips-article pages are created. Build site — tips landing shows fixture cards, individual tip pages render. Run `scripts/run_tips.py` — no duplicates (fixture_id dedup). Deploy — `/tips/` and `/tips/{slug}` pages are live.
+
+---
+
 ## Key Design Decisions
 
 ### Site Management Hub
@@ -847,6 +939,10 @@ NGINX_SITES_ENABLED=/etc/nginx/sites-enabled
 
 # Database
 DATABASE_URL=sqlite:///factory.db
+
+# API-Football (tips pipeline)
+API_FOOTBALL_KEY=your-api-football-key
+TIPS_MAX_MATCHES_PER_DAY=20
 ```
 
 ```
@@ -861,6 +957,8 @@ VPS_WEB_ROOT=/var/www/sites
 NGINX_SITES_AVAILABLE=/etc/nginx/sites-available
 NGINX_SITES_ENABLED=/etc/nginx/sites-enabled
 DATABASE_URL=sqlite:///factory.db
+API_FOOTBALL_KEY=your-api-football-key
+TIPS_MAX_MATCHES_PER_DAY=20
 ```
 
 ---
@@ -922,6 +1020,8 @@ uploads/logos/
 | evergreen | Evergreen Content | evergreen.html |
 | news | News Landing | news.html |
 | news-article | News Article | news_article.html |
+| tips | Tips Landing | tips.html |
+| tips-article | Tips Article | tips_article.html |
 
 ---
 

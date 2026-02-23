@@ -15,6 +15,10 @@ class Config:
     OPENAI_API_KEY = os.getenv('OPENAI_API_KEY', '')
     OPENAI_MODEL = os.getenv('OPENAI_MODEL', 'gpt-4o-mini')
 
+    # API-Football (Tips Pipeline)
+    API_FOOTBALL_KEY = os.getenv('API_FOOTBALL_KEY', '')
+    TIPS_MAX_MATCHES_PER_DAY = int(os.getenv('TIPS_MAX_MATCHES_PER_DAY', '20'))
+
     # VPS Deployment
     VPS_HOST = os.getenv('VPS_HOST', '')
     VPS_USER = os.getenv('VPS_USER', 'deploy')

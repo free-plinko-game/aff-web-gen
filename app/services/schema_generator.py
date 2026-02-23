@@ -59,6 +59,11 @@ def generate_schema(page_type_slug, content, page_title, site_name, domain,
             content, page_title, full_url, site_name, date_str,
         ))
 
+    elif page_type_slug == 'tips-article':
+        schemas.append(_article_schema(
+            content, page_title, full_url, site_name, date_str,
+        ))
+
     # Append FAQPage schema if the content has FAQ data
     faq_schema = _faq_schema(content)
     if faq_schema:

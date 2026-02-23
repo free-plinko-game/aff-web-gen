@@ -139,11 +139,45 @@ Return a JSON object with:
 - "closing_paragraph": string (1-2 sentences wrapping up)
 
 Write naturally in {language}. Use {currency} for monetary references. Be factual and engaging.""",
+
+    'tips': """You are writing the intro content for a betting tips landing page on a {vertical_name} site for users in {geo_name}.
+Language: {language}. Currency: {currency}.
+
+This page is a tips hub that will list individual match predictions below. Write only the introductory content.
+
+Return a JSON object with:
+- "hero_title": string (e.g. "Daily Betting Tips & Match Predictions")
+- "hero_subtitle": string (1-2 sentences explaining what readers will find)
+- "intro_paragraph": string (2-3 sentences setting the scene for the tips section)
+
+Write naturally in {language}. Keep it concise — the fixture listings fill the rest of the page.""",
+
+    'tips-article': """You are a sports betting analyst writing a match preview and betting tip for "{evergreen_topic}".
+This is for a {vertical_name} audience in {geo_name}.
+Language: {language}. Currency: {currency}.
+
+{match_data}
+
+Write an engaging match preview with a clear betting prediction. Use the stats and odds data provided to support your analysis.
+
+Return a JSON object with:
+- "hero_title": string (compelling match preview headline, 8-14 words)
+- "hero_subtitle": string (1-2 sentence match summary)
+- "intro_paragraph": string (2-3 sentences setting the scene)
+- "match_info": {{"date": string, "venue": string, "competition": string, "round": string}}
+- "sections": [{{"heading": string, "content": string}}] (3-4 sections: form analysis, H2H, key factors, tactical preview)
+- "prediction": {{"result": string, "confidence": string, "reasoning": string}}
+- "betting_tips": [{{"market": string, "selection": string, "odds": string, "reasoning": string}}] (2-3 specific tips)
+- "key_stats": [string] (4-6 key statistics supporting the prediction)
+- "faq": [{{"question": string, "answer": string}}] (2-4 FAQs)
+- "closing_paragraph": string (1-2 sentences with responsible gambling disclaimer)
+
+Write naturally in {language}. Use {currency} for monetary references. Be analytical and confident but always include responsible gambling messaging.""",
 }
 
 
 def build_prompt(page_type_slug, geo, vertical, brands=None, brand=None,
-                 brand_geo=None, evergreen_topic=None):
+                 brand_geo=None, evergreen_topic=None, match_data=None):
     """Construct the LLM prompt for a given page type and context."""
     template = PROMPT_TEMPLATES.get(page_type_slug, '')
 
@@ -167,6 +201,7 @@ def build_prompt(page_type_slug, geo, vertical, brands=None, brand=None,
         welcome_bonus=brand_geo.welcome_bonus if brand_geo else 'N/A',
         bonus_code=brand_geo.bonus_code if brand_geo else 'N/A',
         evergreen_topic=evergreen_topic or '',
+        match_data=match_data or '',
     )
 
 
@@ -239,7 +274,7 @@ def generate_page_content(site_page, site, api_key, model='gpt-4o-mini'):
     elif page_type_slug in ('brand-review', 'bonus-review'):
         brand = site_page.brand
         brand_geo = next((bg for bg in brand.brand_geos if bg.geo_id == geo.id), None)
-    elif page_type_slug in ('evergreen', 'news-article'):
+    elif page_type_slug in ('evergreen', 'news-article', 'tips-article'):
         evergreen_topic = site_page.evergreen_topic or site_page.title
 
     prompt = build_prompt(
@@ -302,7 +337,7 @@ def generate_page_content_with_notes(site_page, site, api_key, model='gpt-4o-min
     elif page_type_slug in ('brand-review', 'bonus-review'):
         brand = site_page.brand
         brand_geo = next((bg for bg in brand.brand_geos if bg.geo_id == geo.id), None)
-    elif page_type_slug in ('evergreen', 'news-article'):
+    elif page_type_slug in ('evergreen', 'news-article', 'tips-article'):
         evergreen_topic = site_page.evergreen_topic or site_page.title
 
     prompt = build_prompt(
@@ -425,7 +460,7 @@ def generate_site_content_background(app, site_id, api_key, model='gpt-4o-mini',
                 elif pt_slug in ('brand-review', 'bonus-review'):
                     brand = page.brand
                     brand_geo = next((bg for bg in brand.brand_geos if bg.geo_id == geo.id), None)
-                elif pt_slug in ('evergreen', 'news-article'):
+                elif pt_slug in ('evergreen', 'news-article', 'tips-article'):
                     evergreen_topic = page.evergreen_topic or page.title
 
                 prompt = build_prompt(

@@ -69,6 +69,17 @@ def _auto_migrate(db):
             'ALTER TABLE site_pages ADD COLUMN published_date DATETIME'
         ))
 
+    if 'fixture_id' not in site_pages_cols:
+        db.session.execute(sqlalchemy.text(
+            'ALTER TABLE site_pages ADD COLUMN fixture_id INTEGER'
+        ))
+
+    sites_cols = {c['name'] for c in insp.get_columns('sites')}
+    if 'tips_leagues' not in sites_cols:
+        db.session.execute(sqlalchemy.text(
+            'ALTER TABLE sites ADD COLUMN tips_leagues TEXT'
+        ))
+
     db.session.commit()
 
 
@@ -79,6 +90,8 @@ def _seed_page_types(db):
     required = [
         {'slug': 'news', 'name': 'News Landing', 'template_file': 'news.html'},
         {'slug': 'news-article', 'name': 'News Article', 'template_file': 'news_article.html'},
+        {'slug': 'tips', 'name': 'Tips Landing', 'template_file': 'tips.html'},
+        {'slug': 'tips-article', 'name': 'Tips Article', 'template_file': 'tips_article.html'},
     ]
 
     for pt_data in required:

@@ -137,6 +137,7 @@ class Site(db.Model):
     custom_robots_txt = db.Column(db.Text)
     freshness_threshold_days = db.Column(db.Integer, default=30)
     custom_head = db.Column(db.Text)  # Site-wide custom HTML for <head>
+    tips_leagues = db.Column(db.Text, nullable=True)  # JSON array of league configs for tips pipeline
 
     geo = db.relationship('Geo', back_populates='sites')
     vertical = db.relationship('Vertical', back_populates='sites')
@@ -222,6 +223,7 @@ class SitePage(db.Model):
     regeneration_notes = db.Column(db.Text)
     cta_table_id = db.Column(db.Integer, db.ForeignKey('cta_tables.id'), nullable=True)
     published_date = db.Column(db.DateTime, nullable=True)  # For news articles: display date
+    fixture_id = db.Column(db.Integer, nullable=True)  # API-Football fixture ID for tips dedup
 
     # Menu management
     show_in_nav = db.Column(db.Boolean, default=False, nullable=False)

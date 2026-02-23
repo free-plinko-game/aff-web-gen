@@ -241,6 +241,46 @@
     </div>
 </div>
 
+<!-- Betting Tips Pipeline -->
+<div class="card mb-4">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <a class="text-decoration-none text-reset" data-bs-toggle="collapse" href="#tipsCollapse" role="button" aria-expanded="false" aria-controls="tipsCollapse">
+            <strong>Betting Tips Pipeline</strong>
+            {% set tips_count = site.site_pages | selectattr('page_type') | selectattr('page_type.slug', 'equalto', 'tips-article') | list | length %}
+            <span class="badge bg-secondary ms-1">{{ tips_count }} articles</span>
+            <small class="ms-1 text-muted">&#9662;</small>
+        </a>
+        <button type="button" class="btn btn-sm btn-outline-success" id="btnRunTips" onclick="runTipsPipeline()"
+                {% if not site.tips_leagues %}disabled title="Configure leagues first"{% endif %}>
+            Run Tips Pipeline
+        </button>
+    </div>
+    <div class="collapse" id="tipsCollapse">
+        <div class="card-body">
+            <p class="text-muted mb-3">
+                Configure league IDs from <a href="https://www.api-football.com/documentation-v3#tag/Leagues" target="_blank" rel="noopener">API-Football</a>.
+                The pipeline fetches upcoming fixtures (next 48h), generates AI match previews, and publishes them under <code>/tips/</code>.
+            </p>
+
+            <label for="tipsLeagues" class="form-label"><strong>Tips Leagues Config</strong> (JSON array)</label>
+            <textarea id="tipsLeagues" class="form-control font-monospace mb-2" rows="5" placeholder='[{"league_id": 39, "name": "Premier League", "season": 2025}]'
+            >{{ site.tips_leagues or '' }}</textarea>
+            <div class="mb-3">
+                <small class="text-muted">
+                    Common IDs: 39 (Premier League), 140 (La Liga), 135 (Serie A), 78 (Bundesliga), 61 (Ligue 1), 2 (Champions League), 3 (Europa League)
+                </small>
+            </div>
+
+            <div class="d-flex gap-2 align-items-center">
+                <button type="button" class="btn btn-primary btn-sm" onclick="saveTipsLeagues()">Save Config</button>
+                <span id="tipsConfigStatus" class="small"></span>
+            </div>
+
+            <div id="tipsPipelineStatus" class="mt-3 d-none"></div>
+        </div>
+    </div>
+</div>
+
 <!-- Tabs -->
 <ul class="nav nav-tabs mb-3" role="tablist">
     <li class="nav-item">
@@ -688,6 +728,79 @@ function addSelectedNews() {
         btn.disabled = false;
         btn.textContent = 'Add Selected';
         alert('Request failed: ' + err.message);
+    });
+}
+
+/* --- Betting Tips Pipeline --- */
+function saveTipsLeagues() {
+    const raw = document.getElementById('tipsLeagues').value.trim();
+    const status = document.getElementById('tipsConfigStatus');
+    let leagues = null;
+
+    if (raw) {
+        try {
+            leagues = JSON.parse(raw);
+            if (!Array.isArray(leagues)) {
+                status.innerHTML = '<span class="text-danger">Must be a JSON array</span>';
+                return;
+            }
+        } catch (e) {
+            status.innerHTML = '<span class="text-danger">Invalid JSON: ' + e.message + '</span>';
+            return;
+        }
+    }
+
+    status.innerHTML = '<span class="text-muted">Saving...</span>';
+
+    fetch('{{ url_for("api.save_tips_leagues", site_id=site.id) }}', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({leagues: leagues}),
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            status.innerHTML = '<span class="text-success">Saved</span>';
+            // Enable run button if we have leagues
+            document.getElementById('btnRunTips').disabled = !leagues || leagues.length === 0;
+            setTimeout(() => { status.innerHTML = ''; }, 2000);
+        } else {
+            status.innerHTML = '<span class="text-danger">' + (data.error || 'Failed') + '</span>';
+        }
+    })
+    .catch(err => {
+        status.innerHTML = '<span class="text-danger">Error: ' + err.message + '</span>';
+    });
+}
+
+function runTipsPipeline() {
+    const btn = document.getElementById('btnRunTips');
+    const status = document.getElementById('tipsPipelineStatus');
+
+    btn.disabled = true;
+    btn.textContent = 'Running...';
+    status.classList.remove('d-none');
+    status.innerHTML = '<div class="alert alert-info"><div class="spinner-border spinner-border-sm me-2"></div>Tips pipeline running in background. New articles will appear when finished.</div>';
+
+    fetch('{{ url_for("api.run_tips_pipeline", site_id=site.id) }}', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            status.innerHTML = '<div class="alert alert-success">Pipeline started! New tip articles will appear shortly. Refresh the page in a minute to see results.</div>';
+            setTimeout(() => window.location.reload(), 30000);
+        } else {
+            status.innerHTML = '<div class="alert alert-danger">' + (data.error || 'Failed to start pipeline') + '</div>';
+            btn.disabled = false;
+            btn.textContent = 'Run Tips Pipeline';
+        }
+    })
+    .catch(err => {
+        status.innerHTML = '<div class="alert alert-danger">Request failed: ' + err.message + '</div>';
+        btn.disabled = false;
+        btn.textContent = 'Run Tips Pipeline';
     });
 }
 

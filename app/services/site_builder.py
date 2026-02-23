@@ -90,6 +90,10 @@ def _page_url_for_link(page):
         return '/news'
     elif pt_slug == 'news-article':
         return f'/news/{page.slug}'
+    elif pt_slug == 'tips':
+        return '/tips'
+    elif pt_slug == 'tips-article':
+        return f'/tips/{page.slug}'
     return f'/{page.slug}'
 
 
@@ -268,6 +272,10 @@ def _build_sitemap_pages(site_pages, domain):
             url = 'news'
         elif pt_slug == 'news-article':
             url = f'news/{page.slug}'
+        elif pt_slug == 'tips':
+            url = 'tips'
+        elif pt_slug == 'tips-article':
+            url = f'tips/{page.slug}'
         elif pt_slug == 'evergreen':
             if page.nav_parent_id and page.nav_parent:
                 url = f'{page.nav_parent.slug}/{page.slug}'
@@ -493,6 +501,39 @@ def build_site(site, output_base_dir, upload_folder):
             output_file = os.path.join(news_dir, f'{page.slug}.html')
             ctx['subdirectory'] = True
             ctx['published_date'] = page.published_date.strftime('%d %b %Y') if page.published_date else ''
+        elif pt_slug == 'tips':
+            output_file = os.path.join(version_dir, 'tips.html')
+            tips_articles = []
+            for p in pages:
+                if p.page_type.slug == 'tips-article' and p.content_json:
+                    p_content = json.loads(p.content_json) if p.content_json else {}
+                    pub_date = p.published_date.strftime('%d %b %Y') if p.published_date else ''
+                    match_info = p_content.get('match_info', {})
+                    prediction = p_content.get('prediction', {})
+                    tips_articles.append({
+                        'slug': p.slug,
+                        'title': p.title,
+                        'published_date': pub_date,
+                        'summary': p_content.get('hero_subtitle', ''),
+                        'competition': match_info.get('competition', ''),
+                        'match_date': match_info.get('date', pub_date),
+                        'prediction_result': prediction.get('result', ''),
+                        'prediction_confidence': prediction.get('confidence', ''),
+                    })
+            tips_articles.sort(
+                key=lambda a: a['match_date'] or a['published_date'],
+                reverse=True,
+            )
+            ctx['tips_articles'] = tips_articles
+        elif pt_slug == 'tips-article':
+            tips_dir = os.path.join(version_dir, 'tips')
+            os.makedirs(tips_dir, exist_ok=True)
+            output_file = os.path.join(tips_dir, f'{page.slug}.html')
+            ctx['subdirectory'] = True
+            ctx['published_date'] = page.published_date.strftime('%d %b %Y') if page.published_date else ''
+            ctx['prediction'] = content.get('prediction', {})
+            ctx['betting_tips'] = content.get('betting_tips', [])
+            ctx['match_info'] = content.get('match_info', {})
         elif pt_slug == 'evergreen':
             if page.nav_parent_id and page.nav_parent:
                 parent_dir = os.path.join(version_dir, page.nav_parent.slug)

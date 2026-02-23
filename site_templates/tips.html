@@ -1,0 +1,178 @@
+{% extends "base.html" %}
+
+{% block body_content %}
+<!-- HERO -->
+<section class="hero">
+    <div class="hero-inner">
+        <div class="hero-badge">&#9917; Betting Tips</div>
+        <h1>{{ content.hero_title }}</h1>
+        <p class="hero-sub">{{ content.hero_subtitle }}</p>
+        <div class="hero-stats">
+            {% if tips_articles %}
+            <div class="hero-stat">
+                <div class="hero-stat-number">{{ tips_articles | length }}</div>
+                <div class="hero-stat-label">Tips</div>
+            </div>
+            {% endif %}
+            <div class="hero-stat">
+                <div class="hero-stat-number">{{ year }}</div>
+                <div class="hero-stat-label">Updated</div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- MAIN -->
+<main class="main">
+
+    <!-- LEFT: CONTENT -->
+    <div class="content-area">
+
+        {% if content.intro_paragraph %}
+        <div class="content-block">
+            <p>{{ content.intro_paragraph }}</p>
+        </div>
+        {% endif %}
+
+        <!-- CTA TABLE -->
+        {% include '_cta_table.html' %}
+
+        <!-- Tips Listing -->
+        {% if tips_articles %}
+        <div class="section-header">
+            <h2>Latest Betting Tips</h2>
+        </div>
+
+        {% for article in tips_articles %}
+        <div class="comp-card" style="cursor:pointer;" onclick="window.location='/tips/{{ article.slug }}'">
+            <div class="comp-card-header" style="flex-wrap:wrap;">
+                <div class="comp-card-brand" style="flex:1; min-width:0;">
+                    <div>
+                        <h3 style="margin:0;"><a href="/tips/{{ article.slug }}" style="text-decoration:none; color:inherit;">{{ article.title }}</a></h3>
+                        <div style="display:flex; flex-wrap:wrap; gap:0.5rem; align-items:center; margin-top:0.4rem;">
+                            {% if article.competition %}
+                            <span style="display:inline-flex; align-items:center; gap:4px; font-size:0.78rem; color:var(--gray-500); background:var(--gray-50); padding:2px 8px; border-radius:var(--radius-sm);">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:12px;height:12px;"><path d="M6 9H4.5a2.5 2.5 0 010-5H6m12 5h1.5a2.5 2.5 0 000-5H18M4 22h16M10 14.66V18m4-3.34V18M8 22V18m8 0v4M12 2v7"/></svg>
+                                {{ article.competition }}
+                            </span>
+                            {% endif %}
+                            {% if article.match_date %}
+                            <span style="font-size:0.78rem; color:var(--gray-500);">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:12px;height:12px;vertical-align:-1px;margin-right:2px;"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+                                {{ article.match_date }}
+                            </span>
+                            {% endif %}
+                            {% if article.prediction_result %}
+                            <span style="display:inline-flex; align-items:center; gap:4px; font-size:0.75rem; font-weight:600; padding:2px 10px; border-radius:var(--radius-sm);
+                                {% if article.prediction_confidence == 'High' %}background:rgba(16,185,129,0.1); color:var(--green);
+                                {% elif article.prediction_confidence == 'Medium' %}background:rgba(245,158,11,0.1); color:var(--amber);
+                                {% else %}background:var(--gray-50); color:var(--gray-600);{% endif %}">
+                                {{ article.prediction_result }}
+                                {% if article.prediction_confidence %}
+                                <span style="opacity:0.7;">({{ article.prediction_confidence }})</span>
+                                {% endif %}
+                            </span>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                <div class="comp-card-cta" style="flex-shrink:0;">
+                    <a href="/tips/{{ article.slug }}" class="cta-button" style="white-space:nowrap;">
+                        Read Tip
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+                    </a>
+                </div>
+            </div>
+            {% if article.summary %}
+            <div class="comp-card-body">
+                <div class="comp-card-verdict">{{ article.summary }}</div>
+            </div>
+            {% endif %}
+        </div>
+        {% endfor %}
+
+        {% else %}
+        <div class="content-block">
+            <p style="color:var(--gray-500);">No upcoming tips &mdash; check back soon!</p>
+        </div>
+        {% endif %}
+
+    </div>
+
+    <!-- SIDEBAR -->
+    <aside class="sidebar">
+
+        <!-- Top Picks -->
+        <div class="sidebar-card">
+            <div class="sidebar-card-header">
+                <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+                <h3>Top Picks</h3>
+            </div>
+            {% for brand in site_brands[:5] %}
+            <a href="/reviews/{{ brand.slug }}" class="sidebar-brand-item">
+                <div class="sidebar-brand-logo">
+                    {% if brand.logo_filename %}
+                    <img src="assets/logos/{{ brand.logo_filename }}" alt="{{ brand.name }}" style="max-width:36px;max-height:24px;object-fit:contain;">
+                    {% else %}
+                    <span>{{ brand.name[:8] }}</span>
+                    {% endif %}
+                </div>
+                <div class="sidebar-brand-info">
+                    <div class="sidebar-brand-name">{{ brand.name }}</div>
+                    {% if brand.rating %}
+                    <div class="sidebar-brand-rating">
+                        {% set full = brand.rating | round | int %}
+                        <span>{{ '\u2605' * full }}{{ '\u2606' * (5 - full) }}</span>
+                    </div>
+                    {% endif %}
+                </div>
+                {% if brand.rating %}
+                <div class="sidebar-brand-score">{{ brand.rating }}</div>
+                {% endif %}
+            </a>
+            {% endfor %}
+        </div>
+
+        <!-- Quick Links / Cluster Links -->
+        <div class="sidebar-card">
+            <div class="sidebar-card-header">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+                <h3>{{ 'Related Articles' if cluster_links else 'Quick Links' }}</h3>
+            </div>
+            <div class="quick-links">
+                {% if cluster_links %}
+                {% for link in cluster_links %}
+                <a href="{{ link.url }}" class="quick-link">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
+                    {{ link.label }}
+                </a>
+                {% endfor %}
+                {% else %}
+                {% for link in nav_links %}
+                <a href="{{ link.url }}" class="quick-link">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
+                    {{ link.label }}
+                </a>
+                {% endfor %}
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Responsible Gambling -->
+        <div class="sidebar-card">
+            <div class="sidebar-card-header" style="background: var(--gray-700);">
+                <svg viewBox="0 0 24 24" fill="none" stroke="var(--amber)" stroke-width="2"><path d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                <h3>Gamble Responsibly</h3>
+            </div>
+            <div style="padding: 1rem 1.1rem;">
+                <p style="font-size:0.82rem; color:var(--gray-600); line-height:1.7; margin-bottom:0.75rem;">If you feel you may have a gambling problem, help is available. Please gamble responsibly.</p>
+                <a href="https://www.gambleaware.org" target="_blank" rel="noopener" style="display:block; text-align:center; font-size:0.82rem; font-weight:600; color:var(--teal); text-decoration:none; padding:0.6rem; background:var(--gray-50); border-radius:var(--radius-sm);">
+                    GambleAware.org &rarr;
+                </a>
+            </div>
+        </div>
+
+    </aside>
+
+</main>
+{% endblock body_content %}

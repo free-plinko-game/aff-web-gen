@@ -316,6 +316,47 @@ def suggest_news(site_id):
     return jsonify({'suggestions': suggestions})
 
 
+@bp.route('/sites/<int:site_id>/tips-leagues', methods=['POST'])
+def save_tips_leagues(site_id):
+    """Save or clear tips league configuration for a site."""
+    site = db.session.get(Site, site_id)
+    if not site:
+        return jsonify({'error': 'Site not found'}), 404
+
+    data = request.get_json(silent=True) or {}
+    leagues = data.get('leagues')
+
+    if leagues is not None:
+        # Validate JSON structure
+        if not isinstance(leagues, list):
+            return jsonify({'error': 'leagues must be a JSON array'}), 400
+        for item in leagues:
+            if not isinstance(item, dict) or 'league_id' not in item:
+                return jsonify({'error': 'Each league must have a league_id'}), 400
+        site.tips_leagues = json.dumps(leagues)
+    else:
+        site.tips_leagues = None
+
+    db.session.commit()
+    return jsonify({'success': True})
+
+
+@bp.route('/sites/<int:site_id>/run-tips', methods=['POST'])
+def run_tips_pipeline(site_id):
+    """Manually trigger the tips pipeline for a site (background thread)."""
+    site = db.session.get(Site, site_id)
+    if not site:
+        return jsonify({'error': 'Site not found'}), 404
+
+    if not site.tips_leagues:
+        return jsonify({'error': 'No tips leagues configured for this site'}), 400
+
+    from ..services.tips_pipeline import run_tips_pipeline_background
+    run_tips_pipeline_background(current_app._get_current_object(), site.id)
+
+    return jsonify({'success': True, 'message': 'Tips pipeline started in background'})
+
+
 @bp.route('/sites/<int:site_id>/save-menu-order', methods=['POST'])
 def save_menu_order(site_id):
     """Save nav item ordering from drag-and-drop."""
