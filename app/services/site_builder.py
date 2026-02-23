@@ -400,6 +400,9 @@ def build_site(site, output_base_dir, upload_folder):
                 merged['feature_badges'] = ai.get('feature_badges', [])
                 enriched.append(merged)
             ctx['site_brands'] = enriched
+            # Update brand_lookup so CTA table rows also get enriched data
+            brand_lookup = _build_brand_lookup(enriched)
+            ctx['brand_lookup'] = brand_lookup
         elif pt_slug == 'comparison':
             output_file = os.path.join(version_dir, f'{page.slug}.html')
             # Merge AI-generated feature_badges into brand_lookup for comparison cards

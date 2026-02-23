@@ -111,6 +111,9 @@ def render_page_preview(site_page, site, asset_url_prefix=''):
             merged['feature_badges'] = ai.get('feature_badges', [])
             enriched.append(merged)
         ctx['site_brands'] = enriched
+        # Update brand_lookup so CTA table rows also get enriched data
+        brand_lookup = _build_brand_lookup(enriched)
+        ctx['brand_lookup'] = brand_lookup
     elif pt_slug == 'comparison':
         comp_rows = content.get('comparison_rows', [])
         for row in comp_rows:
