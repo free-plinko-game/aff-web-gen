@@ -10,6 +10,7 @@ from datetime import datetime
 from .site_builder import (
     _get_jinja_env, _build_nav_links, _build_footer_links,
     _build_brand_info_list, _build_brand_lookup, _build_cta_table_data,
+    _page_url_for_link,
 )
 from .schema_generator import generate_schema
 
@@ -48,6 +49,29 @@ def render_page_preview(site_page, site, asset_url_prefix=''):
     if site_page.cta_table_id and site_page.cta_table:
         cta_table_data = _build_cta_table_data(site_page.cta_table, brand_info_list, geo)
 
+    # Build cluster sidebar links
+    cluster_map = {}
+    for p in pages:
+        if p.nav_parent_id is not None:
+            cluster_map.setdefault(p.nav_parent_id, []).append(p)
+
+    cluster_links = []
+    parent_id = site_page.nav_parent_id or (site_page.id if site_page.id in cluster_map else None)
+    if parent_id is not None:
+        siblings = cluster_map.get(parent_id, [])
+        parent_page = next((p for p in pages if p.id == parent_id), None)
+        if parent_page and parent_page.id != site_page.id:
+            cluster_links.append({
+                'url': _page_url_for_link(parent_page),
+                'label': parent_page.nav_label or parent_page.title,
+            })
+        for sib in sorted(siblings, key=lambda s: (s.nav_order, s.id)):
+            if sib.id != site_page.id:
+                cluster_links.append({
+                    'url': _page_url_for_link(sib),
+                    'label': sib.nav_label or sib.title,
+                })
+
     ctx = {
         'site_name': site.name,
         'language': geo.language,
@@ -63,6 +87,7 @@ def render_page_preview(site_page, site, asset_url_prefix=''):
         'meta_description': site_page.meta_description or '',
         'subdirectory': False,  # Preview is always served from root-level URL
         'cta_table': cta_table_data,
+        'cluster_links': cluster_links,
         'schema_json_ld': '',  # Skip schema in preview
         'custom_head': (site.custom_head or '') + '\n' + (site_page.custom_head or ''),
     }

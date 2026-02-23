@@ -285,13 +285,21 @@
             {% endfor %}
         </div>
 
-        <!-- Quick Links -->
+        <!-- Quick Links / Cluster Links -->
         <div class="sidebar-card">
             <div class="sidebar-card-header">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
-                <h3>Quick Links</h3>
+                <h3>{{ 'Related Articles' if cluster_links else 'Quick Links' }}</h3>
             </div>
             <div class="quick-links">
+                {% if cluster_links %}
+                {% for link in cluster_links %}
+                <a href="{{ link.url }}" class="quick-link">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
+                    {{ link.label }}
+                </a>
+                {% endfor %}
+                {% else %}
                 {% for link in nav_links %}
                 {% if link.type != 'comparison' %}
                 <a href="{{ link.url }}" class="quick-link">
@@ -306,6 +314,7 @@
                     {{ brand.name }} Bonus
                 </a>
                 {% endfor %}
+                {% endif %}
             </div>
         </div>
 

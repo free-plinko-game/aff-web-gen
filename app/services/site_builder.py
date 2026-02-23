@@ -270,6 +270,12 @@ def build_site(site, output_base_dir, upload_folder):
     brand_lookup = _build_brand_lookup(brand_info_list)
     domain = site.domain.domain if site.domain else 'example.com'
 
+    # Build cluster map: parent_id -> [child pages] for sidebar quick links
+    cluster_map = {}
+    for p in pages:
+        if p.nav_parent_id is not None:
+            cluster_map.setdefault(p.nav_parent_id, []).append(p)
+
     common_ctx = {
         'site_name': site.name,
         'language': geo.language,
@@ -292,6 +298,26 @@ def build_site(site, output_base_dir, upload_folder):
         if page.cta_table_id and page.cta_table:
             cta_table_data = _build_cta_table_data(page.cta_table, brand_info_list, geo)
 
+        # Build cluster sidebar links: if page has a parent, show siblings;
+        # if page IS a parent, show its children.
+        cluster_links = []
+        parent_id = page.nav_parent_id or (page.id if page.id in cluster_map else None)
+        if parent_id is not None:
+            siblings = cluster_map.get(parent_id, [])
+            # Include the parent page itself as the first link
+            parent_page = next((p for p in pages if p.id == parent_id), None)
+            if parent_page and parent_page.id != page.id:
+                cluster_links.append({
+                    'url': _page_url_for_link(parent_page),
+                    'label': parent_page.nav_label or parent_page.title,
+                })
+            for sib in sorted(siblings, key=lambda s: (s.nav_order, s.id)):
+                if sib.id != page.id:
+                    cluster_links.append({
+                        'url': _page_url_for_link(sib),
+                        'label': sib.nav_label or sib.title,
+                    })
+
         ctx = {
             **common_ctx,
             'content': content,
@@ -300,6 +326,7 @@ def build_site(site, output_base_dir, upload_folder):
             'meta_description': page.meta_description or '',
             'subdirectory': False,
             'cta_table': cta_table_data,
+            'cluster_links': cluster_links,
             'custom_head': (site.custom_head or '') + '\n' + (page.custom_head or ''),
         }
 
