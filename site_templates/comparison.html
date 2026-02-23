@@ -96,7 +96,10 @@
                         {% endif %}
                         {% if bi and bi.feature_badges %}
                         <div class="feature-badges">
-                            {% for badge in bi.feature_badges[:3] %}<span class="feature-badge">{{ badge }}</span>{% endfor %}
+                            {% set badges = bi.feature_badges if bi.feature_badges is iterable and bi.feature_badges is not string else bi.feature_badges.split(',') %}
+                            {% for badge in badges[:3] %}
+                            <span class="feature-badge">{{ badge.strip() }}</span>
+                            {% endfor %}
                         </div>
                         {% endif %}
                     </div>
@@ -105,15 +108,13 @@
                     {% if row.bonus_text %}
                     <div class="bonus-offer">{{ row.bonus_text }}</div>
                     {% endif %}
-                    {% if bi and bi.bonus_code %}
+                    {% if bi and bi.bonus_code and bi.bonus_code != 'None' %}
                     <div class="bonus-code-box">
                         <span class="bonus-code-value">{{ bi.bonus_code }}</span>
                         <button class="bonus-code-copy" data-code="{{ bi.bonus_code }}" title="Copy code">
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
                         </button>
                     </div>
-                    {% else %}
-                    <span class="bonus-no-code">No code needed</span>
                     {% endif %}
                     {% if bi %}
                     <a href="{{ bi.affiliate_link }}" class="cta-button" target="_blank" rel="nofollow noopener">
@@ -184,7 +185,10 @@
                         {% endif %}
                         {% if bi and bi.feature_badges %}
                         <div class="feature-badges">
-                            {% for badge in bi.feature_badges[:3] %}<span class="feature-badge">{{ badge }}</span>{% endfor %}
+                            {% set badges = bi.feature_badges if bi.feature_badges is iterable and bi.feature_badges is not string else bi.feature_badges.split(',') %}
+                            {% for badge in badges[:3] %}
+                            <span class="feature-badge">{{ badge.strip() }}</span>
+                            {% endfor %}
                         </div>
                         {% endif %}
                     </div>
@@ -195,15 +199,13 @@
                     {% elif row.bonus %}
                     <div class="bonus-offer">{{ row.bonus }}</div>
                     {% endif %}
-                    {% if bi and bi.bonus_code %}
+                    {% if bi and bi.bonus_code and bi.bonus_code != 'None' %}
                     <div class="bonus-code-box">
                         <span class="bonus-code-value">{{ bi.bonus_code }}</span>
                         <button class="bonus-code-copy" data-code="{{ bi.bonus_code }}" title="Copy code">
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
                         </button>
                     </div>
-                    {% else %}
-                    <span class="bonus-no-code">No code needed</span>
                     {% endif %}
                     {% if bi %}
                     <a href="{{ bi.affiliate_link }}" class="cta-button" target="_blank" rel="nofollow noopener">
