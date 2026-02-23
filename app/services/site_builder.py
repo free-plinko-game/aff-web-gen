@@ -120,13 +120,13 @@ def _build_nav_links(site_pages):
     """Build navigation links from site pages, supporting one level of dropdowns.
 
     Returns a list of link dicts. Top-level items with children include a
-    'children' key. The Home link is always first and never has children.
+    'children' key.
 
     show_in_nav is the single source of truth for nav visibility.
     Top-level: show_in_nav=True and no parent.
     Children: show_in_nav=True and nav_parent_id set.
     """
-    links = [{'url': '/', 'label': 'Home', 'type': 'homepage'}]
+    links = []
 
     top_level_pages = [p for p in site_pages if p.show_in_nav and p.nav_parent_id is None]
     child_pages = [p for p in site_pages if p.show_in_nav and p.nav_parent_id is not None]
