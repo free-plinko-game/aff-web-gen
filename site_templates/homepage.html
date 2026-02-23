@@ -125,15 +125,6 @@
                     {% if row.badge %}
                     <div style="margin-top:0.5rem;"><span class="rank-badge rank-2" style="position:static;border-radius:100px;font-size:0.68rem;">{{ row.badge }}</span></div>
                     {% endif %}
-                    {% set fb = bi.feature_badges if bi and bi.feature_badges else b.feature_badges if b.feature_badges is defined and b.feature_badges else none %}
-                    {% if fb %}
-                    <div class="feature-badges">
-                        {% set badges = fb if fb is iterable and fb is not string else fb.split(',') %}
-                        {% for badge in badges[:3] %}
-                        <span class="feature-badge">{{ badge.strip() }}</span>
-                        {% endfor %}
-                    </div>
-                    {% endif %}
                 </div>
                 <div class="brand-cta">
                     <div class="bonus-label">{{ row.brand.name }} Bonus</div>
@@ -228,14 +219,6 @@
                             {{ brand.short_description }}
                         </li>
                     </ul>
-                    {% endif %}
-                    {% if brand.feature_badges %}
-                    <div class="feature-badges">
-                        {% set badges = brand.feature_badges if brand.feature_badges is iterable and brand.feature_badges is not string else brand.feature_badges.split(',') %}
-                        {% for badge in badges[:3] %}
-                        <span class="feature-badge">{{ badge.strip() }}</span>
-                        {% endfor %}
-                    </div>
                     {% endif %}
                 </div>
                 <div class="brand-cta">

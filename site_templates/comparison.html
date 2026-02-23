@@ -95,15 +95,6 @@
                             <a href="/reviews/{{ row.brand.slug }}" class="brand-rating-score">{{ row.brand.rating }}/5 &middot; Our Review</a>
                         </div>
                         {% endif %}
-                        {% set fb = bi.feature_badges if bi and bi.feature_badges else b.feature_badges if b.feature_badges is defined and b.feature_badges else none %}
-                        {% if fb %}
-                        <div class="feature-badges">
-                            {% set badges = fb if fb is iterable and fb is not string else fb.split(',') %}
-                            {% for badge in badges[:3] %}
-                            <span class="feature-badge">{{ badge.strip() }}</span>
-                            {% endfor %}
-                        </div>
-                        {% endif %}
                     </div>
                 </div>
                 <div class="comp-card-cta">
@@ -185,14 +176,6 @@
                                 {% endfor %}
                             </div>
                             <a href="/reviews/{{ row.slug or row.brand | lower }}" class="brand-rating-score">{{ row.rating }}/5 &middot; Our Review</a>
-                        </div>
-                        {% endif %}
-                        {% if bi and bi.feature_badges %}
-                        <div class="feature-badges">
-                            {% set badges = bi.feature_badges if bi.feature_badges is iterable and bi.feature_badges is not string else bi.feature_badges.split(',') %}
-                            {% for badge in badges[:3] %}
-                            <span class="feature-badge">{{ badge.strip() }}</span>
-                            {% endfor %}
                         </div>
                         {% endif %}
                     </div>
