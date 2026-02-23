@@ -236,7 +236,7 @@
     </div>
 </div>
 
-<!-- Tabs for Pages / Robots.txt -->
+<!-- Tabs -->
 <ul class="nav nav-tabs mb-3" role="tablist">
     <li class="nav-item">
         <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tab-sitemap" type="button">
@@ -245,8 +245,13 @@
         </button>
     </li>
     <li class="nav-item">
+        <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-menu-order" type="button">
+            Menu Order
+        </button>
+    </li>
+    <li class="nav-item">
         <a class="nav-link" href="{{ url_for('sites.menu', site_id=site.id) }}">
-            Menu
+            Menu Config
         </a>
     </li>
     <li class="nav-item">
@@ -341,6 +346,44 @@
         </table>
     </div>
 
+    <!-- Menu Order Tab -->
+    <div class="tab-pane fade" id="tab-menu-order">
+        {% set nav_pages = site.site_pages | selectattr('show_in_nav') | list | sort(attribute='nav_order') %}
+        {% set top_pages = nav_pages | rejectattr('nav_parent_id') | list %}
+        {% if top_pages %}
+        <p class="text-muted mb-3">Drag to reorder nav items. Children are shown indented under their parent. Changes save instantly.</p>
+        <div id="menuOrderList">
+            {% for page in top_pages %}
+            {% if page.page_type.slug != 'homepage' %}
+            <div class="menu-order-row d-flex align-items-center border rounded mb-2 p-2"
+                 data-page-id="{{ page.id }}">
+                <span class="drag-handle me-2 text-muted" style="cursor:grab; font-size:1.2rem;">&#9776;</span>
+                <strong class="me-2">{{ page.nav_label or page.title }}</strong>
+                <span class="badge bg-secondary">{{ page.page_type.name }}</span>
+            </div>
+            {% set children = nav_pages | selectattr('nav_parent_id', 'equalto', page.id) | list | sort(attribute='nav_order') %}
+            {% if children %}
+            <div class="menu-order-children ms-4 mb-2" id="children-{{ page.id }}">
+                {% for child in children %}
+                <div class="menu-order-row d-flex align-items-center border rounded mb-1 p-2 bg-light"
+                     data-page-id="{{ child.id }}">
+                    <span class="drag-handle me-2 text-muted" style="cursor:grab; font-size:1.2rem;">&#9776;</span>
+                    <span class="text-muted me-1">&#8627;</span>
+                    {{ child.nav_label or child.title }}
+                    <span class="badge bg-secondary ms-2">{{ child.page_type.name }}</span>
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+            {% endif %}
+            {% endfor %}
+        </div>
+        <div id="menuOrderStatus" class="mt-2"></div>
+        {% else %}
+        <p class="text-muted">No pages are set to show in the nav bar. Go to <a href="{{ url_for('sites.menu', site_id=site.id) }}">Menu Config</a> to enable pages in the nav.</p>
+        {% endif %}
+    </div>
+
     <!-- Robots.txt Tab (7.4) -->
     <div class="tab-pane fade" id="tab-robots">
         <form id="robotsForm">
@@ -366,6 +409,11 @@
 {% endblock %}
 
 {% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.6/Sortable.min.js"></script>
+<style>
+.sortable-ghost { opacity: 0.4; background: #e9ecef !important; }
+.drag-handle:hover { color: #333 !important; }
+</style>
 {% if site.status == 'generating' %}
 <script>
 (function pollProgress() {
@@ -422,6 +470,70 @@ function resetRobotsTxt() {
         } else {
             alert('Failed to reset: ' + (data.error || 'Unknown error'));
         }
+    });
+}
+
+/* --- Menu Order (drag-and-drop) --- */
+function initMenuOrder() {
+    var list = document.getElementById('menuOrderList');
+    if (!list) return;
+
+    // Make top-level sortable
+    new Sortable(list, {
+        handle: '.drag-handle',
+        animation: 150,
+        ghostClass: 'sortable-ghost',
+        draggable: '.menu-order-row',
+        onEnd: saveMenuOrder,
+    });
+
+    // Make each children group sortable
+    document.querySelectorAll('.menu-order-children').forEach(function(el) {
+        new Sortable(el, {
+            handle: '.drag-handle',
+            animation: 150,
+            ghostClass: 'sortable-ghost',
+            draggable: '.menu-order-row',
+            onEnd: saveMenuOrder,
+        });
+    });
+}
+
+function saveMenuOrder() {
+    var order = [];
+    var position = 0;
+
+    // Walk the top-level list: for each top-level row, then its children container
+    var list = document.getElementById('menuOrderList');
+    if (!list) return;
+
+    list.querySelectorAll(':scope > .menu-order-row, :scope > .menu-order-children > .menu-order-row').forEach(function(row) {
+        order.push({
+            page_id: parseInt(row.dataset.pageId),
+            nav_order: position * 10,
+        });
+        position++;
+    });
+
+    var status = document.getElementById('menuOrderStatus');
+    status.innerHTML = '<small class="text-muted">Saving...</small>';
+
+    fetch('{{ url_for("api.save_menu_order", site_id=site.id) }}', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({order: order}),
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (data.success) {
+            status.innerHTML = '<small class="text-success">Saved</small>';
+        } else {
+            status.innerHTML = '<small class="text-danger">Error: ' + (data.error || 'Unknown') + '</small>';
+        }
+        setTimeout(function() { status.innerHTML = ''; }, 2000);
+    })
+    .catch(function(err) {
+        status.innerHTML = '<small class="text-danger">Failed: ' + err.message + '</small>';
     });
 }
 
@@ -553,5 +665,10 @@ function addSelectedNews() {
         alert('Request failed: ' + err.message);
     });
 }
+
+// Init drag-and-drop when tab is shown (SortableJS needs visible elements)
+document.querySelector('[data-bs-target="#tab-menu-order"]')?.addEventListener('shown.bs.tab', function() {
+    initMenuOrder();
+});
 </script>
 {% endblock %}

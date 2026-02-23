@@ -11,130 +11,77 @@
 </nav>
 
 <h1>Menu Settings</h1>
-<p class="text-muted">Drag rows to reorder. Use "Parent" to nest pages in a dropdown sub-menu. The "Home" link is always first in the nav. Changes take effect on the next build.</p>
+<p class="text-muted">Choose which pages appear in the nav bar and footer. Use "Parent" to nest pages in a dropdown sub-menu. Reorder nav items from the <strong>Menu Order</strong> tab on the site dashboard. Changes take effect on the next build.</p>
 
-<form method="POST" id="menuForm">
-    <!-- Header row -->
-    <div class="d-flex align-items-center fw-bold small text-muted border-bottom pb-2 mb-2">
-        <div style="width:36px;"></div>
-        <div class="flex-fill">Page</div>
-        <div style="width:100px;" class="px-1">Type</div>
-        <div style="width:150px;" class="px-1">Parent</div>
-        <div style="width:150px;" class="px-1">Nav Label</div>
-        <div style="width:60px;" class="px-1 text-center">Nav</div>
-        <div style="width:60px;" class="px-1 text-center">Footer</div>
-    </div>
-
-    <!-- Sortable list -->
-    <div id="menuList">
-        {% for page in pages %}
-        <div class="menu-row d-flex align-items-center border rounded mb-2 p-2{{ ' bg-light' if page.nav_parent_id }}"
-             data-page-id="{{ page.id }}">
-
-            <!-- Drag handle -->
-            <div class="drag-handle me-2 text-muted" style="cursor:grab; font-size:1.2rem; width:24px; text-align:center;"
-                 title="Drag to reorder">&#9776;</div>
-
-            <!-- Page title -->
-            <div class="flex-fill">
-                {% if page.nav_parent_id %}
-                <span class="text-muted me-1">&ensp;&ensp;&#8627;</span>
-                {% endif %}
-                {{ page.title }}
-                {% if page.page_type.slug == 'homepage' %}
-                <small class="text-muted ms-1">(always in nav)</small>
-                {% endif %}
-            </div>
-
-            <!-- Type badge -->
-            <div style="width:100px;" class="px-1">
-                <span class="badge bg-secondary">{{ page.page_type.name }}</span>
-            </div>
-
-            <!-- Parent dropdown -->
-            <div style="width:150px;" class="px-1">
-                {% if page.page_type.slug == 'homepage' %}
-                <select class="form-select form-select-sm" disabled>
-                    <option>&mdash;</option>
-                </select>
-                {% else %}
-                <select name="page_{{ page.id }}_nav_parent_id" class="form-select form-select-sm">
-                    <option value="">&mdash; None &mdash;</option>
-                    {% for other in pages %}
-                    {% if other.id != page.id and other.page_type.slug != 'homepage' and other.nav_parent_id is none %}
-                    <option value="{{ other.id }}" {{ 'selected' if page.nav_parent_id == other.id }}>
-                        {{ other.nav_label or other.title }}
-                    </option>
+<form method="POST">
+    <table class="table table-sm align-middle">
+        <thead>
+            <tr>
+                <th>Page</th>
+                <th>Type</th>
+                <th style="width: 160px;">Parent</th>
+                <th style="width: 160px;">Nav Label</th>
+                <th class="text-center" style="width: 80px;">Nav</th>
+                <th class="text-center" style="width: 80px;">Footer</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for page in pages %}
+            <tr>
+                <td>
+                    {{ page.title }}
+                    {% if page.page_type.slug == 'homepage' %}
+                    <small class="text-muted ms-1">(Home link always shown in nav)</small>
                     {% endif %}
-                    {% endfor %}
-                </select>
-                {% endif %}
-            </div>
-
-            <!-- Nav label -->
-            <div style="width:150px;" class="px-1">
-                <input type="text" name="page_{{ page.id }}_nav_label"
-                       class="form-control form-control-sm"
-                       placeholder="{{ page.title }}"
-                       value="{{ page.nav_label or '' }}">
-            </div>
-
-            <!-- Show in nav -->
-            <div style="width:60px;" class="px-1 text-center">
-                {% if page.page_type.slug == 'homepage' %}
-                <input type="checkbox" class="form-check-input" disabled
-                       title="Home link is always shown in nav">
-                {% else %}
-                <input type="checkbox" name="page_{{ page.id }}_show_in_nav"
-                       class="form-check-input"
-                       {{ 'checked' if page.show_in_nav }}>
-                {% endif %}
-            </div>
-
-            <!-- Show in footer -->
-            <div style="width:60px;" class="px-1 text-center">
-                <input type="checkbox" name="page_{{ page.id }}_show_in_footer"
-                       class="form-check-input"
-                       {{ 'checked' if page.show_in_footer }}>
-            </div>
-
-            <!-- Hidden nav_order (populated by JS on submit) -->
-            <input type="hidden" name="page_{{ page.id }}_nav_order" value="{{ page.nav_order }}">
-        </div>
-        {% endfor %}
-    </div>
+                </td>
+                <td><span class="badge bg-secondary">{{ page.page_type.name }}</span></td>
+                <td>
+                    {% if page.page_type.slug == 'homepage' %}
+                    <select class="form-select form-select-sm" disabled>
+                        <option>&mdash;</option>
+                    </select>
+                    {% else %}
+                    <select name="page_{{ page.id }}_nav_parent_id" class="form-select form-select-sm">
+                        <option value="">&mdash; None &mdash;</option>
+                        {% for other in pages %}
+                        {% if other.id != page.id and other.page_type.slug != 'homepage' and other.nav_parent_id is none %}
+                        <option value="{{ other.id }}" {{ 'selected' if page.nav_parent_id == other.id }}>
+                            {{ other.nav_label or other.title }}
+                        </option>
+                        {% endif %}
+                        {% endfor %}
+                    </select>
+                    {% endif %}
+                </td>
+                <td>
+                    <input type="text" name="page_{{ page.id }}_nav_label"
+                           class="form-control form-control-sm"
+                           placeholder="{{ page.title }}"
+                           value="{{ page.nav_label or '' }}">
+                </td>
+                <td class="text-center">
+                    {% if page.page_type.slug == 'homepage' %}
+                    <input type="checkbox" class="form-check-input" disabled
+                           title="Home link is always shown in nav">
+                    {% else %}
+                    <input type="checkbox" name="page_{{ page.id }}_show_in_nav"
+                           class="form-check-input"
+                           {{ 'checked' if page.show_in_nav }}>
+                    {% endif %}
+                </td>
+                <td class="text-center">
+                    <input type="checkbox" name="page_{{ page.id }}_show_in_footer"
+                           class="form-check-input"
+                           {{ 'checked' if page.show_in_footer }}>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
 
     <div class="mb-4">
         <button type="submit" class="btn btn-primary">Save Menu Settings</button>
         <a href="{{ url_for('sites.detail', site_id=site.id) }}" class="btn btn-outline-secondary ms-2">Cancel</a>
     </div>
 </form>
-{% endblock %}
-
-{% block scripts %}
-<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.6/Sortable.min.js"></script>
-<script>
-new Sortable(document.getElementById('menuList'), {
-    handle: '.drag-handle',
-    animation: 150,
-    ghostClass: 'sortable-ghost',
-});
-
-// Before form submit, compute nav_order from row positions
-document.getElementById('menuForm').addEventListener('submit', function() {
-    document.querySelectorAll('#menuList .menu-row').forEach(function(row, i) {
-        var hidden = row.querySelector('input[name$="_nav_order"]');
-        if (hidden) hidden.value = i * 10;
-    });
-});
-</script>
-<style>
-.sortable-ghost {
-    opacity: 0.4;
-    background: #e9ecef !important;
-}
-.drag-handle:hover {
-    color: #333 !important;
-}
-</style>
 {% endblock %}

@@ -1083,7 +1083,6 @@ def menu(site_id):
             prefix = f'page_{page.id}_'
             page.show_in_nav = request.form.get(f'{prefix}show_in_nav') == 'on'
             page.show_in_footer = request.form.get(f'{prefix}show_in_footer') == 'on'
-            page.nav_order = request.form.get(f'{prefix}nav_order', type=int) or 0
             nav_label = request.form.get(f'{prefix}nav_label', '').strip()
             page.nav_label = nav_label if nav_label else None
             raw_parent = request.form.get(f'{prefix}nav_parent_id', '')

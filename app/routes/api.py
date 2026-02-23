@@ -290,3 +290,33 @@ def suggest_news(site_id):
         return jsonify({'error': f'AI suggestion failed: {e}'}), 500
 
     return jsonify({'suggestions': suggestions})
+
+
+@bp.route('/sites/<int:site_id>/save-menu-order', methods=['POST'])
+def save_menu_order(site_id):
+    """Save nav item ordering from drag-and-drop."""
+    from datetime import datetime, timezone
+
+    site = db.session.get(Site, site_id)
+    if not site:
+        return jsonify({'error': 'Site not found'}), 404
+
+    data = request.get_json()
+    if not data or 'order' not in data:
+        return jsonify({'error': 'No order data'}), 400
+
+    page_lookup = {p.id: p for p in site.site_pages}
+
+    for item in data['order']:
+        page_id = item.get('page_id')
+        nav_order = item.get('nav_order', 0)
+        page = page_lookup.get(page_id)
+        if page:
+            page.nav_order = nav_order
+
+    now = datetime.now(timezone.utc)
+    for page in site.site_pages:
+        page.menu_updated_at = now
+
+    db.session.commit()
+    return jsonify({'success': True})
