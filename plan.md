@@ -171,8 +171,10 @@ A Flask-based control panel for generating and deploying static affiliate websit
 | show_in_footer | BOOLEAN | Default False — whether this page appears in the footer |
 | nav_order | INTEGER | Default 0 — sort order for navigation menus |
 | nav_label | TEXT | Nullable — custom nav/footer label. If null, uses page title |
-| nav_parent_id | INTEGER FK | Nullable → site_pages.id — for dropdown sub-menus (max one level deep) |
+| nav_parent_id | INTEGER FK | Nullable → site_pages.id — for dropdown sub-menus (max one level deep). Also controls URL nesting for evergreen pages: child pages build to `/{parent.slug}/{child.slug}` |
 | menu_updated_at | DATETIME | Nullable — timestamp of last menu settings change (used for rebuild awareness) |
+| published_date | DATETIME | Nullable — used for news articles (display and sort order) |
+| cta_table_id | INTEGER FK | Nullable → cta_tables.id — assigns a reusable CTA table to this page (survives LLM regeneration) |
 | **UNIQUE (partial indexes)** | | **Brand pages:** `(site_id, page_type_id, brand_id)` WHERE `brand_id IS NOT NULL` |
 | | | **Evergreen pages:** `(site_id, page_type_id, evergreen_topic)` WHERE `evergreen_topic IS NOT NULL` |
 | | | **Global pages:** `(site_id, page_type_id)` WHERE `brand_id IS NULL AND evergreen_topic IS NULL` |
@@ -253,7 +255,7 @@ affiliate-factory/
 │   │   ├── brands.py               ← CRUD for brands (including logo upload)
 │   │   ├── domains.py              ← CRUD for domains
 │   │   ├── sites.py                ← Site config, generation, deployment
-│   │   └── api.py                  ← AJAX endpoints (generation progress, page CRUD, robots.txt save)
+│   │   └── api.py                  ← AJAX endpoints (generation progress, page preview, robots.txt, site rename, menu order)
 │   ├── services/
 │   │   ├── __init__.py
 │   │   ├── content_generator.py    ← OpenAI API integration (runs in background thread)
@@ -292,6 +294,8 @@ affiliate-factory/
 │   ├── brand_review.html
 │   ├── bonus_review.html
 │   ├── evergreen.html
+│   ├── news.html
+│   ├── news_article.html
 │   ├── _cta_table.html             ← Reusable CTA table partial ({% include '_cta_table.html' %})
 │   ├── sitemap.xml                 ← Jinja2 template for sitemap generation
 │   ├── robots.txt                  ← Jinja2 template for robots.txt
@@ -309,6 +313,13 @@ affiliate-factory/
         │   ├── reviews/
         │   │   ├── bet365.html
         │   │   └── ...
+        │   ├── bonuses/
+        │   │   └── bet365.html
+        │   ├── news/
+        │   │   └── article-slug.html
+        │   ├── how-to-deposit/              ← Parent evergreen page creates a folder
+        │   │   └── how-to-deposit-opay.html ← Child evergreen pages nest inside
+        │   ├── favicon.svg         ← Auto-generated SVG favicon
         │   ├── sitemap.xml
         │   ├── robots.txt
         │   └── assets/
@@ -330,6 +341,9 @@ All generated sites follow a consistent URL and navigation structure:
 | Brand Review | `/reviews/{brand_slug}.html` | `/reviews/bet365.html` |
 | Bonus Review | `/bonuses/{brand_slug}.html` | `/bonuses/bet365.html` |
 | Evergreen | `/{evergreen_slug}.html` | `/how-to-bet-on-football.html` |
+| Evergreen (child) | `/{parent_slug}/{child_slug}.html` | `/how-to-deposit/how-to-deposit-with-opay.html` |
+| News Landing | `/news.html` | `/news.html` |
+| News Article | `/news/{article_slug}.html` | `/news/new-betting-regulations-2026.html` |
 
 ### Navigation
 - `base.html` renders a nav bar with links to: Homepage, Comparison Page, all Evergreen pages.
@@ -906,6 +920,8 @@ uploads/logos/
 | brand-review | Brand Review | brand_review.html |
 | bonus-review | Brand Bonus Review | bonus_review.html |
 | evergreen | Evergreen Content | evergreen.html |
+| news | News Landing | news.html |
+| news-article | News Article | news_article.html |
 
 ---
 
