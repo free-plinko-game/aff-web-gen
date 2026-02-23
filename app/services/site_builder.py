@@ -261,7 +261,11 @@ def _build_sitemap_pages(site_pages, domain):
 
 
 def _build_cta_table_data(cta_table, brand_info_list, geo):
-    """Build CTA table data dict for template rendering."""
+    """Build CTA table data dict for template rendering.
+
+    Includes full brand info so cards render correctly even when
+    CTA table brands aren't in the site's SiteBrand list.
+    """
     brand_map = {b['slug']: b for b in brand_info_list}
     rows = []
     for row in cta_table.rows:
@@ -277,7 +281,13 @@ def _build_cta_table_data(cta_table, brand_info_list, geo):
                 'slug': brand.slug,
                 'logo_filename': brand.logo_filename,
                 'rating': brand.rating,
-                'affiliate_link': brand_info.get('affiliate_link', brand.affiliate_link or '#'),
+                'affiliate_link': brand_info.get('affiliate_link') or (bg.affiliate_link if bg else None) or brand.affiliate_link or '#',
+                'bonus_code': brand_info.get('bonus_code') or (bg.bonus_code if bg else None),
+                'payment_methods': brand_info.get('payment_methods') or (bg.payment_methods if bg else None),
+                'license_info': brand_info.get('license_info') or (bg.license_info if bg else None),
+                'has_ios_app': brand.has_ios_app,
+                'has_android_app': brand.has_android_app,
+                'withdrawal_timeframe': brand_info.get('withdrawal_timeframe') or (bg.withdrawal_timeframe if bg else None),
             },
             'bonus_text': row.custom_bonus_text or (bg.welcome_bonus if bg else ''),
             'cta_text': row.custom_cta_text or 'Visit Site',
@@ -401,16 +411,18 @@ def build_site(site, output_base_dir, upload_folder):
                 enriched.append(merged)
             ctx['site_brands'] = enriched
             # Update brand_lookup so CTA table rows also get enriched data
-            brand_lookup = _build_brand_lookup(enriched)
-            ctx['brand_lookup'] = brand_lookup
+            enriched_lookup = _build_brand_lookup(enriched)
+            ctx['brand_lookup'] = enriched_lookup
         elif pt_slug == 'comparison':
             output_file = os.path.join(version_dir, f'{page.slug}.html')
             # Merge AI-generated feature_badges into brand_lookup for comparison cards
             comp_rows = content.get('comparison_rows', [])
+            comp_lookup = _build_brand_lookup(brand_info_list)
             for row in comp_rows:
                 slug = row.get('slug', '')
-                if slug and slug in brand_lookup:
-                    brand_lookup[slug]['feature_badges'] = row.get('feature_badges', [])
+                if slug and slug in comp_lookup:
+                    comp_lookup[slug]['feature_badges'] = row.get('feature_badges', [])
+            ctx['brand_lookup'] = comp_lookup
         elif pt_slug == 'brand-review':
             reviews_dir = os.path.join(version_dir, 'reviews')
             os.makedirs(reviews_dir, exist_ok=True)

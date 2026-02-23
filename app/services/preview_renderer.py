@@ -112,14 +112,16 @@ def render_page_preview(site_page, site, asset_url_prefix=''):
             enriched.append(merged)
         ctx['site_brands'] = enriched
         # Update brand_lookup so CTA table rows also get enriched data
-        brand_lookup = _build_brand_lookup(enriched)
-        ctx['brand_lookup'] = brand_lookup
+        enriched_lookup = _build_brand_lookup(enriched)
+        ctx['brand_lookup'] = enriched_lookup
     elif pt_slug == 'comparison':
         comp_rows = content.get('comparison_rows', [])
+        comp_lookup = _build_brand_lookup(brand_info_list)
         for row in comp_rows:
             slug = row.get('slug', '')
-            if slug and slug in brand_lookup:
-                brand_lookup[slug]['feature_badges'] = row.get('feature_badges', [])
+            if slug and slug in comp_lookup:
+                comp_lookup[slug]['feature_badges'] = row.get('feature_badges', [])
+        ctx['brand_lookup'] = comp_lookup
     elif pt_slug == 'brand-review':
         brand_info = brand_lookup.get(site_page.slug) or brand_lookup.get(
             site_page.brand.slug if site_page.brand else '')

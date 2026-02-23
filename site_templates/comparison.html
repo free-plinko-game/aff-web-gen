@@ -64,6 +64,7 @@
         {% for row in cta_table.rows %}
         {% if row.is_visible %}
         {% set bi = brand_lookup.get(row.brand.slug) %}
+        {% set b = bi if bi else row.brand %}
         <div class="comp-card">
             <div class="comp-card-header">
                 <div class="comp-card-rank">
@@ -94,9 +95,10 @@
                             <a href="/reviews/{{ row.brand.slug }}" class="brand-rating-score">{{ row.brand.rating }}/5 &middot; Our Review</a>
                         </div>
                         {% endif %}
-                        {% if bi and bi.feature_badges %}
+                        {% set fb = bi.feature_badges if bi and bi.feature_badges else b.feature_badges if b.feature_badges is defined and b.feature_badges else none %}
+                        {% if fb %}
                         <div class="feature-badges">
-                            {% set badges = bi.feature_badges if bi.feature_badges is iterable and bi.feature_badges is not string else bi.feature_badges.split(',') %}
+                            {% set badges = fb if fb is iterable and fb is not string else fb.split(',') %}
                             {% for badge in badges[:3] %}
                             <span class="feature-badge">{{ badge.strip() }}</span>
                             {% endfor %}
@@ -108,26 +110,27 @@
                     {% if row.bonus_text %}
                     <div class="bonus-offer">{{ row.bonus_text }}</div>
                     {% endif %}
-                    {% if bi and bi.bonus_code and bi.bonus_code != 'None' %}
+                    {% set code = bi.bonus_code if bi and bi.bonus_code else b.bonus_code if b.bonus_code is defined else none %}
+                    {% if code and code != 'None' %}
                     <div class="bonus-code-box">
-                        <span class="bonus-code-value">{{ bi.bonus_code }}</span>
-                        <button class="bonus-code-copy" data-code="{{ bi.bonus_code }}" title="Copy code">
+                        <span class="bonus-code-value">{{ code }}</span>
+                        <button class="bonus-code-copy" data-code="{{ code }}" title="Copy code">
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
                         </button>
                     </div>
                     {% endif %}
-                    {% if bi %}
-                    <a href="{{ bi.affiliate_link }}" class="cta-button" target="_blank" rel="nofollow noopener">
+                    {% set link = bi.affiliate_link if bi and bi.affiliate_link else b.affiliate_link if b.affiliate_link is defined else '#' %}
+                    <a href="{{ link or '#' }}" class="cta-button" target="_blank" rel="nofollow noopener">
                         {{ row.cta_text }}
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
                     </a>
-                    {% endif %}
-                    {% if bi and bi.payment_methods %}
+                    {% set pm = bi.payment_methods if bi and bi.payment_methods else b.payment_methods if b.payment_methods is defined else none %}
+                    {% if pm %}
                     <div class="payment-icons">
-                        {% for pm in bi.payment_methods.split(',')[:6] %}
-                        {% set pm_slug = pm.strip().lower().replace(' ', '-') %}
+                        {% for pmi in pm.split(',')[:6] %}
+                        {% set pm_slug = pmi.strip().lower().replace(' ', '-') %}
                         {% if pm_slug in payment_icon_map %}
-                        <span class="payment-icon" title="{{ pm.strip() }}">{{ payment_icon_map[pm_slug] }}</span>
+                        <span class="payment-icon" title="{{ pmi.strip() }}">{{ payment_icon_map[pm_slug] }}</span>
                         {% endif %}
                         {% endfor %}
                     </div>
@@ -143,8 +146,9 @@
             {% endif %}
             <div class="brand-card-tcs">
                 <span class="tcs-text">18+. T&amp;Cs apply. New customers only. Please gamble responsibly.</span>
-                {% if bi and bi.license_info %}
-                <span class="tcs-licence">Licensed: {{ bi.license_info }}</span>
+                {% set lic = bi.license_info if bi and bi.license_info else b.license_info if b.license_info is defined else none %}
+                {% if lic %}
+                <span class="tcs-licence">Licensed: {{ lic }}</span>
                 {% endif %}
             </div>
         </div>
