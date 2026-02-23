@@ -10,7 +10,7 @@ from datetime import datetime
 from .site_builder import (
     _get_jinja_env, _build_nav_links, _build_footer_links,
     _build_brand_info_list, _build_brand_lookup, _build_cta_table_data,
-    _page_url_for_link,
+    _page_url_for_link, PAYMENT_ICON_MAP,
 )
 from .schema_generator import generate_schema
 
@@ -90,6 +90,7 @@ def render_page_preview(site_page, site, asset_url_prefix=''):
         'cluster_links': cluster_links,
         'schema_json_ld': '',  # Skip schema in preview
         'custom_head': (site.custom_head or '') + '\n' + (site_page.custom_head or ''),
+        'payment_icon_map': PAYMENT_ICON_MAP,
     }
 
     # Add page-type-specific context (same as site_builder.py)

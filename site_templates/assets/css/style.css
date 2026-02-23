@@ -538,6 +538,70 @@ body {
     line-height: 1.5;
     max-width: 85%;
 }
+.tcs-licence {
+    font-size: 0.72rem;
+    color: var(--gray-400);
+    white-space: nowrap;
+}
+
+/* Payment method icons */
+.payment-icons {
+    display: flex;
+    gap: 0.35rem;
+    justify-content: center;
+    flex-wrap: wrap;
+    margin-top: 0.25rem;
+}
+.payment-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+.payment-icon svg {
+    width: 28px;
+    height: 18px;
+    opacity: 0.6;
+    transition: opacity 0.2s;
+}
+.payment-icon:hover svg {
+    opacity: 0.9;
+}
+
+/* "No code needed" */
+.bonus-no-code {
+    display: block;
+    text-align: center;
+    font-size: 0.78rem;
+    color: var(--gray-400);
+    font-style: italic;
+}
+
+/* Feature badges */
+.feature-badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    margin-top: 0.5rem;
+}
+.feature-badge {
+    font-size: 0.7rem;
+    font-weight: 600;
+    padding: 0.2rem 0.6rem;
+    background: var(--gray-100);
+    color: var(--gray-600);
+    border-radius: 100px;
+    white-space: nowrap;
+}
+
+/* Rating link style */
+.brand-rating-score {
+    text-decoration: none;
+    color: var(--gray-600);
+    transition: color 0.2s;
+}
+a.brand-rating-score:hover {
+    color: var(--teal);
+}
 
 /* ===== Sidebar ===== */
 .sidebar {

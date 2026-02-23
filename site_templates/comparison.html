@@ -91,7 +91,13 @@
                                 <svg viewBox="0 0 24 24" fill="currentColor"{% if i >= full_stars %} style="opacity:0.3"{% endif %}><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
                                 {% endfor %}
                             </div>
-                            <span class="brand-rating-score">{{ row.brand.rating }}/5</span>
+                            <a href="/reviews/{{ row.brand.slug }}" class="brand-rating-score">{{ row.brand.rating }}/5 &middot; Our Review</a>
+                        </div>
+                        {% endif %}
+                        {% if bi %}
+                        <div class="feature-badges">
+                            {% if bi.has_ios_app or bi.has_android_app %}<span class="feature-badge">Mobile App</span>{% endif %}
+                            {% if bi.withdrawal_timeframe %}<span class="feature-badge">{{ bi.withdrawal_timeframe }}</span>{% endif %}
                         </div>
                         {% endif %}
                     </div>
@@ -107,12 +113,24 @@
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
                         </button>
                     </div>
+                    {% else %}
+                    <span class="bonus-no-code">No code needed</span>
                     {% endif %}
                     {% if bi %}
                     <a href="{{ bi.affiliate_link }}" class="cta-button" target="_blank" rel="nofollow noopener">
                         {{ row.cta_text }}
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
                     </a>
+                    {% endif %}
+                    {% if bi and bi.payment_methods %}
+                    <div class="payment-icons">
+                        {% for pm in bi.payment_methods.split(',')[:6] %}
+                        {% set pm_slug = pm.strip().lower().replace(' ', '-') %}
+                        {% if pm_slug in payment_icon_map %}
+                        <span class="payment-icon" title="{{ pm.strip() }}">{{ payment_icon_map[pm_slug] }}</span>
+                        {% endif %}
+                        {% endfor %}
+                    </div>
                     {% endif %}
                 </div>
             </div>
@@ -125,6 +143,9 @@
             {% endif %}
             <div class="brand-card-tcs">
                 <span class="tcs-text">18+. T&amp;Cs apply. New customers only. Please gamble responsibly.</span>
+                {% if bi and bi.license_info %}
+                <span class="tcs-licence">Licensed: {{ bi.license_info }}</span>
+                {% endif %}
             </div>
         </div>
         {% endif %}
@@ -159,7 +180,13 @@
                                 <svg viewBox="0 0 24 24" fill="currentColor"{% if i >= full_stars %} style="opacity:0.3"{% endif %}><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
                                 {% endfor %}
                             </div>
-                            <span class="brand-rating-score">{{ row.rating }}/5</span>
+                            <a href="/reviews/{{ row.slug or row.brand | lower }}" class="brand-rating-score">{{ row.rating }}/5 &middot; Our Review</a>
+                        </div>
+                        {% endif %}
+                        {% if bi %}
+                        <div class="feature-badges">
+                            {% if bi.has_ios_app or bi.has_android_app %}<span class="feature-badge">Mobile App</span>{% endif %}
+                            {% if bi.withdrawal_timeframe %}<span class="feature-badge">{{ bi.withdrawal_timeframe }}</span>{% endif %}
                         </div>
                         {% endif %}
                     </div>
@@ -177,12 +204,24 @@
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
                         </button>
                     </div>
+                    {% else %}
+                    <span class="bonus-no-code">No code needed</span>
                     {% endif %}
                     {% if bi %}
                     <a href="{{ bi.affiliate_link }}" class="cta-button" target="_blank" rel="nofollow noopener">
                         Visit Site
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
                     </a>
+                    {% endif %}
+                    {% if bi and bi.payment_methods %}
+                    <div class="payment-icons">
+                        {% for pm in bi.payment_methods.split(',')[:6] %}
+                        {% set pm_slug = pm.strip().lower().replace(' ', '-') %}
+                        {% if pm_slug in payment_icon_map %}
+                        <span class="payment-icon" title="{{ pm.strip() }}">{{ payment_icon_map[pm_slug] }}</span>
+                        {% endif %}
+                        {% endfor %}
+                    </div>
                     {% endif %}
                 </div>
             </div>
@@ -219,6 +258,9 @@
             </div>
             <div class="brand-card-tcs">
                 <span class="tcs-text">18+. T&amp;Cs apply. New customers only. Please gamble responsibly.</span>
+                {% if bi and bi.license_info %}
+                <span class="tcs-licence">Licensed: {{ bi.license_info }}</span>
+                {% endif %}
             </div>
         </div>
         {% endfor %}
