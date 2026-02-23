@@ -105,8 +105,15 @@ def _needs_rebuild(site):
         return True
 
     # Check if any page was generated after the last build
-    return any(
+    if any(
         p.generated_at and p.generated_at > site.built_at
+        for p in site.site_pages
+    ):
+        return True
+
+    # Check if any menu settings changed after the last build
+    return any(
+        p.menu_updated_at and p.menu_updated_at > site.built_at
         for p in site.site_pages
     )
 
@@ -989,6 +996,11 @@ def menu(site_id):
                         or parent_map.get(pid) is not None):
                     pid = None  # Invalid: missing, self-ref, or multi-level
             page.nav_parent_id = pid
+
+        # Mark all pages as menu-updated so rebuild warning triggers
+        now = datetime.now(timezone.utc)
+        for page in site.site_pages:
+            page.menu_updated_at = now
 
         db.session.commit()
         flash('Menu settings saved.', 'success')

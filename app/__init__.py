@@ -23,9 +23,22 @@ def create_app(test_config=None):
 
     with app.app_context():
         db.create_all()
+        _auto_migrate(db)
 
     # Register blueprints
     from .routes import register_blueprints
     register_blueprints(app)
 
     return app
+
+
+def _auto_migrate(db):
+    """Add columns that db.create_all() won't add to existing tables."""
+    import sqlalchemy
+    insp = sqlalchemy.inspect(db.engine)
+    cols = {c['name'] for c in insp.get_columns('site_pages')}
+    if 'menu_updated_at' not in cols:
+        db.session.execute(sqlalchemy.text(
+            'ALTER TABLE site_pages ADD COLUMN menu_updated_at DATETIME'
+        ))
+        db.session.commit()

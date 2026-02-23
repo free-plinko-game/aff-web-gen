@@ -227,6 +227,7 @@ class SitePage(db.Model):
     nav_order = db.Column(db.Integer, default=0, nullable=False)
     nav_label = db.Column(db.Text, nullable=True)  # NULL = use page title
     nav_parent_id = db.Column(db.Integer, db.ForeignKey('site_pages.id', ondelete='SET NULL'), nullable=True)
+    menu_updated_at = db.Column(db.DateTime, nullable=True)
 
     site = db.relationship('Site', back_populates='site_pages')
     page_type = db.relationship('PageType', back_populates='site_pages')

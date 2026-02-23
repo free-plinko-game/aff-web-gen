@@ -38,13 +38,11 @@
     {% if site.status == 'generating' %}
     <button class="btn btn-info" disabled>Generating...</button>
     {% endif %}
-    {% if site.status in ('generated', 'built') %}
     <form method="POST" action="{{ url_for('sites.build', site_id=site.id) }}" class="d-inline">
         <button type="submit" class="btn btn-success">
-            {{ 'Rebuild Site' if site.status == 'built' else 'Build Site' }}
+            {{ 'Rebuild Site' if site.built_at else 'Build Site' }}
         </button>
     </form>
-    {% endif %}
     {% if site.status in ('built', 'deployed') and site.domain %}
     <form method="POST" action="{{ url_for('sites.deploy', site_id=site.id) }}" class="d-inline">
         <button type="submit" class="btn btn-warning">
