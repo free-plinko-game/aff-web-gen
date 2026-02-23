@@ -66,6 +66,21 @@ def generation_status(site_id):
     })
 
 
+@bp.route('/sites/<int:site_id>/rename', methods=['POST'])
+def rename_site(site_id):
+    """Rename a site."""
+    site = db.session.get(Site, site_id)
+    if not site:
+        return jsonify({'error': 'Site not found'}), 404
+    data = request.get_json(silent=True) or {}
+    name = (data.get('name') or '').strip()
+    if not name:
+        return jsonify({'error': 'Name is required'}), 400
+    site.name = name
+    db.session.commit()
+    return jsonify({'success': True})
+
+
 @bp.route('/sites/<int:site_id>/robots-txt', methods=['POST'])
 def save_robots_txt(site_id):
     """Save or reset custom robots.txt for a site."""

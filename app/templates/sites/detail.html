@@ -4,7 +4,12 @@
 
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-4">
-    <h1>{{ site.name }}</h1>
+    <h1 id="siteName" style="cursor:pointer" title="Click to rename" onclick="document.getElementById('siteNameForm').classList.remove('d-none');this.classList.add('d-none')">{{ site.name }}</h1>
+    <form id="siteNameForm" class="d-none d-flex align-items-center gap-2" onsubmit="return renameSite(event)">
+        <input type="text" class="form-control form-control-lg" id="siteNameInput" value="{{ site.name }}" style="max-width:400px">
+        <button type="submit" class="btn btn-primary btn-sm">Save</button>
+        <button type="button" class="btn btn-outline-secondary btn-sm" onclick="document.getElementById('siteNameForm').classList.add('d-none');document.getElementById('siteName').classList.remove('d-none')">Cancel</button>
+    </form>
     {% set status_colors = {'draft': 'secondary', 'generating': 'info', 'generated': 'primary', 'building': 'info', 'built': 'primary', 'deploying': 'warning', 'deployed': 'success', 'failed': 'danger'} %}
     <span class="badge bg-{{ status_colors.get(site.status, 'secondary') }} fs-6" id="siteStatus">{{ site.status }}</span>
 </div>
@@ -471,6 +476,26 @@ function resetRobotsTxt() {
             alert('Failed to reset: ' + (data.error || 'Unknown error'));
         }
     });
+}
+
+function renameSite(e) {
+    e.preventDefault();
+    const name = document.getElementById('siteNameInput').value.trim();
+    if (!name) return false;
+    fetch('{{ url_for("api.rename_site", site_id=site.id) }}', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({name: name})
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            window.location.reload();
+        } else {
+            alert('Failed to rename: ' + (data.error || 'Unknown error'));
+        }
+    });
+    return false;
 }
 
 /* --- Menu Order (drag-and-drop) --- */
