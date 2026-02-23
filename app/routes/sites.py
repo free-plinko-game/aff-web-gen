@@ -122,16 +122,16 @@ def _page_url(page):
     """Return the site-relative URL for a page."""
     slug = page.page_type.slug
     if slug == 'homepage':
-        return '/index.html'
+        return '/'
     elif slug == 'comparison':
-        return '/comparison.html'
+        return '/comparison'
     elif slug == 'brand-review':
-        return f'/reviews/{page.slug}.html'
+        return f'/reviews/{page.slug}'
     elif slug == 'bonus-review':
-        return f'/bonuses/{page.slug}.html'
+        return f'/bonuses/{page.slug}'
     elif slug == 'evergreen':
-        return f'/{page.slug}.html'
-    return f'/{page.slug}.html'
+        return f'/{page.slug}'
+    return f'/{page.slug}'
 
 
 @bp.route('/<int:site_id>')

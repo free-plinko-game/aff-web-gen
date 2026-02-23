@@ -24,12 +24,26 @@ def create_app(test_config=None):
     with app.app_context():
         db.create_all()
         _auto_migrate(db)
+        _reset_stuck_generating(db)
 
     # Register blueprints
     from .routes import register_blueprints
     register_blueprints(app)
 
     return app
+
+
+def _reset_stuck_generating(db):
+    """Reset any sites stuck in 'generating' status from a previous crash."""
+    import logging
+    from .models import Site
+    stuck = Site.query.filter_by(status='generating').all()
+    if stuck:
+        logger = logging.getLogger(__name__)
+        for s in stuck:
+            logger.warning('Resetting stuck site %d (%s) from generating to failed', s.id, s.name)
+            s.status = 'failed'
+        db.session.commit()
 
 
 def _auto_migrate(db):

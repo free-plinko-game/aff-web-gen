@@ -30,19 +30,19 @@ def _get_jinja_env():
 
 
 def _page_url_for_link(page):
-    """Return the URL string for a page, used in nav/footer links."""
+    """Return the absolute URL string for a page, used in nav/footer links."""
     pt_slug = page.page_type.slug
     if pt_slug == 'homepage':
-        return 'index.html'
+        return '/'
     elif pt_slug == 'comparison':
-        return 'comparison.html'
+        return '/comparison'
     elif pt_slug == 'brand-review':
-        return f'reviews/{page.slug}.html'
+        return f'/reviews/{page.slug}'
     elif pt_slug == 'bonus-review':
-        return f'bonuses/{page.slug}.html'
+        return f'/bonuses/{page.slug}'
     elif pt_slug == 'evergreen':
-        return f'{page.slug}.html'
-    return f'{page.slug}.html'
+        return f'/{page.slug}'
+    return f'/{page.slug}'
 
 
 def _build_nav_links(site_pages):
@@ -54,7 +54,7 @@ def _build_nav_links(site_pages):
     show_in_nav controls top-level visibility. Pages with nav_parent_id set
     appear in their parent's dropdown automatically (no show_in_nav needed).
     """
-    links = [{'url': 'index.html', 'label': 'Home'}]
+    links = [{'url': '/', 'label': 'Home'}]
 
     top_level_pages = [p for p in site_pages if p.show_in_nav and p.nav_parent_id is None]
     child_pages = [p for p in site_pages if p.nav_parent_id is not None]
@@ -83,11 +83,11 @@ def _build_nav_links(site_pages):
         # Legacy fallback for unconfigured sites
         comparison = [p for p in site_pages if p.page_type.slug == 'comparison']
         if comparison:
-            links.append({'url': 'comparison.html', 'label': 'Compare'})
+            links.append({'url': '/comparison', 'label': 'Compare'})
 
         evergreen = [p for p in site_pages if p.page_type.slug == 'evergreen']
         for p in evergreen:
-            links.append({'url': f'{p.slug}.html', 'label': p.title})
+            links.append({'url': f'/{p.slug}', 'label': p.title})
 
     return links
 
@@ -190,15 +190,15 @@ def _build_sitemap_pages(site_pages, domain):
     for page in site_pages:
         pt_slug = page.page_type.slug
         if pt_slug == 'homepage':
-            url = 'index.html'
+            url = ''
         elif pt_slug == 'comparison':
-            url = 'comparison.html'
+            url = 'comparison'
         elif pt_slug == 'brand-review':
-            url = f'reviews/{page.slug}.html'
+            url = f'reviews/{page.slug}'
         elif pt_slug == 'bonus-review':
-            url = f'bonuses/{page.slug}.html'
+            url = f'bonuses/{page.slug}'
         elif pt_slug == 'evergreen':
-            url = f'{page.slug}.html'
+            url = f'{page.slug}'
         else:
             continue
 

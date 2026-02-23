@@ -26,7 +26,7 @@
 
 <nav class="navbar">
     <div class="navbar-inner">
-        <a href="{{ prefix }}index.html" class="nav-logo">
+        <a href="/" class="nav-logo">
             <span class="logo-icon">&#9889;</span>
             {{ site_name }}
         </a>
@@ -37,15 +37,15 @@
             {% for link in nav_links %}
             {% if link.children is defined and link.children %}
             <li class="nav-dropdown">
-                <a href="{{ prefix }}{{ link.url }}">{{ link.label }} <span class="nav-arrow">&#9662;</span></a>
+                <a href="{{ link.url }}">{{ link.label }} <span class="nav-arrow">&#9662;</span></a>
                 <ul class="nav-dropdown-menu">
                     {% for child in link.children %}
-                    <li><a href="{{ prefix }}{{ child.url }}">{{ child.label }}</a></li>
+                    <li><a href="{{ child.url }}">{{ child.label }}</a></li>
                     {% endfor %}
                 </ul>
             </li>
             {% else %}
-            <li><a href="{{ prefix }}{{ link.url }}">{{ link.label }}</a></li>
+            <li><a href="{{ link.url }}">{{ link.label }}</a></li>
             {% endif %}
             {% endfor %}
         </ul>
@@ -69,52 +69,52 @@
             <div class="footer-col">
                 <h4>{{ vertical_name }}</h4>
                 {% for link in footer_links.brand_reviews[:6] %}
-                <a href="{{ prefix }}{{ link.url }}">{{ link.label }}</a>
+                <a href="{{ link.url }}">{{ link.label }}</a>
                 {% endfor %}
                 {% for link in footer_links.guides %}
-                {% if link.url == 'comparison.html' %}
-                <a href="{{ prefix }}{{ link.url }}">Compare All</a>
+                {% if link.url == '/comparison' %}
+                <a href="{{ link.url }}">Compare All</a>
                 {% endif %}
                 {% endfor %}
             </div>
             <div class="footer-col">
                 <h4>Guides</h4>
                 {% for link in footer_links.guides %}
-                {% if link.url != 'comparison.html' %}
-                <a href="{{ prefix }}{{ link.url }}">{{ link.label }}</a>
+                {% if link.url != '/comparison' %}
+                <a href="{{ link.url }}">{{ link.label }}</a>
                 {% endif %}
                 {% endfor %}
             </div>
             <div class="footer-col">
                 <h4>Bonuses</h4>
                 {% for link in footer_links.bonuses[:6] %}
-                <a href="{{ prefix }}{{ link.url }}">{{ link.label }}</a>
+                <a href="{{ link.url }}">{{ link.label }}</a>
                 {% endfor %}
             </div>
             {% else %}
             <div class="footer-col">
                 <h4>{{ vertical_name }}</h4>
                 {% for brand in site_brands[:4] %}
-                <a href="{{ prefix }}reviews/{{ brand.slug }}.html">{{ brand.name }}</a>
+                <a href="/reviews/{{ brand.slug }}">{{ brand.name }}</a>
                 {% endfor %}
                 {% for link in nav_links %}
-                {% if link.url == 'comparison.html' %}
-                <a href="{{ prefix }}{{ link.url }}">Compare All</a>
+                {% if link.url == '/comparison' %}
+                <a href="{{ link.url }}">Compare All</a>
                 {% endif %}
                 {% endfor %}
             </div>
             <div class="footer-col">
                 <h4>Guides</h4>
                 {% for link in nav_links %}
-                {% if link.url != 'index.html' and link.url != 'comparison.html' %}
-                <a href="{{ prefix }}{{ link.url }}">{{ link.label }}</a>
+                {% if link.url != '/' and link.url != '/comparison' %}
+                <a href="{{ link.url }}">{{ link.label }}</a>
                 {% endif %}
                 {% endfor %}
             </div>
             <div class="footer-col">
                 <h4>Bonuses</h4>
                 {% for brand in site_brands[:4] %}
-                <a href="{{ prefix }}bonuses/{{ brand.slug }}.html">{{ brand.name }} Bonus</a>
+                <a href="/bonuses/{{ brand.slug }}">{{ brand.name }} Bonus</a>
                 {% endfor %}
             </div>
             {% endif %}

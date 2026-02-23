@@ -372,105 +372,116 @@ def generate_site_content_background(app, site_id, api_key, model='gpt-4o-mini',
         site.status = 'generating'
         db.session.commit()
 
-        pages = SitePage.query.filter_by(site_id=site_id).all()
-        if only_new:
-            pages = [p for p in pages if not p.is_generated]
+        try:
+            pages = SitePage.query.filter_by(site_id=site_id).all()
+            if only_new:
+                pages = [p for p in pages if not p.is_generated]
 
-        # Phase 1: Build all prompts (DB reads — single thread)
-        page_prompts = []
-        for page in pages:
-            page = db.session.get(SitePage, page.id)
-            geo = site.geo
-            vertical = site.vertical
-            pt_slug = page.page_type.slug
+            # Phase 1: Build all prompts (DB reads — single thread)
+            page_prompts = []
+            for page in pages:
+                page = db.session.get(SitePage, page.id)
+                geo = site.geo
+                vertical = site.vertical
+                pt_slug = page.page_type.slug
 
-            brands = None
-            brand = None
-            brand_geo = None
-            evergreen_topic = None
+                brands = None
+                brand = None
+                brand_geo = None
+                evergreen_topic = None
 
-            if pt_slug in ('homepage', 'comparison'):
-                brands = sorted(site.site_brands, key=lambda sb: sb.rank)
-            elif pt_slug in ('brand-review', 'bonus-review'):
-                brand = page.brand
-                brand_geo = next((bg for bg in brand.brand_geos if bg.geo_id == geo.id), None)
-            elif pt_slug == 'evergreen':
-                evergreen_topic = page.evergreen_topic
+                if pt_slug in ('homepage', 'comparison'):
+                    brands = sorted(site.site_brands, key=lambda sb: sb.rank)
+                elif pt_slug in ('brand-review', 'bonus-review'):
+                    brand = page.brand
+                    brand_geo = next((bg for bg in brand.brand_geos if bg.geo_id == geo.id), None)
+                elif pt_slug == 'evergreen':
+                    evergreen_topic = page.evergreen_topic
 
-            prompt = build_prompt(
-                pt_slug, geo, vertical,
-                brands=brands, brand=brand, brand_geo=brand_geo,
-                evergreen_topic=evergreen_topic,
-            )
-            page_prompts.append((page.id, page.title, prompt))
+                prompt = build_prompt(
+                    pt_slug, geo, vertical,
+                    brands=brands, brand=brand, brand_geo=brand_geo,
+                    evergreen_topic=evergreen_topic,
+                )
+                page_prompts.append((page.id, page.title, prompt))
 
-        # Phase 2: Make API calls concurrently (no DB access in workers)
-        results = {}
-        failed = False
-        error_msg = ''
+            # Phase 2: Make API calls concurrently (no DB access in workers)
+            results = {}
+            failed = False
+            error_msg = ''
 
-        def _call_api(page_id, title, prompt):
-            logger.info('Generating page: %s (id=%d)', title, page_id)
-            content = call_openai(prompt, api_key, model)
-            logger.info('Completed page: %s (id=%d)', title, page_id)
-            return page_id, content
+            def _call_api(page_id, title, prompt):
+                logger.info('Generating page: %s (id=%d)', title, page_id)
+                content = call_openai(prompt, api_key, model)
+                logger.info('Completed page: %s (id=%d)', title, page_id)
+                return page_id, content
 
-        with ThreadPoolExecutor(max_workers=GENERATION_WORKERS) as executor:
-            futures = {
-                executor.submit(_call_api, pid, title, prompt): pid
-                for pid, title, prompt in page_prompts
-            }
-            for future in as_completed(futures):
-                pid = futures[future]
-                try:
-                    page_id, content_data = future.result()
-                    results[page_id] = content_data
-                except Exception as e:
-                    logger.error('Content generation failed for page %d: %s', pid, e)
-                    failed = True
-                    error_msg = str(e)
-                    for f in futures:
-                        f.cancel()
-                    break
-
-        # Collect any remaining successfully completed futures
-        if failed:
-            for future, pid in futures.items():
-                if pid not in results and future.done():
+            with ThreadPoolExecutor(max_workers=GENERATION_WORKERS) as executor:
+                futures = {
+                    executor.submit(_call_api, pid, title, prompt): pid
+                    for pid, title, prompt in page_prompts
+                }
+                for future in as_completed(futures):
+                    pid = futures[future]
                     try:
                         page_id, content_data = future.result()
                         results[page_id] = content_data
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        logger.error('Content generation failed for page %d: %s', pid, e)
+                        failed = True
+                        error_msg = str(e)
+                        for f in futures:
+                            f.cancel()
+                        break
 
-        # Phase 3: Save results to DB (single thread)
-        try:
-            for page_id, content_data in results.items():
-                page = db.session.get(SitePage, page_id)
-                save_content_to_page(page, content_data, db.session)
+            # Collect any remaining successfully completed futures
+            if failed:
+                for future, pid in futures.items():
+                    if pid not in results and future.done():
+                        try:
+                            page_id, content_data = future.result()
+                            results[page_id] = content_data
+                        except Exception:
+                            pass
+
+            # Phase 3: Save results to DB (single thread)
+            try:
+                for page_id, content_data in results.items():
+                    page = db.session.get(SitePage, page_id)
+                    save_content_to_page(page, content_data, db.session)
+                    db.session.commit()
+            except Exception as e:
+                logger.error('Failed saving content for site %d: %s', site_id, e)
+                db.session.rollback()
+                site = db.session.get(Site, site_id)
+                site.status = 'failed'
                 db.session.commit()
+                return
+
+            if failed:
+                site = db.session.get(Site, site_id)
+                site.status = 'failed'
+                db.session.commit()
+                logger.error('Content generation failed for site %d: %s', site_id, error_msg)
+                return
+
+            logger.info('Content generation complete for site %d', site_id)
+            site = db.session.get(Site, site_id)
+            if only_new and previous_status in ('built', 'deployed'):
+                site.status = previous_status
+            else:
+                site.status = 'generated'
+            db.session.commit()
+
         except Exception as e:
-            logger.error('Failed saving content for site %d: %s', site_id, e)
-            db.session.rollback()
-            site = db.session.get(Site, site_id)
-            site.status = 'failed'
-            db.session.commit()
-            return
-
-        if failed:
-            site = db.session.get(Site, site_id)
-            site.status = 'failed'
-            db.session.commit()
-            logger.error('Content generation failed for site %d: %s', site_id, error_msg)
-            return
-
-        logger.info('Content generation complete for site %d', site_id)
-        site = db.session.get(Site, site_id)
-        if only_new and previous_status in ('built', 'deployed'):
-            site.status = previous_status
-        else:
-            site.status = 'generated'
-        db.session.commit()
+            logger.exception('Unhandled error during content generation for site %d: %s', site_id, e)
+            try:
+                db.session.rollback()
+                site = db.session.get(Site, site_id)
+                site.status = 'failed'
+                db.session.commit()
+            except Exception:
+                logger.exception('Failed to set site %d status to failed', site_id)
 
 
 def start_generation(app, site_id, api_key, model='gpt-4o-mini', only_new=False,

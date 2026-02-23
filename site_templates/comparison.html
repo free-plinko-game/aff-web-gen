@@ -82,7 +82,7 @@
                     <div class="comp-card-logo-placeholder">{{ row.brand.name }}</div>
                     {% endif %}
                     <div>
-                        <h3><a href="reviews/{{ row.brand.slug }}.html">{{ row.brand.name }}</a></h3>
+                        <h3><a href="/reviews/{{ row.brand.slug }}">{{ row.brand.name }}</a></h3>
                         {% if row.brand.rating %}
                         <div class="brand-rating">
                             <div class="stars">
@@ -150,7 +150,7 @@
                     <div class="comp-card-logo-placeholder">{{ row.brand }}</div>
                     {% endif %}
                     <div>
-                        <h3><a href="reviews/{{ row.slug or row.brand | lower }}.html">{{ row.brand }}</a></h3>
+                        <h3><a href="/reviews/{{ row.slug or row.brand | lower }}">{{ row.brand }}</a></h3>
                         {% if row.rating %}
                         <div class="brand-rating">
                             <div class="stars">
@@ -261,7 +261,7 @@
                 <h3>Top Rated</h3>
             </div>
             {% for brand in site_brands[:5] %}
-            <a href="reviews/{{ brand.slug }}.html" class="sidebar-brand-item">
+            <a href="/reviews/{{ brand.slug }}" class="sidebar-brand-item">
                 <div class="sidebar-brand-logo">
                     {% if brand.logo_filename %}
                     <img src="assets/logos/{{ brand.logo_filename }}" alt="{{ brand.name }}" style="max-width:36px;max-height:24px;object-fit:contain;">
@@ -293,7 +293,7 @@
             </div>
             <div class="quick-links">
                 {% for link in nav_links %}
-                {% if link.url != 'comparison.html' %}
+                {% if link.url != '/comparison' %}
                 <a href="{{ link.url }}" class="quick-link">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
                     {{ link.label }}
@@ -301,7 +301,7 @@
                 {% endif %}
                 {% endfor %}
                 {% for brand in site_brands[:3] %}
-                <a href="bonuses/{{ brand.slug }}.html" class="quick-link">
+                <a href="/bonuses/{{ brand.slug }}" class="quick-link">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 12H4M12 4v16"/></svg>
                     {{ brand.name }} Bonus
                 </a>
