@@ -242,8 +242,9 @@ def regenerate_page(site_id, page_id):
 def build(site_id):
     """Build the static site from generated content."""
     site = db.session.get(Site, site_id) or abort(404)
-    if site.status not in ('generated', 'built'):
-        flash('Site must have generated content before building.', 'error')
+    has_content = any(p.content_json for p in site.site_pages)
+    if not has_content:
+        flash('Site must have at least one page with generated content before building.', 'error')
         return redirect(url_for('sites.detail', site_id=site.id))
 
     import os
