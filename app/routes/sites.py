@@ -10,7 +10,7 @@ from ..models import (
     db, Site, SiteBrand, SiteBrandOverride, SitePage, Geo, Vertical, Brand, BrandGeo, BrandVertical,
     PageType, Domain, ContentHistory, CTATable, CTATableRow,
 )
-from ..services.content_generator import start_generation, generate_page_content, save_content_to_page
+from ..services.content_generator import start_generation, generate_page_content, save_content_to_page, generate_meta_tags
 from ..services.site_builder import build_site
 from ..services.deployer import deploy_site, rollback_site
 
@@ -212,6 +212,39 @@ def generate(site_id):
         flash(f'Generating content for {ungenerated} new page{"s" if ungenerated != 1 else ""}...', 'info')
     else:
         flash('Content generation started. Progress will update below.', 'info')
+    return redirect(url_for('sites.detail', site_id=site.id))
+
+
+@bp.route('/<int:site_id>/generate-meta', methods=['POST'])
+def generate_meta(site_id):
+    """Generate SEO meta titles and descriptions for all pages with content."""
+    site = db.session.get(Site, site_id) or abort(404)
+
+    if site.status == 'generating':
+        flash('Cannot generate meta tags while content generation is in progress.', 'warning')
+        return redirect(url_for('sites.detail', site_id=site.id))
+
+    api_key = current_app.config.get('OPENAI_API_KEY', '')
+    model = current_app.config.get('OPENAI_MODEL', 'gpt-4o-mini')
+    overwrite = request.form.get('overwrite') == 'on'
+
+    try:
+        updated, skipped = generate_meta_tags(site, api_key, model, overwrite=overwrite)
+        db.session.commit()
+
+        if updated == 0 and skipped == 0:
+            flash('No pages with generated content found.', 'info')
+        elif updated == 0:
+            flash(f'All {skipped} pages already have meta tags. Check "Overwrite existing" to regenerate.', 'info')
+        else:
+            msg = f'Meta tags generated for {updated} page{"s" if updated != 1 else ""}.'
+            if skipped:
+                msg += f' {skipped} skipped (already had meta tags).'
+            flash(msg, 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Meta tag generation failed: {e}', 'error')
+
     return redirect(url_for('sites.detail', site_id=site.id))
 
 

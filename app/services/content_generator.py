@@ -494,3 +494,102 @@ def start_generation(app, site_id, api_key, model='gpt-4o-mini', only_new=False,
     )
     thread.start()
     return thread
+
+
+# --- Meta Tag Generation ---
+
+_META_BATCH_SIZE = 40
+
+
+def _extract_content_preview(content_json_str, max_chars=200):
+    """Extract a short text preview from content_json for prompt context."""
+    try:
+        data = json.loads(content_json_str)
+    except (json.JSONDecodeError, TypeError):
+        return ''
+    parts = []
+    for key in ('hero_title', 'hero_subtitle', 'intro_paragraph', 'intro_paragraphs', 'verdict'):
+        val = data.get(key)
+        if isinstance(val, str) and val:
+            parts.append(val)
+        elif isinstance(val, list) and val and isinstance(val[0], str):
+            parts.append(val[0])
+    preview = ' — '.join(parts)
+    return preview[:max_chars]
+
+
+def _build_meta_prompt(pages, site):
+    """Build the prompt for meta tag generation."""
+    geo = site.geo
+    vertical = site.vertical
+
+    page_descriptions = []
+    for i, page in enumerate(pages, 1):
+        preview = _extract_content_preview(page.content_json)
+        brand_name = page.brand.name if page.brand else ''
+        desc = f'{i}. Page ID: {page.id}, Type: {page.page_type.slug}, Title: "{page.title}"'
+        if brand_name:
+            desc += f', Brand: "{brand_name}"'
+        if preview:
+            desc += f'\n   Content preview: "{preview}"'
+        page_descriptions.append(desc)
+
+    pages_list = '\n\n'.join(page_descriptions)
+
+    return (
+        f'You are an SEO specialist. Generate meta titles and descriptions for the following '
+        f'web pages on a {vertical.name} affiliate site targeting {geo.name}.\n'
+        f'Site name: {site.name}. Language: {geo.language}.\n\n'
+        f'Guidelines:\n'
+        f'- meta_title: Under 60 characters. Include the primary keyword and brand name where relevant. '
+        f'Compelling for search results.\n'
+        f'- meta_description: 120-155 characters. Summarize the page value proposition. '
+        f'Include a call-to-action. Compelling for click-through from SERPs.\n\n'
+        f'Pages to generate meta tags for:\n\n'
+        f'{pages_list}\n\n'
+        f'Return a JSON object with:\n'
+        f'{{"pages": [{{"id": int, "meta_title": string, "meta_description": string}}]}}\n\n'
+        f'The "id" field must match exactly the page IDs provided above. Generate one entry per page.'
+    )
+
+
+def generate_meta_tags(site, api_key, model='gpt-4o-mini', overwrite=False):
+    """Generate SEO meta titles and descriptions for all pages with content.
+
+    Returns (updated_count, skipped_count).
+    """
+    pages_with_content = [p for p in site.site_pages if p.content_json]
+    if not pages_with_content:
+        return 0, 0
+
+    if overwrite:
+        eligible = pages_with_content
+        skipped = 0
+    else:
+        eligible = [p for p in pages_with_content if not p.meta_title or not p.meta_description]
+        skipped = len(pages_with_content) - len(eligible)
+
+    if not eligible:
+        return 0, skipped
+
+    # Process in batches
+    all_results = []
+    for i in range(0, len(eligible), _META_BATCH_SIZE):
+        chunk = eligible[i:i + _META_BATCH_SIZE]
+        prompt = _build_meta_prompt(chunk, site)
+        result = call_openai(prompt, api_key, model, max_tokens=2048)
+        all_results.extend(result.get('pages', []))
+
+    # Map results by page ID and apply
+    result_map = {r['id']: r for r in all_results if isinstance(r, dict) and 'id' in r}
+    updated = 0
+    for page in eligible:
+        meta = result_map.get(page.id)
+        if meta:
+            page.meta_title = meta.get('meta_title') or page.meta_title
+            page.meta_description = meta.get('meta_description') or page.meta_description
+            updated += 1
+        else:
+            logger.warning('Meta tag generation returned no result for page %d', page.id)
+
+    return updated, skipped

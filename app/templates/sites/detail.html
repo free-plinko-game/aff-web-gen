@@ -38,6 +38,16 @@
     {% if site.status == 'generating' %}
     <button class="btn btn-info" disabled>Generating...</button>
     {% endif %}
+    {% set has_content = site.site_pages | selectattr('is_generated') | list | length > 0 %}
+    {% if has_content and site.status != 'generating' %}
+    <form method="POST" action="{{ url_for('sites.generate_meta', site_id=site.id) }}" class="d-inline">
+        <button type="submit" class="btn btn-outline-primary">Generate Meta Tags</button>
+        <div class="form-check form-check-inline ms-1">
+            <input class="form-check-input" type="checkbox" name="overwrite" id="metaOverwrite">
+            <label class="form-check-label small text-muted" for="metaOverwrite">Overwrite existing</label>
+        </div>
+    </form>
+    {% endif %}
     <form method="POST" action="{{ url_for('sites.build', site_id=site.id) }}" class="d-inline">
         <button type="submit" class="btn btn-success">
             {{ 'Rebuild Site' if site.built_at else 'Build Site' }}
