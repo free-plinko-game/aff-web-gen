@@ -94,10 +94,9 @@
                             <a href="/reviews/{{ row.brand.slug }}" class="brand-rating-score">{{ row.brand.rating }}/5 &middot; Our Review</a>
                         </div>
                         {% endif %}
-                        {% if bi %}
+                        {% if bi and bi.feature_badges %}
                         <div class="feature-badges">
-                            {% if bi.has_ios_app or bi.has_android_app %}<span class="feature-badge">Mobile App</span>{% endif %}
-                            {% if bi.withdrawal_timeframe %}<span class="feature-badge">{{ bi.withdrawal_timeframe }}</span>{% endif %}
+                            {% for badge in bi.feature_badges[:3] %}<span class="feature-badge">{{ badge }}</span>{% endfor %}
                         </div>
                         {% endif %}
                     </div>
@@ -183,10 +182,9 @@
                             <a href="/reviews/{{ row.slug or row.brand | lower }}" class="brand-rating-score">{{ row.rating }}/5 &middot; Our Review</a>
                         </div>
                         {% endif %}
-                        {% if bi %}
+                        {% if bi and bi.feature_badges %}
                         <div class="feature-badges">
-                            {% if bi.has_ios_app or bi.has_android_app %}<span class="feature-badge">Mobile App</span>{% endif %}
-                            {% if bi.withdrawal_timeframe %}<span class="feature-badge">{{ bi.withdrawal_timeframe }}</span>{% endif %}
+                            {% for badge in bi.feature_badges[:3] %}<span class="feature-badge">{{ badge }}</span>{% endfor %}
                         </div>
                         {% endif %}
                     </div>

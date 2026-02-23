@@ -376,10 +376,17 @@ def build_site(site, output_base_dir, upload_folder):
                 ai = ai_map.get(b['slug']) or ai_map.get(b['name'], {})
                 merged['selling_points'] = ai.get('selling_points', [])
                 merged['short_description'] = ai.get('short_description', '')
+                merged['feature_badges'] = ai.get('feature_badges', [])
                 enriched.append(merged)
             ctx['site_brands'] = enriched
         elif pt_slug == 'comparison':
             output_file = os.path.join(version_dir, f'{page.slug}.html')
+            # Merge AI-generated feature_badges into brand_lookup for comparison cards
+            comp_rows = content.get('comparison_rows', [])
+            for row in comp_rows:
+                slug = row.get('slug', '')
+                if slug and slug in brand_lookup:
+                    brand_lookup[slug]['feature_badges'] = row.get('feature_badges', [])
         elif pt_slug == 'brand-review':
             reviews_dir = os.path.join(version_dir, 'reviews')
             os.makedirs(reviews_dir, exist_ok=True)

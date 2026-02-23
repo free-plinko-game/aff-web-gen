@@ -35,7 +35,8 @@ Return a JSON object with:
 - "trust_items": [string] (exactly 4 short trust signals, e.g. "Expert Reviewed")
 - "section_title": string (heading for the brand listing, e.g. "Top Rated Betting Sites")
 - "section_subtitle": string (one sentence explaining the ranking criteria)
-- "top_brands": [{{"name": string, "slug": string, "bonus": string, "rating": float, "selling_points": [string, string, string]}}]
+- "top_brands": [{{"name": string, "slug": string, "bonus": string, "rating": float, "selling_points": [string, string, string], "feature_badges": [string, string, string]}}]
+  (feature_badges: exactly 3 short labels per brand, max 3 words each, highlighting unique strengths e.g. "Live Streaming", "Cash Out", "Instant Payouts", "24/7 Support", "VIP Programme". Vary across brands — avoid repeating the same badges.)
 - "why_trust_us": string (2-3 paragraphs about review methodology)
 - "faq": [{{"question": string, "answer": string}}] (4-5 FAQs)
 - "closing_paragraph": string (1-2 sentences with call to action)
@@ -51,7 +52,8 @@ Return a JSON object with:
 - "hero_title": string (comparison-focused headline)
 - "hero_subtitle": string (15-20 words)
 - "intro_paragraph": string (2-3 sentences)
-- "comparison_rows": [{{ "brand": string, "slug": string, "bonus": string, "rating": float, "pros": [string], "cons": [string], "verdict": string }}]
+- "comparison_rows": [{{ "brand": string, "slug": string, "bonus": string, "rating": float, "pros": [string], "cons": [string], "verdict": string, "feature_badges": [string, string, string] }}]
+  (feature_badges: exactly 3 short labels per brand, max 3 words each, highlighting unique strengths e.g. "Live Streaming", "Cash Out", "Instant Payouts", "24/7 Support". Vary across brands.)
 - "faq": [{{ "question": string, "answer": string }}] (4-6 FAQs)
 - "closing_paragraph": string (1-2 sentences)
 

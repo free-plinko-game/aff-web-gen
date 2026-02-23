@@ -108,8 +108,15 @@ def render_page_preview(site_page, site, asset_url_prefix=''):
             ai = ai_map.get(b['slug']) or ai_map.get(b['name'], {})
             merged['selling_points'] = ai.get('selling_points', [])
             merged['short_description'] = ai.get('short_description', '')
+            merged['feature_badges'] = ai.get('feature_badges', [])
             enriched.append(merged)
         ctx['site_brands'] = enriched
+    elif pt_slug == 'comparison':
+        comp_rows = content.get('comparison_rows', [])
+        for row in comp_rows:
+            slug = row.get('slug', '')
+            if slug and slug in brand_lookup:
+                brand_lookup[slug]['feature_badges'] = row.get('feature_badges', [])
     elif pt_slug == 'brand-review':
         brand_info = brand_lookup.get(site_page.slug) or brand_lookup.get(
             site_page.brand.slug if site_page.brand else '')
