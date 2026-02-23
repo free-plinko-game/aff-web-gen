@@ -451,7 +451,7 @@ body {
     display: flex;
     flex-direction: column;
     align-items: stretch;
-    gap: 0.75rem;
+    gap: 0.5rem;
 }
 .bonus-label {
     font-size: 0.7rem;
@@ -547,19 +547,25 @@ body {
 /* Payment method icons */
 .payment-icons {
     display: flex;
-    gap: 0.35rem;
+    gap: 0.3rem;
     justify-content: center;
     flex-wrap: wrap;
-    margin-top: 0.25rem;
+    margin-top: 0.35rem;
 }
 .payment-icon {
     display: inline-flex;
     align-items: center;
     justify-content: center;
+    width: 32px;
+    height: 20px;
+    flex-shrink: 0;
 }
 .payment-icon svg {
+    display: block;
     width: 28px;
     height: 18px;
+    max-width: 28px;
+    max-height: 18px;
     opacity: 0.6;
     transition: opacity 0.2s;
 }
