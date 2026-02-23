@@ -140,24 +140,26 @@ def build_prompt(page_type_slug, geo, vertical, brands=None, brand=None,
     )
 
 
-def call_openai(prompt, api_key, model='gpt-4o-mini', max_retries=2):
+def call_openai(prompt, api_key, model='gpt-4o-mini', max_retries=2, max_tokens=16384):
     """Call the OpenAI API and return parsed JSON content.
 
-    Retries on JSON parse failures (truncated responses) up to max_retries times.
+    Retries on JSON parse failures up to max_retries times.
+    On finish_reason=length (truncated output), doubles max_tokens for the retry.
     """
     client = OpenAI(api_key=api_key)
+    current_max_tokens = max_tokens
 
     for attempt in range(1, max_retries + 2):
-        logger.info('Calling OpenAI API (model=%s, attempt %d)', model, attempt)
+        logger.info('Calling OpenAI API (model=%s, attempt %d, max_tokens=%d)', model, attempt, current_max_tokens)
         response = client.chat.completions.create(
             model=model,
             messages=[
-                {'role': 'system', 'content': 'You are a content writer. Always respond with valid JSON only, no markdown formatting. Keep responses concise to avoid truncation.'},
+                {'role': 'system', 'content': 'You are a content writer. Always respond with valid JSON only, no markdown formatting.'},
                 {'role': 'user', 'content': prompt},
             ],
             response_format={'type': 'json_object'},
             temperature=0.7,
-            max_tokens=4096,
+            max_tokens=current_max_tokens,
         )
         content = response.choices[0].message.content
         finish_reason = response.choices[0].finish_reason
@@ -169,6 +171,9 @@ def call_openai(prompt, api_key, model='gpt-4o-mini', max_retries=2):
                 'JSON parse failed (attempt %d/%d, finish_reason=%s): %s',
                 attempt, max_retries + 1, finish_reason, e,
             )
+            if finish_reason == 'length':
+                current_max_tokens = min(current_max_tokens * 2, 65536)
+                logger.info('Increasing max_tokens to %d for next attempt', current_max_tokens)
             if attempt > max_retries:
                 raise
 
