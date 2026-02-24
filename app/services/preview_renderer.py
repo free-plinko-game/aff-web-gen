@@ -119,6 +119,7 @@ def render_page_preview(site_page, site, asset_url_prefix=''):
         'comments_api_url': getattr(site, 'comments_api_url', '') or '',
         'site_id': site.id,
         'page_slug': site_page.slug,
+        'cache_bust': int(datetime.now().timestamp()),
     }
 
     # Add page-type-specific context (same as site_builder.py)

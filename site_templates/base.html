@@ -142,10 +142,10 @@
 
 {% if preview_asset_prefix %}
 <script src="{{ preview_asset_prefix }}assets/js/main.js"></script>
-<script src="{{ preview_asset_prefix }}assets/js/comments.js"></script>
+<script src="{{ preview_asset_prefix }}assets/js/comments.js?v={{ cache_bust }}"></script>
 {% else %}
 <script src="{{ prefix }}assets/js/main.js"></script>
-<script src="{{ prefix }}assets/js/comments.js"></script>
+<script src="{{ prefix }}assets/js/comments.js?v={{ cache_bust }}"></script>
 {% endif %}
 </body>
 </html>

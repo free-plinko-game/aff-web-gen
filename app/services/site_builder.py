@@ -411,6 +411,7 @@ def build_site(site, output_base_dir, upload_folder):
         'review_slugs': review_slugs,
         'bonus_slugs': bonus_slugs,
         'has_authors': len(authors) > 0,
+        'cache_bust': int(datetime.now().timestamp()),
     }
 
     # Render each page
