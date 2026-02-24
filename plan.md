@@ -141,6 +141,9 @@ A Flask-based control panel for generating and deploying static affiliate websit
 | custom_head | TEXT | Nullable — raw HTML injected into `<head>` on every page of this site (site-wide tracking, analytics, etc.) |
 | freshness_threshold_days | INTEGER | Default 30 — pages older than this are flagged as stale on the dashboard |
 | tips_leagues | TEXT | Nullable — JSON array of league configs for tips pipeline, e.g. `[{"league_id": 39, "name": "Premier League", "season": 2025}]` |
+| default_author_id | INTEGER FK | Nullable → authors.id — auto-assigned to new pages created by tips pipeline |
+| comments_enabled | BOOLEAN | Default False — enables the comments widget on article pages |
+| comments_api_url | TEXT | Nullable — base URL for comments API (e.g. `http://64.227.131.193:8080`) |
 
 ### `site_brands`
 | Column | Type | Notes |
@@ -177,6 +180,7 @@ A Flask-based control panel for generating and deploying static affiliate websit
 | published_date | DATETIME | Nullable — used for news articles (display and sort order) |
 | cta_table_id | INTEGER FK | Nullable → cta_tables.id — assigns a reusable CTA table to this page (survives LLM regeneration) |
 | fixture_id | INTEGER | Nullable — API-Football fixture ID for tips pipeline deduplication |
+| author_id | INTEGER FK | Nullable → authors.id — page author for byline and E-E-A-T |
 | **UNIQUE (partial indexes)** | | **Brand pages:** `(site_id, page_type_id, brand_id)` WHERE `brand_id IS NOT NULL` |
 | | | **Evergreen pages:** `(site_id, page_type_id, evergreen_topic)` WHERE `evergreen_topic IS NOT NULL` |
 | | | **Global pages:** `(site_id, page_type_id)` WHERE `brand_id IS NULL AND evergreen_topic IS NULL` |
@@ -234,6 +238,61 @@ CTA tables are reusable comparison/CTA components that can be embedded on any pa
 
 This table allows per-site customisation of brand data without changing the global brand record. When `site_builder.py` assembles template data, it checks for overrides and merges them on top of the base brand + brand_geo data. If an override field is null, the global value is used.
 
+### `authors`
+| Column | Type | Notes |
+|---|---|---|
+| id | INTEGER PK | Auto |
+| site_id | INTEGER FK | → sites.id |
+| name | VARCHAR(200) | Author display name |
+| slug | VARCHAR(200) | URL slug for author profile page |
+| bio | TEXT | Full bio (rendered as HTML) |
+| short_bio | VARCHAR(500) | Short bio for cards/bylines |
+| role | VARCHAR(100) | e.g. "Senior Sports Analyst" |
+| avatar_filename | VARCHAR(300) | Filename in `uploads/avatars/` |
+| expertise | TEXT | JSON array of expertise tags |
+| social_links | TEXT | JSON object `{ "twitter": "url", ... }` |
+| is_active | BOOLEAN | Default True |
+| created_at | DATETIME | Auto |
+| **UNIQUE** | | **(site_id, slug)** |
+
+### `comment_users`
+| Column | Type | Notes |
+|---|---|---|
+| id | INTEGER PK | Auto |
+| site_id | INTEGER FK | → sites.id |
+| username | VARCHAR(100) | Forum username |
+| display_name | VARCHAR(200) | Display name |
+| avatar_style | VARCHAR(50) | DiceBear style (default: `bottts`) |
+| avatar_seed | VARCHAR(100) | Seed for procedural avatar generation |
+| persona_json | TEXT | AI-generated personality profile |
+| is_bot | BOOLEAN | Default True |
+| created_at | DATETIME | Auto |
+| **UNIQUE** | | **(site_id, username)** |
+
+### `comments`
+| Column | Type | Notes |
+|---|---|---|
+| id | INTEGER PK | Auto |
+| site_id | INTEGER FK | → sites.id |
+| page_slug | VARCHAR(300) | Matches SitePage.slug |
+| user_id | INTEGER FK | → comment_users.id |
+| parent_id | INTEGER FK | Nullable → comments.id (single-level replies) |
+| body | TEXT | Comment text |
+| upvotes | INTEGER | Default 0 |
+| downvotes | INTEGER | Default 0 |
+| is_pinned | BOOLEAN | Default False |
+| created_at | DATETIME | Auto |
+| **INDEX** | | **(site_id, page_slug)** |
+
+### `comment_votes`
+| Column | Type | Notes |
+|---|---|---|
+| id | INTEGER PK | Auto |
+| comment_id | INTEGER FK | → comments.id |
+| user_id | INTEGER FK | → comment_users.id |
+| value | INTEGER | +1 or -1 |
+| **UNIQUE** | | **(comment_id, user_id)** |
+
 ---
 
 ## File Structure
@@ -257,7 +316,8 @@ affiliate-factory/
 │   │   ├── brands.py               ← CRUD for brands (including logo upload)
 │   │   ├── domains.py              ← CRUD for domains
 │   │   ├── sites.py                ← Site config, generation, deployment
-│   │   └── api.py                  ← AJAX endpoints (generation progress, page preview, robots.txt, site rename, menu order, tips pipeline)
+│   │   ├── api.py                  ← AJAX endpoints (generation progress, page preview, robots.txt, site rename, menu order, tips pipeline, comments)
+│   │   └── comments_api.py        ← Public comments API (CORS-enabled, served to static sites)
 │   ├── services/
 │   │   ├── __init__.py
 │   │   ├── content_generator.py    ← OpenAI API integration (runs in background thread)
@@ -266,7 +326,9 @@ affiliate-factory/
 │   │   ├── preview_renderer.py     ← Renders a single page template for live preview (returns HTML string)
 │   │   ├── schema_generator.py     ← Generates JSON-LD structured data for each page type
 │   │   ├── api_football.py         ← API-Football HTTP client (fixtures, H2H, odds, stats)
-│   │   └── tips_pipeline.py        ← Automated betting tips pipeline (fetch → generate → publish)
+│   │   ├── tips_pipeline.py        ← Automated betting tips pipeline (fetch → generate → publish)
+│   │   ├── persona_manager.py      ← AI persona generation for comment system
+│   │   └── comment_seeder.py       ← Seeds AI-generated comments on article pages
 │   ├── templates/                  ← Flask control panel templates (Jinja2)
 │   │   ├── base.html
 │   │   ├── dashboard.html
@@ -302,14 +364,19 @@ affiliate-factory/
 │   ├── news_article.html
 │   ├── tips.html                   ← Tips landing page (lists upcoming match tips)
 │   ├── tips_article.html           ← Individual match tip/prediction page
+│   ├── author.html                 ← Individual author profile page
+│   ├── authors.html                ← Authors landing page (/authors/)
 │   ├── _cta_table.html             ← Reusable CTA table partial ({% include '_cta_table.html' %})
+│   ├── _byline.html                ← Author byline partial (included in 5 article templates)
+│   ├── _comments.html              ← Comments widget partial (included in 5 article templates)
 │   ├── sitemap.xml                 ← Jinja2 template for sitemap generation
 │   ├── robots.txt                  ← Jinja2 template for robots.txt
 │   └── assets/                     ← CSS/JS/images for generated sites
 │       ├── css/
 │       │   └── style.css
 │       ├── js/
-│       │   └── main.js
+│       │   ├── main.js
+│       │   └── comments.js         ← Comments widget (fetches + renders from API)
 │       └── img/
 ├── scripts/
 │   └── run_tips.py                 ← Cron entry point for daily tips pipeline
@@ -871,6 +938,111 @@ Cron entry: `0 6 * * * cd /opt/aff-web-gen && /opt/aff-web-gen/venv/bin/python s
 - Auto-migrated in `_auto_migrate()`
 
 **Test:** On a site detail page, configure tips_leagues JSON and save. Add a "Tips" page. Click "Run Tips Pipeline" — tips-article pages are created. Build site — tips landing shows fixture cards, individual tip pages render. Run `scripts/run_tips.py` — no duplicates (fixture_id dedup). Deploy — `/tips/` and `/tips/{slug}` pages are live.
+
+---
+
+### Phase 10: Author Profiles & E-E-A-T
+**Goal:** Add author personas to boost E-E-A-T signals. Authors are site-scoped, AI-generated or manually created, and shown as bylines on articles and on dedicated profile pages.
+
+#### 10.1 — Author Model
+- `authors` table: `id`, `site_id` FK, `name`, `slug`, `bio`, `short_bio`, `role`, `avatar_filename`, `expertise` (JSON array), `social_links` (JSON object), `is_active`, `created_at`
+- `UQ(site_id, slug)` — author slugs unique per site
+- `site_pages.author_id` FK → `authors.id` — nullable, assigns an author to a page
+- `sites.default_author_id` FK → `authors.id` — nullable, auto-assigned to new pages (tips pipeline uses this)
+
+#### 10.2 — Author Generation
+- Admin UI: "Authors & E-E-A-T" collapsible card on site detail page
+- "Generate Authors" button → OpenAI generates 2-4 author personas per site (name, role, bio, expertise, social links)
+- Authors listed with edit/delete controls, avatar upload support
+- Author auto-assignment UI: dropdown to set default_author_id on site
+
+#### 10.3 — Author Templates
+- **`author.html`** — Individual author profile page: hero with avatar, name, role, short_bio; expertise tags; social links; full bio; article list (filtered to content types: brand-review, bonus-review, evergreen, news-article, tips-article)
+- **`authors.html`** — Authors landing page (`/authors/`) listing all active authors
+- **`_byline.html`** — Byline partial included in 5 article templates inside the content container
+- Author avatar upload via API endpoint, stored in `uploads/avatars/`
+
+#### 10.4 — Schema & SEO
+- `Person` schema on author profile pages
+- `author` field added to Article/Review schemas via schema_generator.py
+- Author pages included in sitemap and footer navigation
+
+#### 10.5 — Build Integration
+- `site_builder.py` renders author profile pages + landing page, copies avatars to `output/assets/avatars/`
+- `author_map` dict built from Author records, injected into all page contexts
+- `preview_renderer.py` mirrors same author context
+
+**Implemented:** Commits `46e7c17`, `2930904`
+
+---
+
+### Phase 11: Homepage Redesign — Dynamic Hub
+**Goal:** Transform homepage from static SEO page to a dynamic hub showcasing tips, reviews, news, and authors.
+
+#### Layout (6 Full-Width Sections, No Sidebar)
+1. **Hero** — title + tagline + 2 CTA buttons ("Today's Tips", "Best Sportsbooks") + dynamic trust badges
+2. **Tips Preview** — 4 most recent tip cards (horizontal scroll on mobile) with competition badge, prediction confidence
+3. **Top Rated Brands** — top 5 brands as horizontal cards with logo, star rating, bonus, feature badges, CTA
+4. **Latest News** — 3 most recent news cards with date + author
+5. **Meet Our Experts** — author cards with avatar, role, article count (conditional)
+6. **SEO Content** — why_trust_us + FAQ accordion + closing paragraph (below the fold)
+
+#### Data Pipeline
+- `site_builder.py` + `preview_renderer.py`: compute `tips_preview`, `news_preview`, `authors_list`, `page_counts`, `geo_name`, `compare_url` inside homepage block
+- All data derived from existing `pages`, `author_map`, `nav_links`, `brand_info_list` — no new DB queries
+- ~280 lines of `hp-`-prefixed CSS, responsive breakpoints at 1024/768/480px
+
+**Implemented:** Commit `0414d6a`
+
+---
+
+### Phase 12: UGC Comments Module (Phase 1+2)
+**Goal:** Dynamic comment system for static article pages. Comments served via Flask API (CORS), rendered by vanilla JS widget. AI personas seed realistic discussion threads.
+
+#### 12.1 — Database Models
+- **`comment_users`**: `id`, `site_id` FK, `username`, `display_name`, `avatar_style`, `avatar_seed`, `persona_json`, `is_bot`, `created_at`. `UQ(site_id, username)`
+- **`comments`**: `id`, `site_id` FK, `page_slug`, `user_id` FK, `parent_id` FK (self-ref, nullable), `body`, `upvotes`, `downvotes`, `is_pinned`, `created_at`. `IX(site_id, page_slug)`
+- **`comment_votes`**: `id`, `comment_id` FK, `user_id` FK, `value` (+1/-1). `UQ(comment_id, user_id)`
+- **`sites`** additions: `comments_enabled` (Boolean default False), `comments_api_url` (Text nullable)
+
+#### 12.2 — Comments API
+- **`app/routes/comments_api.py`** — Blueprint `/comments-api`, CORS-enabled via `flask-cors`
+- `GET /comments-api/<site_id>/<page_slug>` — returns `{ comments, count }` with nested replies, DiceBear avatar URLs, sorted by score (pinned first)
+- `GET /comments-api/<site_id>/<page_slug>/count` — lightweight count
+- Internal helpers: `seed_comment()`, `seed_votes()`
+
+#### 12.3 — AI Persona Generation
+- **`app/services/persona_manager.py`** — `generate_personas(site_id, count)`
+- Uses `call_openai()` with geo-aware prompt for culturally-appropriate bot personas
+- Creates CommentUser records with DiceBear avatar config + personality profile JSON
+- Idempotent: skips existing usernames
+
+#### 12.4 — Comment Seeding
+- **`app/services/comment_seeder.py`** — `seed_comments_for_page(site_id, page_slug, page_title)`
+- Picks 3-6 random bot personas, generates threaded comments via OpenAI
+- Staggered timestamps, vote seeding (3-8 upvotes top-level, 1-3 for replies)
+- Idempotent: skips pages with existing comments
+
+#### 12.5 — Widget & Templates
+- **`site_templates/assets/js/comments.js`** — Vanilla JS widget, read-only (no posting UI)
+- **`site_templates/_comments.html`** — Partial included in 5 article templates, conditional on `comments_enabled`
+- ~130 lines of `.comments-` prefixed CSS
+
+#### 12.6 — Build Integration
+- `site_builder.py` + `preview_renderer.py`: inject `comments_enabled`, `comments_api_url`, `site_id`, `page_slug` into context
+- `comments.js` loaded in `base.html` after main.js
+
+#### 12.7 — Tips Pipeline Hook
+- Auto-seeds comments after each new tip is committed if `site.comments_enabled`
+
+#### 12.8 — Admin UI & API
+- "Comments" card on site detail page: enable toggle, API URL config, persona generation, seed-all button
+- 5 admin endpoints: toggle-comments, save-comments-config, generate-personas, seed-comments, seed-all-comments
+
+#### 12.9 — Dependencies
+- `flask-cors==5.0.1`, `COMMENTS_API_URL` env var
+
+**Implemented:** Commit `229b2f6`
 
 ---
 
