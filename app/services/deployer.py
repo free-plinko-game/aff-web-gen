@@ -39,7 +39,7 @@ def _get_connection(app_config):
     return Connection(host=host, user=user, connect_kwargs=connect_kwargs)
 
 
-def _generate_nginx_config(domain, web_root, ssl=False):
+def _generate_nginx_config(domain, web_root, ssl=False, comments_proxy_port=None):
     """Generate an Nginx server block config for a domain.
 
     Args:
@@ -47,6 +47,7 @@ def _generate_nginx_config(domain, web_root, ssl=False):
         web_root: VPS web root path
         ssl: If True, generate config with SSL directives (for domains
              where Certbot has already provisioned a certificate)
+        comments_proxy_port: If set, add a /comments-api/ proxy to this local port
     """
     site_root = posixpath.join(web_root, domain, 'current')
     static_cache = """
@@ -54,6 +55,17 @@ def _generate_nginx_config(domain, web_root, ssl=False):
         expires 30d;
         add_header Cache-Control "public, immutable";
     }"""
+
+    comments_block = ''
+    if comments_proxy_port:
+        comments_block = f"""
+    location /comments-api/ {{
+        proxy_pass http://127.0.0.1:{comments_proxy_port};
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    }}
+"""
 
     if ssl:
         return f"""server {{
@@ -74,7 +86,7 @@ server {{
     ssl_certificate_key /etc/letsencrypt/live/{domain}/privkey.pem;
     include /etc/letsencrypt/options-ssl-nginx.conf;
     ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
-
+{comments_block}
     location / {{
         try_files $uri $uri.html $uri/ =404;
     }}
@@ -88,7 +100,7 @@ server {{
     server_name {domain} www.{domain};
     root {site_root};
     index index.html;
-
+{comments_block}
     location / {{
         try_files $uri $uri.html $uri/ =404;
     }}
@@ -162,7 +174,10 @@ def deploy_site(site, app_config):
     # Generate and upload Nginx config
     # If SSL was already provisioned, generate config with SSL directives
     # so we don't wipe Certbot's modifications on redeploy
-    nginx_config = _generate_nginx_config(domain, web_root, ssl=site.domain.ssl_provisioned)
+    comments_port = None
+    if getattr(site, 'comments_enabled', False) and getattr(site, 'comments_api_url', ''):
+        comments_port = app_config.get('GUNICORN_PORT', 8000)
+    nginx_config = _generate_nginx_config(domain, web_root, ssl=site.domain.ssl_provisioned, comments_proxy_port=comments_port)
     nginx_conf_path = posixpath.join(sites_available, domain)
     nginx_enabled_path = posixpath.join(sites_enabled, domain)
 
