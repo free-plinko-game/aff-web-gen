@@ -48,6 +48,17 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+    // Ensure AJAX calls include basic auth credentials behind Nginx auth
+    (function() {
+        var _origFetch = window.fetch;
+        window.fetch = function(url, opts) {
+            opts = opts || {};
+            if (!opts.credentials) opts.credentials = 'include';
+            return _origFetch.call(this, url, opts);
+        };
+    })();
+    </script>
     {% block scripts %}{% endblock %}
 </body>
 </html>
