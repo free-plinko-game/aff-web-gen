@@ -326,6 +326,8 @@ def _build_cta_table_data(cta_table, brand_info_list, geo):
             'badge': row.custom_badge,
             'is_visible': row.is_visible,
         })
+    # Sort by brand rating descending (highest score first)
+    rows.sort(key=lambda r: r['brand'].get('rating') or 0, reverse=True)
     return {
         'name': cta_table.name,
         'slug': cta_table.slug,
