@@ -342,6 +342,7 @@ class CommentUser(db.Model):
     display_name = db.Column(db.String(200))
     avatar_style = db.Column(db.String(50), default='bottts')
     avatar_seed = db.Column(db.String(100))
+    email = db.Column(db.String(254), nullable=True)
     persona_json = db.Column(db.Text)
     is_bot = db.Column(db.Boolean, default=True)
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))

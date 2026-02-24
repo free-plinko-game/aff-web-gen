@@ -1,13 +1,65 @@
 """Public comments API — served to static sites via CORS."""
 
+import hashlib
+import re
+import time
 from datetime import datetime, timezone
 
-from flask import Blueprint, jsonify
+from flask import Blueprint, jsonify, request
 from flask_cors import cross_origin
 
-from ..models import db, Comment, CommentUser, CommentVote
+from ..models import db, Comment, CommentUser, CommentVote, Site
 
 bp = Blueprint('comments_api', __name__, url_prefix='/comments-api')
+
+# --- Rate limiter (in-memory, per-worker) ---
+_rate_limit_store = {}
+_RATE_LIMIT_MAX = 3
+_RATE_LIMIT_WINDOW = 600  # 10 minutes
+
+
+def _is_rate_limited(ip):
+    now = time.time()
+    cutoff = now - _RATE_LIMIT_WINDOW
+    timestamps = _rate_limit_store.get(ip, [])
+    timestamps = [t for t in timestamps if t > cutoff]
+    _rate_limit_store[ip] = timestamps
+    return len(timestamps) >= _RATE_LIMIT_MAX
+
+
+def _record_request(ip):
+    _rate_limit_store.setdefault(ip, []).append(time.time())
+
+
+# --- Validation ---
+_EMAIL_RE = re.compile(r'^[^@\s]+@[^@\s]+\.[^@\s]+$')
+
+
+def _validate_comment_input(data):
+    """Validate guest comment. Returns ('honeypot', {}) or (errors_list, cleaned_dict)."""
+    name = (data.get('name') or '').strip()
+    email = (data.get('email') or '').strip().lower()
+    body = (data.get('body') or '').strip()
+    honeypot = (data.get('website') or '').strip()
+    parent_id = data.get('parent_id')
+
+    if honeypot:
+        return 'honeypot', {}
+
+    errors = []
+    if len(name) < 2 or len(name) > 50:
+        errors.append('Name must be 2-50 characters.')
+    if not _EMAIL_RE.match(email):
+        errors.append('Please enter a valid email address.')
+    if len(body) < 10 or len(body) > 500:
+        errors.append('Comment must be 10-500 characters.')
+    if parent_id is not None:
+        try:
+            parent_id = int(parent_id)
+        except (TypeError, ValueError):
+            errors.append('Invalid parent comment.')
+
+    return errors, {'name': name, 'email': email, 'body': body, 'parent_id': parent_id}
 
 
 def _avatar_url(style, seed):
@@ -84,6 +136,74 @@ def get_comment_count(site_id, page_slug):
     """Return comment count for a page (lightweight)."""
     count = Comment.query.filter_by(site_id=site_id, page_slug=page_slug).count()
     return jsonify({'count': count})
+
+
+@bp.route('/<int:site_id>/<path:page_slug>', methods=['POST'])
+@cross_origin()
+def post_comment(site_id, page_slug):
+    """Create a guest comment."""
+    data = request.get_json(silent=True) or {}
+
+    result, cleaned = _validate_comment_input(data)
+    if result == 'honeypot':
+        return jsonify({'success': True, 'comment_id': 0}), 201
+    if result:
+        return jsonify({'errors': result}), 422
+
+    # Rate limit by real client IP
+    ip = request.headers.get('X-Forwarded-For', request.remote_addr)
+    if ip:
+        ip = ip.split(',')[0].strip()
+    if _is_rate_limited(ip):
+        return jsonify({'errors': ['Too many comments. Please wait a few minutes.']}), 429
+
+    site = db.session.get(Site, site_id)
+    if not site or not getattr(site, 'comments_enabled', False):
+        return jsonify({'errors': ['Comments are not enabled.']}), 404
+
+    # Flatten replies-to-replies to single-level threading
+    if cleaned['parent_id']:
+        parent = Comment.query.filter_by(
+            id=cleaned['parent_id'], site_id=site_id, page_slug=page_slug
+        ).first()
+        if not parent:
+            return jsonify({'errors': ['Parent comment not found.']}), 404
+        if parent.parent_id is not None:
+            cleaned['parent_id'] = parent.parent_id
+
+    # Find or create guest CommentUser by email hash
+    email_hash = hashlib.md5(cleaned['email'].encode()).hexdigest()
+    username = f'guest_{email_hash[:8]}'
+
+    user = CommentUser.query.filter_by(site_id=site_id, username=username).first()
+    if not user:
+        user = CommentUser(
+            site_id=site_id,
+            username=username,
+            display_name=cleaned['name'],
+            avatar_style='thumbs',
+            avatar_seed=email_hash,
+            email=cleaned['email'],
+            is_bot=False,
+        )
+        db.session.add(user)
+        db.session.flush()
+    else:
+        if user.display_name != cleaned['name']:
+            user.display_name = cleaned['name']
+
+    comment = Comment(
+        site_id=site_id,
+        page_slug=page_slug,
+        user_id=user.id,
+        parent_id=cleaned['parent_id'],
+        body=cleaned['body'],
+    )
+    db.session.add(comment)
+    db.session.commit()
+
+    _record_request(ip)
+    return jsonify({'success': True, 'comment_id': comment.id}), 201
 
 
 # --- Internal helpers (used by comment_seeder, not HTTP-exposed) ---

@@ -99,6 +99,13 @@ def _auto_migrate(db):
             'ALTER TABLE sites ADD COLUMN comments_api_url TEXT'
         ))
 
+    if insp.has_table('comment_users'):
+        cu_cols = {c['name'] for c in insp.get_columns('comment_users')}
+        if 'email' not in cu_cols:
+            db.session.execute(sqlalchemy.text(
+                'ALTER TABLE comment_users ADD COLUMN email VARCHAR(254)'
+            ))
+
     db.session.commit()
 
 
