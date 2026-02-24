@@ -114,7 +114,7 @@
             </div>
             <div class="comp-card-body">
                 {% if prediction.result %}
-                <div style="display:flex; align-items:center; gap:1rem; margin-bottom:1rem;">
+                <div style="display:flex; align-items:center; gap:1rem; margin-bottom:1rem; flex-wrap:wrap;">
                     <div style="font-size:1.3rem; font-weight:700; color:var(--gray-900);">{{ prediction.result }}</div>
                     {% if prediction.confidence %}
                     <span style="display:inline-flex; align-items:center; gap:4px; font-size:0.8rem; font-weight:600; padding:4px 12px; border-radius:var(--radius-sm);
