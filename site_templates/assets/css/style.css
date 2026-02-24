@@ -39,6 +39,8 @@ body {
     color: var(--gray-800);
     line-height: 1.6;
     -webkit-font-smoothing: antialiased;
+    overflow-wrap: break-word;
+    word-wrap: break-word;
 }
 
 /* ===== Navbar ===== */
@@ -298,6 +300,9 @@ body {
     display: grid;
     grid-template-columns: 1fr 320px;
     gap: 2.5rem;
+}
+.main > * {
+    min-width: 0;
 }
 
 /* ===== Section Headers ===== */
@@ -2239,15 +2244,23 @@ a.brand-rating-score:hover {
    GLOBAL MOBILE FIXES (375px)
    ============================================= */
 @media (max-width: 480px) {
+    .hero { padding: 2.5rem 1rem 2rem; }
     .hero h1 { font-size: 1.5rem; }
     .hero-stat-number { font-size: 1.2rem; }
     .hero-stats { flex-wrap: wrap; gap: 1rem; }
+    .main { padding: 1.5rem 1rem; gap: 1.5rem; }
+    .main-content { padding: 1.5rem 0.75rem; }
+    .content-block { padding: 1.25rem; }
+    .footer { padding: 2rem 1rem 1rem; }
     .footer-grid { grid-template-columns: 1fr; }
     .brand-card-tcs { flex-direction: column; align-items: flex-start; gap: 0.25rem; }
     .tcs-text { max-width: 100%; }
     .navbar { padding: 0 1rem; }
+    .review-hero { padding: 2rem 1rem; }
     .review-bottom-bar { padding: 0.6rem 1rem; }
     .review-section { padding: 1.25rem; }
     .comp-card-body { padding: 1rem; }
     .comp-card-header { padding: 1rem; }
+    .sidebar-card-header { padding: 0.75rem 1rem; }
+    .cta-table-header { padding: 0.75rem 1rem; }
 }
