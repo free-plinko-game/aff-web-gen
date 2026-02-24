@@ -2231,8 +2231,15 @@ a.brand-rating-score:hover {
 
 .author-hero-role {
     font-size: 1rem;
-    color: var(--text-muted, #6b7280);
+    color: rgba(255, 255, 255, 0.7);
     margin-bottom: 0.5rem;
+}
+
+.author-hero-bio {
+    font-size: 0.95rem;
+    color: rgba(255, 255, 255, 0.8);
+    line-height: 1.6;
+    margin: 0;
 }
 
 .expertise-tags {

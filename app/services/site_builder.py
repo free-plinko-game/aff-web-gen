@@ -607,13 +607,15 @@ def build_site(site, output_base_dir, upload_folder):
     # Generate author pages
     if authors:
         author_articles = {}
+        content_types = {'brand-review', 'bonus-review', 'evergreen', 'news-article', 'tips-article'}
         for p in pages:
-            if p.author_id and p.author_id in author_map:
+            if p.author_id and p.author_id in author_map and p.page_type.slug in content_types:
+                date = p.published_date or p.generated_at
                 author_articles.setdefault(p.author_id, []).append({
                     'title': p.title, 'slug': p.slug,
                     'url': _page_url_for_link(p).lstrip('/'),
                     'type': p.page_type.slug,
-                    'published_date': p.published_date.strftime('%d %b %Y') if p.published_date else '',
+                    'published_date': date.strftime('%d %b %Y') if date else '',
                 })
 
         authors_dir = os.path.join(version_dir, 'authors')

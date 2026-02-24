@@ -24,13 +24,13 @@
     </div>
 </section>
 
-{% include '_byline.html' %}
-
 <!-- MAIN LAYOUT -->
 <main class="review-main">
 
     <!-- LEFT: CONTENT -->
     <div class="review-content">
+
+        {% include '_byline.html' %}
 
         <!-- Bonus Overview Info Grid -->
         {% if content.bonus_overview %}
