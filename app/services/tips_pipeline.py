@@ -197,6 +197,10 @@ def fetch_and_generate_tips(site_id, app=None):
             if tips_landing:
                 page.nav_parent_id = tips_landing.id
 
+            # Auto-assign default author if set
+            if site.default_author_id:
+                page.author_id = site.default_author_id
+
             db.session.add(page)
             db.session.flush()  # Get page.id
 

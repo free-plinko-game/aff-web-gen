@@ -7,7 +7,7 @@ from datetime import datetime, timezone, timedelta
 from flask import Blueprint, render_template, request, redirect, url_for, flash, abort, current_app, send_from_directory
 
 from ..models import (
-    db, Site, SiteBrand, SiteBrandOverride, SitePage, Geo, Vertical, Brand, BrandGeo, BrandVertical,
+    db, Author, Site, SiteBrand, SiteBrandOverride, SitePage, Geo, Vertical, Brand, BrandGeo, BrandVertical,
     PageType, Domain, ContentHistory, CTATable, CTATableRow,
 )
 from ..services.content_generator import start_generation, generate_page_content, save_content_to_page, generate_meta_tags
@@ -665,6 +665,10 @@ def add_page(site_id):
                 flash('Unknown page type.', 'error')
                 return redirect(url_for('sites.add_page', site_id=site.id))
 
+            # Auto-assign default author if set
+            if not page.author_id and site.default_author_id:
+                page.author_id = site.default_author_id
+
             db.session.add(page)
             db.session.commit()
             flash(f'Page "{page.title}" added. Generate content when ready.', 'success')
@@ -969,6 +973,10 @@ def edit_page(site_id, page_id):
         cta_table_id = request.form.get('cta_table_id', type=int)
         page.cta_table_id = cta_table_id if cta_table_id else None
 
+        # Author assignment
+        author_id = request.form.get('author_id', type=int)
+        page.author_id = author_id if author_id else None
+
         # Content JSON (from structured editor textarea)
         content_json_raw = request.form.get('content_json', '').strip()
         if content_json_raw:
@@ -1003,9 +1011,11 @@ def edit_page(site_id, page_id):
         .all()
     )
     cta_tables = CTATable.query.filter_by(site_id=site.id).order_by(CTATable.name).all()
+    site_authors = Author.query.filter_by(site_id=site.id, is_active=True).order_by(Author.name).all()
 
     return render_template('sites/edit_page.html', site=site, page=page,
-                           history=history, page_url=_page_url, cta_tables=cta_tables)
+                           history=history, page_url=_page_url, cta_tables=cta_tables,
+                           site_authors=site_authors)
 
 
 @bp.route('/<int:site_id>/pages/<int:page_id>/delete', methods=['POST'])

@@ -76,6 +76,22 @@ def render_page_preview(site_page, site, asset_url_prefix=''):
     review_slugs = {p.slug for p in pages if p.page_type.slug == 'brand-review'}
     bonus_slugs = {p.slug for p in pages if p.page_type.slug == 'bonus-review'}
 
+    # Build author data for byline
+    from ..models import Author
+    authors = Author.query.filter_by(site_id=site.id, is_active=True).all()
+    author_map = {}
+    for a in authors:
+        author_map[a.id] = {
+            'name': a.name, 'slug': a.slug, 'role': a.role,
+            'short_bio': a.short_bio, 'bio': a.bio,
+            'avatar_filename': a.avatar_filename,
+            'expertise': json.loads(a.expertise) if a.expertise else [],
+            'social_links': json.loads(a.social_links) if a.social_links else {},
+            'initials': ''.join(w[0] for w in a.name.split()[:2]).upper(),
+            'color': f'hsl({hash(a.name) % 360}, 45%, 45%)',
+        }
+    page_author = author_map.get(site_page.author_id) if site_page.author_id else None
+
     ctx = {
         'site_name': site.name,
         'language': geo.language,
@@ -97,6 +113,8 @@ def render_page_preview(site_page, site, asset_url_prefix=''):
         'payment_icon_map': PAYMENT_ICON_MAP,
         'review_slugs': review_slugs,
         'bonus_slugs': bonus_slugs,
+        'page_author': page_author,
+        'has_authors': len(authors) > 0,
     }
 
     # Add page-type-specific context (same as site_builder.py)

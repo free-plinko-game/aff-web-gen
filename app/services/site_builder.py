@@ -17,7 +17,7 @@ from markupsafe import Markup
 
 logger = logging.getLogger(__name__)
 
-from ..models import db, Site, SitePage, SiteBrand
+from ..models import db, Author, Site, SitePage, SiteBrand
 from .schema_generator import generate_schema
 
 
@@ -384,6 +384,20 @@ def build_site(site, output_base_dir, upload_folder):
     review_slugs = {p.slug for p in pages if p.page_type.slug == 'brand-review'}
     bonus_slugs = {p.slug for p in pages if p.page_type.slug == 'bonus-review'}
 
+    # Build author data for bylines and author pages
+    authors = Author.query.filter_by(site_id=site.id, is_active=True).all()
+    author_map = {}
+    for a in authors:
+        author_map[a.id] = {
+            'name': a.name, 'slug': a.slug, 'role': a.role,
+            'short_bio': a.short_bio, 'bio': a.bio,
+            'avatar_filename': a.avatar_filename,
+            'expertise': json.loads(a.expertise) if a.expertise else [],
+            'social_links': json.loads(a.social_links) if a.social_links else {},
+            'initials': ''.join(w[0] for w in a.name.split()[:2]).upper(),
+            'color': f'hsl({hash(a.name) % 360}, 45%, 45%)',
+        }
+
     common_ctx = {
         'site_name': site.name,
         'language': geo.language,
@@ -396,6 +410,7 @@ def build_site(site, output_base_dir, upload_folder):
         'payment_icon_map': PAYMENT_ICON_MAP,
         'review_slugs': review_slugs,
         'bonus_slugs': bonus_slugs,
+        'has_authors': len(authors) > 0,
     }
 
     # Render each page
@@ -569,6 +584,10 @@ def build_site(site, output_base_dir, upload_folder):
         else:
             continue
 
+        # Inject author byline
+        page_author = author_map.get(page.author_id) if page.author_id else None
+        ctx['page_author'] = page_author
+
         # Generate JSON-LD schema markup (8.3)
         page_url = _build_sitemap_pages([page], domain)[0]['url'] if page else ''
         brand_info_for_schema = ctx.get('brand_info')
@@ -577,11 +596,69 @@ def build_site(site, output_base_dir, upload_folder):
             pt_slug, content, page.title, site.name, domain,
             f'/{page_url}', brand_info=brand_info_for_schema,
             rating=rating_for_schema, generated_at=page.generated_at,
+            author_info=page_author,
         )
 
         template = env.get_template(template_file)
         html = template.render(**ctx)
         with open(output_file, 'w', encoding='utf-8') as f:
+            f.write(html)
+
+    # Generate author pages
+    if authors:
+        author_articles = {}
+        for p in pages:
+            if p.author_id and p.author_id in author_map:
+                author_articles.setdefault(p.author_id, []).append({
+                    'title': p.title, 'slug': p.slug,
+                    'url': _page_url_for_link(p).lstrip('/'),
+                    'type': p.page_type.slug,
+                    'published_date': p.published_date.strftime('%d %b %Y') if p.published_date else '',
+                })
+
+        authors_dir = os.path.join(version_dir, 'authors')
+        os.makedirs(authors_dir, exist_ok=True)
+
+        for a in authors:
+            info = author_map[a.id]
+            author_url = f'/authors/{a.slug}'
+            author_ctx = {
+                **common_ctx,
+                'author': info,
+                'author_articles': author_articles.get(a.id, []),
+                'subdirectory': True,
+                'page_title': f'{a.name} — {a.role or "Author"}',
+                'meta_title': f'{a.name} — {info["role"] or "Author"} at {site.name}',
+                'meta_description': info['short_bio'] or '',
+                'page_author': None, 'cta_table': None, 'cluster_links': [],
+                'custom_head': site.custom_head or '',
+                'schema_json_ld': generate_schema(
+                    'author', info, a.name, site.name, domain, author_url,
+                ),
+            }
+            html = env.get_template('author.html').render(**author_ctx)
+            with open(os.path.join(authors_dir, f'{a.slug}.html'), 'w', encoding='utf-8') as f:
+                f.write(html)
+
+        author_list = []
+        for a in authors:
+            entry = dict(author_map[a.id])
+            entry['article_count'] = len(author_articles.get(a.id, []))
+            author_list.append(entry)
+
+        landing_ctx = {
+            **common_ctx,
+            'authors_list': author_list,
+            'subdirectory': True,
+            'page_title': 'Our Experts',
+            'meta_title': f'Our Experts — {site.name}',
+            'meta_description': f'Meet the team behind {site.name}',
+            'page_author': None, 'cta_table': None, 'cluster_links': [],
+            'custom_head': site.custom_head or '',
+            'schema_json_ld': '',
+        }
+        html = env.get_template('authors.html').render(**landing_ctx)
+        with open(os.path.join(authors_dir, 'index.html'), 'w', encoding='utf-8') as f:
             f.write(html)
 
     # Copy assets
@@ -601,6 +678,18 @@ def build_site(site, output_base_dir, upload_folder):
             if os.path.exists(src):
                 shutil.copy2(src, os.path.join(logos_dir, brand_info['logo_filename']))
 
+    # Copy author avatars
+    if authors:
+        avatars_src = os.path.join(upload_folder, 'avatars')
+        avatars_dst = os.path.join(dst_assets, 'avatars')
+        if os.path.isdir(avatars_src):
+            os.makedirs(avatars_dst, exist_ok=True)
+            for a in authors:
+                if a.avatar_filename:
+                    src = os.path.join(avatars_src, a.avatar_filename)
+                    if os.path.exists(src):
+                        shutil.copy2(src, os.path.join(avatars_dst, a.avatar_filename))
+
     # Generate favicon
     favicon_svg = _generate_favicon_svg(site.name, vertical.slug)
     with open(os.path.join(version_dir, 'favicon.svg'), 'w', encoding='utf-8') as f:
@@ -608,6 +697,13 @@ def build_site(site, output_base_dir, upload_folder):
 
     # Generate sitemap.xml
     sitemap_pages = _build_sitemap_pages(pages, domain)
+
+    # Add author pages to sitemap
+    if authors:
+        now_str = datetime.now(timezone.utc).strftime('%Y-%m-%d')
+        for a in authors:
+            sitemap_pages.append({'url': f'authors/{a.slug}', 'lastmod': now_str})
+        sitemap_pages.append({'url': 'authors', 'lastmod': now_str})
     sitemap_template = env.get_template('sitemap.xml')
     sitemap_html = sitemap_template.render(domain=domain, pages=sitemap_pages)
     with open(os.path.join(version_dir, 'sitemap.xml'), 'w', encoding='utf-8') as f:

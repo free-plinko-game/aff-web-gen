@@ -281,6 +281,94 @@
     </div>
 </div>
 
+<!-- Authors & E-E-A-T -->
+<div class="card mb-4">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <a class="text-decoration-none text-reset" data-bs-toggle="collapse" href="#authorsCollapse" role="button" aria-expanded="false" aria-controls="authorsCollapse">
+            <strong>Authors</strong>
+            <span class="badge bg-secondary ms-1" id="authorCount">0</span>
+            <small class="ms-1 text-muted">&#9662;</small>
+        </a>
+        <div>
+            <button type="button" class="btn btn-sm btn-outline-success" id="btnGenerateAuthors" onclick="generateAuthors()">
+                Generate Authors
+            </button>
+            <button type="button" class="btn btn-sm btn-outline-primary" onclick="showAddAuthorForm()">
+                Add Author
+            </button>
+        </div>
+    </div>
+    <div class="collapse" id="authorsCollapse">
+        <div class="card-body">
+            <!-- Default author selector -->
+            <div class="mb-3 d-flex align-items-center gap-2">
+                <label for="defaultAuthor" class="form-label mb-0"><strong>Default Author:</strong></label>
+                <select id="defaultAuthor" class="form-select form-select-sm" style="max-width:250px" onchange="setDefaultAuthor(this.value)">
+                    <option value="">None</option>
+                </select>
+                <button type="button" class="btn btn-sm btn-outline-secondary" onclick="assignAuthorBulk()">
+                    Assign to Unassigned Pages
+                </button>
+            </div>
+
+            <!-- AI Generation preview area -->
+            <div id="authorGenLoading" class="d-none text-center py-3">
+                <div class="spinner-border spinner-border-sm text-primary" role="status"></div>
+                <span class="ms-2">Generating author personas...</span>
+            </div>
+            <div id="authorGenPreview" class="d-none mb-3"></div>
+
+            <!-- Add/Edit form (hidden by default) -->
+            <div id="authorForm" class="d-none border rounded p-3 mb-3 bg-light">
+                <h6 id="authorFormTitle">Add Author</h6>
+                <input type="hidden" id="authorFormId" value="">
+                <div class="row g-2 mb-2">
+                    <div class="col-md-4">
+                        <label class="form-label small">Name *</label>
+                        <input type="text" id="authorName" class="form-control form-control-sm" required>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label small">Slug</label>
+                        <input type="text" id="authorSlug" class="form-control form-control-sm" placeholder="auto-generated">
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label small">Role</label>
+                        <input type="text" id="authorRole" class="form-control form-control-sm" placeholder="Senior Betting Analyst">
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label small">Active</label>
+                        <select id="authorActive" class="form-select form-select-sm">
+                            <option value="1" selected>Yes</option>
+                            <option value="0">No</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="mb-2">
+                    <label class="form-label small">Short Bio (byline)</label>
+                    <input type="text" id="authorShortBio" class="form-control form-control-sm" maxlength="500" placeholder="One-sentence bio for article bylines">
+                </div>
+                <div class="mb-2">
+                    <label class="form-label small">Full Bio (HTML)</label>
+                    <textarea id="authorBio" class="form-control form-control-sm" rows="4" placeholder="2-3 paragraph bio with <p> tags"></textarea>
+                </div>
+                <div class="mb-2">
+                    <label class="form-label small">Expertise (comma-separated)</label>
+                    <input type="text" id="authorExpertise" class="form-control form-control-sm" placeholder="Premier League, Odds Analysis, Football Betting">
+                </div>
+                <div class="d-flex gap-2">
+                    <button type="button" class="btn btn-primary btn-sm" onclick="saveAuthor()">Save</button>
+                    <button type="button" class="btn btn-outline-secondary btn-sm" onclick="hideAuthorForm()">Cancel</button>
+                    <span id="authorFormStatus" class="small align-self-center"></span>
+                </div>
+            </div>
+
+            <!-- Author list -->
+            <div id="authorList"></div>
+            <div id="authorStatus" class="mt-2"></div>
+        </div>
+    </div>
+</div>
+
 <!-- Dead Internal Links -->
 <div class="card mb-4">
     <div class="card-header d-flex justify-content-between align-items-center">
@@ -878,6 +966,314 @@ function sweepLinks(mode) {
         status.innerHTML = '<div class="alert alert-danger">Error: ' + err.message + '</div>';
     });
 }
+
+/* --- Authors & E-E-A-T --- */
+const _authorApiBase = '{{ url_for("api.list_authors", site_id=site.id) }}';
+let _authors = [];
+let _defaultAuthorId = null;
+
+function loadAuthors() {
+    fetch(_authorApiBase)
+    .then(r => r.json())
+    .then(data => {
+        _authors = data.authors || [];
+        _defaultAuthorId = data.default_author_id;
+        renderAuthorList();
+    });
+}
+
+function renderAuthorList() {
+    document.getElementById('authorCount').textContent = _authors.length;
+    const list = document.getElementById('authorList');
+    const sel = document.getElementById('defaultAuthor');
+
+    // Update default author dropdown
+    sel.innerHTML = '<option value="">None</option>';
+    _authors.forEach(a => {
+        const opt = document.createElement('option');
+        opt.value = a.id;
+        opt.textContent = a.name + (a.role ? ' — ' + a.role : '');
+        if (a.id === _defaultAuthorId) opt.selected = true;
+        sel.appendChild(opt);
+    });
+
+    if (_authors.length === 0) {
+        list.innerHTML = '<p class="text-muted mb-0">No authors yet. Click "Generate Authors" to create AI personas or "Add Author" to add manually.</p>';
+        return;
+    }
+
+    let html = '<div class="list-group">';
+    _authors.forEach(a => {
+        const initials = a.name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
+        const avatarHtml = a.avatar_filename
+            ? `<img src="/uploads/avatars/${a.avatar_filename}" class="rounded-circle" width="36" height="36" style="object-fit:cover">`
+            : `<span class="rounded-circle d-inline-flex align-items-center justify-content-center text-white" style="width:36px;height:36px;font-size:0.8rem;background:hsl(${hashCode(a.name) % 360},45%,45%)">${initials}</span>`;
+        html += `
+        <div class="list-group-item d-flex align-items-center gap-2">
+            ${avatarHtml}
+            <div class="flex-grow-1">
+                <strong>${a.name}</strong>
+                ${a.role ? '<small class="text-muted ms-1">' + a.role + '</small>' : ''}
+                <br><small class="text-muted">${a.article_count} article${a.article_count !== 1 ? 's' : ''}${!a.is_active ? ' · <span class="text-danger">Inactive</span>' : ''}</small>
+            </div>
+            <div class="btn-group btn-group-sm">
+                <label class="btn btn-outline-secondary btn-sm mb-0" title="Upload avatar">
+                    <input type="file" accept="image/*" class="d-none" onchange="uploadAvatar(${a.id}, this.files[0])">&#128247;
+                </label>
+                <button class="btn btn-outline-primary btn-sm" onclick="editAuthor(${a.id})">Edit</button>
+                <button class="btn btn-outline-danger btn-sm" onclick="deleteAuthor(${a.id})">Delete</button>
+            </div>
+        </div>`;
+    });
+    html += '</div>';
+    list.innerHTML = html;
+}
+
+function hashCode(str) {
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+        hash = ((hash << 5) - hash) + str.charCodeAt(i);
+        hash |= 0;
+    }
+    return Math.abs(hash);
+}
+
+function showAddAuthorForm() {
+    document.getElementById('authorFormTitle').textContent = 'Add Author';
+    document.getElementById('authorFormId').value = '';
+    document.getElementById('authorName').value = '';
+    document.getElementById('authorSlug').value = '';
+    document.getElementById('authorRole').value = '';
+    document.getElementById('authorShortBio').value = '';
+    document.getElementById('authorBio').value = '';
+    document.getElementById('authorExpertise').value = '';
+    document.getElementById('authorActive').value = '1';
+    document.getElementById('authorForm').classList.remove('d-none');
+}
+
+function hideAuthorForm() {
+    document.getElementById('authorForm').classList.add('d-none');
+    document.getElementById('authorFormStatus').innerHTML = '';
+}
+
+function editAuthor(id) {
+    const a = _authors.find(x => x.id === id);
+    if (!a) return;
+    document.getElementById('authorFormTitle').textContent = 'Edit Author';
+    document.getElementById('authorFormId').value = a.id;
+    document.getElementById('authorName').value = a.name;
+    document.getElementById('authorSlug').value = a.slug;
+    document.getElementById('authorRole').value = a.role || '';
+    document.getElementById('authorShortBio').value = a.short_bio || '';
+    document.getElementById('authorBio').value = a.bio || '';
+    document.getElementById('authorExpertise').value = (a.expertise || []).join(', ');
+    document.getElementById('authorActive').value = a.is_active ? '1' : '0';
+    document.getElementById('authorForm').classList.remove('d-none');
+}
+
+function saveAuthor() {
+    const id = document.getElementById('authorFormId').value;
+    const status = document.getElementById('authorFormStatus');
+    const expertise_raw = document.getElementById('authorExpertise').value.trim();
+
+    const payload = {
+        name: document.getElementById('authorName').value.trim(),
+        slug: document.getElementById('authorSlug').value.trim(),
+        role: document.getElementById('authorRole').value.trim(),
+        short_bio: document.getElementById('authorShortBio').value.trim(),
+        bio: document.getElementById('authorBio').value.trim(),
+        expertise: expertise_raw ? expertise_raw.split(',').map(s => s.trim()).filter(Boolean) : [],
+        is_active: document.getElementById('authorActive').value === '1',
+    };
+
+    if (!payload.name) {
+        status.innerHTML = '<span class="text-danger">Name is required</span>';
+        return;
+    }
+
+    status.innerHTML = '<span class="text-muted">Saving...</span>';
+
+    const url = id ? `${_authorApiBase}/${id}` : _authorApiBase;
+    const method = id ? 'PUT' : 'POST';
+
+    fetch(url, {method, headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload)})
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            hideAuthorForm();
+            loadAuthors();
+        } else {
+            status.innerHTML = '<span class="text-danger">' + (data.error || 'Failed') + '</span>';
+        }
+    })
+    .catch(err => {
+        status.innerHTML = '<span class="text-danger">Error: ' + err.message + '</span>';
+    });
+}
+
+function deleteAuthor(id) {
+    const a = _authors.find(x => x.id === id);
+    if (!confirm(`Delete author "${a ? a.name : id}"? Their bylines will be removed from all pages.`)) return;
+
+    fetch(`${_authorApiBase}/${id}`, {method: 'DELETE'})
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) loadAuthors();
+        else alert(data.error || 'Failed to delete');
+    });
+}
+
+function uploadAvatar(authorId, file) {
+    if (!file) return;
+    const fd = new FormData();
+    fd.append('avatar', file);
+
+    fetch(`${_authorApiBase}/${authorId}/avatar`, {method: 'POST', body: fd})
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) loadAuthors();
+        else alert(data.error || 'Upload failed');
+    });
+}
+
+function setDefaultAuthor(authorId) {
+    fetch('{{ url_for("api.set_default_author", site_id=site.id) }}', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({author_id: authorId ? parseInt(authorId) : null}),
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            _defaultAuthorId = authorId ? parseInt(authorId) : null;
+            const s = document.getElementById('authorStatus');
+            s.innerHTML = '<small class="text-success">Default author updated</small>';
+            setTimeout(() => { s.innerHTML = ''; }, 2000);
+        }
+    });
+}
+
+function assignAuthorBulk() {
+    const authorId = document.getElementById('defaultAuthor').value;
+    if (!authorId) {
+        alert('Select a default author first.');
+        return;
+    }
+    if (!confirm('Assign this author to all pages that don\'t have one?')) return;
+
+    fetch('{{ url_for("api.assign_author_bulk", site_id=site.id) }}', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({author_id: parseInt(authorId)}),
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            const s = document.getElementById('authorStatus');
+            s.innerHTML = `<small class="text-success">Assigned to ${data.updated} page(s)</small>`;
+            setTimeout(() => { s.innerHTML = ''; }, 3000);
+        } else {
+            alert(data.error || 'Failed');
+        }
+    });
+}
+
+function generateAuthors() {
+    const btn = document.getElementById('btnGenerateAuthors');
+    const loading = document.getElementById('authorGenLoading');
+    const preview = document.getElementById('authorGenPreview');
+    const collapse = document.getElementById('authorsCollapse');
+
+    new bootstrap.Collapse(collapse, {toggle: false}).show();
+
+    btn.disabled = true;
+    loading.classList.remove('d-none');
+    preview.classList.add('d-none');
+
+    fetch('{{ url_for("api.generate_authors", site_id=site.id) }}', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+    })
+    .then(r => r.json())
+    .then(data => {
+        loading.classList.add('d-none');
+        btn.disabled = false;
+
+        if (data.error) {
+            preview.innerHTML = '<div class="alert alert-danger">' + data.error + '</div>';
+            preview.classList.remove('d-none');
+            return;
+        }
+
+        const personas = data.authors || [];
+        if (personas.length === 0) {
+            preview.innerHTML = '<div class="alert alert-warning">No personas generated. Try again.</div>';
+            preview.classList.remove('d-none');
+            return;
+        }
+
+        let html = '<h6>Generated Personas (review before saving)</h6>';
+        personas.forEach((p, i) => {
+            html += `
+            <div class="border rounded p-2 mb-2 bg-white">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <strong>${p.name}</strong> <small class="text-muted">— ${p.role || ''}</small>
+                        <br><small>${p.short_bio || ''}</small>
+                        <br><small class="text-muted">Expertise: ${(p.expertise || []).join(', ')}</small>
+                    </div>
+                    <button class="btn btn-sm btn-success" onclick="saveGeneratedAuthor(${i})">Save</button>
+                </div>
+            </div>`;
+        });
+        preview.innerHTML = html;
+        preview.classList.remove('d-none');
+
+        window._generatedPersonas = personas;
+    })
+    .catch(err => {
+        loading.classList.add('d-none');
+        btn.disabled = false;
+        preview.innerHTML = '<div class="alert alert-danger">Error: ' + err.message + '</div>';
+        preview.classList.remove('d-none');
+    });
+}
+
+function saveGeneratedAuthor(index) {
+    const p = window._generatedPersonas[index];
+    if (!p) return;
+
+    fetch(_authorApiBase, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            name: p.name,
+            slug: p.slug,
+            role: p.role,
+            short_bio: p.short_bio,
+            bio: p.bio,
+            expertise: p.expertise,
+        }),
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            // Grey out the saved card
+            const cards = document.querySelectorAll('#authorGenPreview .border');
+            if (cards[index]) {
+                cards[index].style.opacity = '0.5';
+                cards[index].querySelector('button').disabled = true;
+                cards[index].querySelector('button').textContent = 'Saved';
+            }
+            loadAuthors();
+        } else {
+            alert(data.error || 'Failed to save');
+        }
+    });
+}
+
+// Load authors on page load
+loadAuthors();
 
 // Init drag-and-drop when tab is shown (SortableJS needs visible elements)
 document.querySelector('[data-bs-target="#tab-menu-order"]')?.addEventListener('shown.bs.tab', function() {

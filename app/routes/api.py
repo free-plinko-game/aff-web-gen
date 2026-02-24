@@ -4,7 +4,7 @@ import os
 
 from flask import Blueprint, jsonify, request, abort, Response, send_from_directory, current_app
 
-from ..models import db, Brand, BrandGeo, BrandVertical, Site, SitePage, PageType
+from ..models import db, Author, Brand, BrandGeo, BrandVertical, Site, SitePage, PageType
 from ..services.content_generator import call_openai
 from ..services.preview_renderer import render_page_preview
 
@@ -138,9 +138,13 @@ def preview_assets(site_id, filename):
 
     # Check if it's a logo file — serve from uploads/logos/ instead
     if filename.startswith('logos/'):
-        from flask import current_app
         upload_folder = current_app.config.get('UPLOAD_FOLDER', 'uploads')
         return send_from_directory(os.path.join(upload_folder, 'logos'), filename[6:])
+
+    # Check if it's an avatar file — serve from uploads/avatars/
+    if filename.startswith('avatars/'):
+        upload_folder = current_app.config.get('UPLOAD_FOLDER', 'uploads')
+        return send_from_directory(os.path.join(upload_folder, 'avatars'), filename[8:])
 
     return send_from_directory(assets_dir, filename)
 
@@ -401,3 +405,257 @@ def sweep_links(site_id):
     result = sweep_dead_links(site.id, fix=fix)
 
     return jsonify({'success': True, **result})
+
+
+# ── Author CRUD ──────────────────────────────────────────────────────────
+
+ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'webp', 'svg'}
+
+
+def _slugify(text):
+    """Simple slug generator: lowercase, strip non-alnum, collapse hyphens."""
+    import re
+    s = text.lower().strip()
+    s = re.sub(r'[^a-z0-9]+', '-', s)
+    return s.strip('-')
+
+
+def _save_avatar(file, slug):
+    """Save an uploaded avatar file. Returns the filename or None."""
+    if file and file.filename and '.' in file.filename:
+        ext = file.filename.rsplit('.', 1)[1].lower()
+        if ext not in ALLOWED_EXTENSIONS:
+            return None
+        filename = f"{slug}.{ext}"
+        filepath = os.path.join(current_app.config['UPLOAD_FOLDER'], 'avatars', filename)
+        file.save(filepath)
+        return filename
+    return None
+
+
+@bp.route('/sites/<int:site_id>/authors', methods=['GET'])
+def list_authors(site_id):
+    """List all authors for a site."""
+    site = db.session.get(Site, site_id)
+    if not site:
+        return jsonify({'error': 'Site not found'}), 404
+
+    authors = Author.query.filter_by(site_id=site_id).order_by(Author.name).all()
+    return jsonify({
+        'authors': [_author_to_dict(a) for a in authors],
+        'default_author_id': site.default_author_id,
+    })
+
+
+@bp.route('/sites/<int:site_id>/authors', methods=['POST'])
+def create_author(site_id):
+    """Create a new author for a site."""
+    site = db.session.get(Site, site_id)
+    if not site:
+        return jsonify({'error': 'Site not found'}), 404
+
+    data = request.get_json(silent=True) or {}
+    name = (data.get('name') or '').strip()
+    if not name:
+        return jsonify({'error': 'Name is required'}), 400
+
+    slug = (data.get('slug') or '').strip() or _slugify(name)
+
+    # Check uniqueness
+    existing = Author.query.filter_by(site_id=site_id, slug=slug).first()
+    if existing:
+        return jsonify({'error': f'Author with slug "{slug}" already exists'}), 400
+
+    author = Author(
+        site_id=site_id,
+        name=name,
+        slug=slug,
+        role=(data.get('role') or '').strip() or None,
+        short_bio=(data.get('short_bio') or '').strip() or None,
+        bio=(data.get('bio') or '').strip() or None,
+        expertise=json.dumps(data['expertise']) if data.get('expertise') else None,
+        social_links=json.dumps(data['social_links']) if data.get('social_links') else None,
+    )
+    db.session.add(author)
+    db.session.commit()
+
+    return jsonify({'success': True, 'author': _author_to_dict(author)})
+
+
+@bp.route('/sites/<int:site_id>/authors/<int:author_id>', methods=['PUT'])
+def update_author(site_id, author_id):
+    """Update an existing author."""
+    author = Author.query.filter_by(id=author_id, site_id=site_id).first()
+    if not author:
+        return jsonify({'error': 'Author not found'}), 404
+
+    data = request.get_json(silent=True) or {}
+
+    if 'name' in data:
+        name = (data['name'] or '').strip()
+        if not name:
+            return jsonify({'error': 'Name cannot be empty'}), 400
+        author.name = name
+
+    if 'slug' in data:
+        slug = (data['slug'] or '').strip()
+        if slug and slug != author.slug:
+            dup = Author.query.filter_by(site_id=site_id, slug=slug).first()
+            if dup:
+                return jsonify({'error': f'Slug "{slug}" already taken'}), 400
+            author.slug = slug
+
+    if 'role' in data:
+        author.role = (data['role'] or '').strip() or None
+    if 'short_bio' in data:
+        author.short_bio = (data['short_bio'] or '').strip() or None
+    if 'bio' in data:
+        author.bio = (data['bio'] or '').strip() or None
+    if 'expertise' in data:
+        author.expertise = json.dumps(data['expertise']) if data['expertise'] else None
+    if 'social_links' in data:
+        author.social_links = json.dumps(data['social_links']) if data['social_links'] else None
+    if 'is_active' in data:
+        author.is_active = bool(data['is_active'])
+
+    db.session.commit()
+    return jsonify({'success': True, 'author': _author_to_dict(author)})
+
+
+@bp.route('/sites/<int:site_id>/authors/<int:author_id>', methods=['DELETE'])
+def delete_author(site_id, author_id):
+    """Delete an author. Nullifies author_id on linked pages."""
+    author = Author.query.filter_by(id=author_id, site_id=site_id).first()
+    if not author:
+        return jsonify({'error': 'Author not found'}), 404
+
+    # Clear default_author_id if it matches
+    site = db.session.get(Site, site_id)
+    if site and site.default_author_id == author_id:
+        site.default_author_id = None
+
+    # Nullify author_id on any linked pages
+    SitePage.query.filter_by(author_id=author_id).update({'author_id': None})
+
+    # Delete avatar file if exists
+    if author.avatar_filename:
+        avatar_path = os.path.join(
+            current_app.config['UPLOAD_FOLDER'], 'avatars', author.avatar_filename
+        )
+        if os.path.exists(avatar_path):
+            os.remove(avatar_path)
+
+    db.session.delete(author)
+    db.session.commit()
+    return jsonify({'success': True})
+
+
+@bp.route('/sites/<int:site_id>/authors/<int:author_id>/avatar', methods=['POST'])
+def upload_avatar(site_id, author_id):
+    """Upload an avatar image for an author."""
+    author = Author.query.filter_by(id=author_id, site_id=site_id).first()
+    if not author:
+        return jsonify({'error': 'Author not found'}), 404
+
+    if 'avatar' not in request.files:
+        return jsonify({'error': 'No avatar file provided'}), 400
+
+    file = request.files['avatar']
+    filename = _save_avatar(file, author.slug)
+    if not filename:
+        return jsonify({'error': 'Invalid file type'}), 400
+
+    # Remove old avatar if different filename
+    if author.avatar_filename and author.avatar_filename != filename:
+        old_path = os.path.join(
+            current_app.config['UPLOAD_FOLDER'], 'avatars', author.avatar_filename
+        )
+        if os.path.exists(old_path):
+            os.remove(old_path)
+
+    author.avatar_filename = filename
+    db.session.commit()
+    return jsonify({'success': True, 'filename': filename})
+
+
+@bp.route('/sites/<int:site_id>/set-default-author', methods=['POST'])
+def set_default_author(site_id):
+    """Set or clear the default author for a site."""
+    site = db.session.get(Site, site_id)
+    if not site:
+        return jsonify({'error': 'Site not found'}), 404
+
+    data = request.get_json(silent=True) or {}
+    author_id = data.get('author_id')
+
+    if author_id is not None:
+        author = Author.query.filter_by(id=author_id, site_id=site_id).first()
+        if not author:
+            return jsonify({'error': 'Author not found'}), 404
+
+    site.default_author_id = author_id
+    db.session.commit()
+    return jsonify({'success': True})
+
+
+@bp.route('/sites/<int:site_id>/assign-author-bulk', methods=['POST'])
+def assign_author_bulk(site_id):
+    """Assign an author to all pages that don't have one."""
+    site = db.session.get(Site, site_id)
+    if not site:
+        return jsonify({'error': 'Site not found'}), 404
+
+    data = request.get_json(silent=True) or {}
+    author_id = data.get('author_id')
+    if not author_id:
+        return jsonify({'error': 'author_id is required'}), 400
+
+    author = Author.query.filter_by(id=author_id, site_id=site_id).first()
+    if not author:
+        return jsonify({'error': 'Author not found'}), 404
+
+    updated = SitePage.query.filter_by(site_id=site_id, author_id=None).update(
+        {'author_id': author_id}
+    )
+    db.session.commit()
+    return jsonify({'success': True, 'updated': updated})
+
+
+@bp.route('/sites/<int:site_id>/generate-authors', methods=['POST'])
+def generate_authors(site_id):
+    """AI-generate author personas for a site. Returns suggestions (does not save)."""
+    site = db.session.get(Site, site_id)
+    if not site:
+        return jsonify({'error': 'Site not found'}), 404
+
+    api_key = current_app.config.get('OPENAI_API_KEY')
+    if not api_key:
+        return jsonify({'error': 'OpenAI API key not configured'}), 500
+
+    from ..services.author_generator import generate_author_personas
+    try:
+        personas = generate_author_personas(site, api_key)
+    except Exception as e:
+        logger.warning('Author generation failed for site %d: %s', site_id, e)
+        return jsonify({'error': f'Generation failed: {e}'}), 500
+
+    return jsonify({'success': True, 'authors': personas})
+
+
+def _author_to_dict(author):
+    """Serialize an Author model to a dict."""
+    article_count = SitePage.query.filter_by(author_id=author.id).count()
+    return {
+        'id': author.id,
+        'site_id': author.site_id,
+        'name': author.name,
+        'slug': author.slug,
+        'role': author.role,
+        'bio': author.bio,
+        'short_bio': author.short_bio,
+        'avatar_filename': author.avatar_filename,
+        'expertise': json.loads(author.expertise) if author.expertise else [],
+        'social_links': json.loads(author.social_links) if author.social_links else {},
+        'is_active': author.is_active,
+        'article_count': article_count,
+    }

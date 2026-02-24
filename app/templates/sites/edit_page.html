@@ -62,6 +62,17 @@
                                 {% endfor %}
                             </select>
                         </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="author_id" class="form-label">Author</label>
+                            <select name="author_id" id="author_id" class="form-select">
+                                <option value="">None</option>
+                                {% for a in site_authors %}
+                                <option value="{{ a.id }}" {{ 'selected' if page.author_id == a.id else '' }}>
+                                    {{ a.name }}{{ ' — ' + a.role if a.role else '' }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
                     </div>
                     <div class="mb-0">
                         <label for="custom_head" class="form-label">Custom &lt;head&gt; HTML</label>

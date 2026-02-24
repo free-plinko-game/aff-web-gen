@@ -1,0 +1,20 @@
+{% if page_author %}
+<div class="byline">
+    <div class="byline-avatar">
+        {% if page_author.avatar_filename %}
+        <img src="{{ prefix | default('') }}assets/avatars/{{ page_author.avatar_filename }}" alt="{{ page_author.name }}">
+        {% else %}
+        <span class="byline-initials" style="background:{{ page_author.color }}">{{ page_author.initials }}</span>
+        {% endif %}
+    </div>
+    <div class="byline-info">
+        <a href="{{ prefix | default('') }}authors/{{ page_author.slug }}" class="byline-name">{{ page_author.name }}</a>
+        {% if page_author.role %}
+        <span class="byline-role">{{ page_author.role }}</span>
+        {% endif %}
+        {% if published_date %}
+        <span class="byline-date">Updated {{ published_date }}</span>
+        {% endif %}
+    </div>
+</div>
+{% endif %}

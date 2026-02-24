@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+
+{% block body_content %}
+{% if preview_asset_prefix %}
+{% set prefix = preview_asset_prefix %}
+{% else %}
+{% set prefix = '../' if subdirectory else '' %}
+{% endif %}
+
+<!-- HERO -->
+<section class="hero">
+    <div class="hero-inner">
+        <h1>{{ page_title }}</h1>
+        <p>Meet the team of experts behind {{ site_name }}. Our writers bring years of experience in sports betting, casino gaming, and the online gambling industry.</p>
+    </div>
+</section>
+
+<!-- MAIN -->
+<main class="main">
+
+    <div class="content-area" style="max-width:100%">
+        <div class="authors-grid">
+            {% for author in authors_list %}
+            <div class="author-card">
+                {% if author.avatar_filename %}
+                <img src="{{ prefix }}assets/avatars/{{ author.avatar_filename }}" alt="{{ author.name }}">
+                {% else %}
+                <span class="byline-initials" style="background:{{ author.color }}">{{ author.initials }}</span>
+                {% endif %}
+                <h3>{{ author.name }}</h3>
+                {% if author.role %}
+                <div class="author-card-role">{{ author.role }}</div>
+                {% endif %}
+                {% if author.short_bio %}
+                <div class="author-card-bio">{{ author.short_bio }}</div>
+                {% endif %}
+                <div class="author-card-count">{{ author.article_count }} article{{ 's' if author.article_count != 1 }}</div>
+                <a href="{{ prefix }}authors/{{ author.slug }}" class="btn-author">View Profile &rarr;</a>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+</main>
+{% endblock body_content %}

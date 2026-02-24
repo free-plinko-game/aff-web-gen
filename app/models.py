@@ -138,6 +138,7 @@ class Site(db.Model):
     freshness_threshold_days = db.Column(db.Integer, default=30)
     custom_head = db.Column(db.Text)  # Site-wide custom HTML for <head>
     tips_leagues = db.Column(db.Text, nullable=True)  # JSON array of league configs for tips pipeline
+    default_author_id = db.Column(db.Integer, db.ForeignKey('authors.id'), nullable=True)
 
     geo = db.relationship('Geo', back_populates='sites')
     vertical = db.relationship('Vertical', back_populates='sites')
@@ -224,6 +225,7 @@ class SitePage(db.Model):
     cta_table_id = db.Column(db.Integer, db.ForeignKey('cta_tables.id'), nullable=True)
     published_date = db.Column(db.DateTime, nullable=True)  # For news articles: display date
     fixture_id = db.Column(db.Integer, nullable=True)  # API-Football fixture ID for tips dedup
+    author_id = db.Column(db.Integer, db.ForeignKey('authors.id'), nullable=True)
 
     # Menu management
     show_in_nav = db.Column(db.Boolean, default=False, nullable=False)
@@ -237,6 +239,7 @@ class SitePage(db.Model):
     page_type = db.relationship('PageType', back_populates='site_pages')
     brand = db.relationship('Brand')
     cta_table = db.relationship('CTATable', back_populates='pages')
+    author = db.relationship('Author')
     content_history = db.relationship('ContentHistory', back_populates='site_page', cascade='all, delete-orphan')
     nav_parent = db.relationship('SitePage', remote_side='SitePage.id',
                                  backref=db.backref('nav_children', lazy='select'))
@@ -265,6 +268,28 @@ class ContentHistory(db.Model):
     version = db.Column(db.Integer, nullable=False)
 
     site_page = db.relationship('SitePage', back_populates='content_history')
+
+
+class Author(db.Model):
+    __tablename__ = 'authors'
+    __table_args__ = (
+        db.UniqueConstraint('site_id', 'slug', name='uq_author_slug'),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    site_id = db.Column(db.Integer, db.ForeignKey('sites.id'), nullable=False)
+    name = db.Column(db.String(200), nullable=False)
+    slug = db.Column(db.String(200), nullable=False)
+    bio = db.Column(db.Text)
+    short_bio = db.Column(db.String(500))
+    role = db.Column(db.String(100))
+    avatar_filename = db.Column(db.String(300))
+    expertise = db.Column(db.Text)      # JSON array
+    social_links = db.Column(db.Text)   # JSON object
+    is_active = db.Column(db.Boolean, default=True)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+
+    site = db.relationship('Site', backref='authors', foreign_keys=[site_id])
 
 
 class CTATable(db.Model):

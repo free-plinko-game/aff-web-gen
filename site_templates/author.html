@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+
+{% block body_content %}
+{% if preview_asset_prefix %}
+{% set prefix = preview_asset_prefix %}
+{% else %}
+{% set prefix = '../' if subdirectory else '' %}
+{% endif %}
+
+<!-- HERO -->
+<section class="hero">
+    <div class="hero-inner">
+        <div class="author-hero">
+            <div class="author-hero-avatar">
+                {% if author.avatar_filename %}
+                <img src="{{ prefix }}assets/avatars/{{ author.avatar_filename }}" alt="{{ author.name }}">
+                {% else %}
+                <span class="byline-initials" style="background:{{ author.color }}">{{ author.initials }}</span>
+                {% endif %}
+            </div>
+            <div class="author-hero-info">
+                <h1>{{ author.name }}</h1>
+                {% if author.role %}
+                <div class="author-hero-role">{{ author.role }}</div>
+                {% endif %}
+                {% if author.short_bio %}
+                <p>{{ author.short_bio }}</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- MAIN -->
+<main class="main">
+
+    <!-- LEFT: CONTENT -->
+    <div class="content-area">
+        {% if author.expertise %}
+        <div class="expertise-tags">
+            {% for tag in author.expertise %}
+            <span class="expertise-tag">{{ tag }}</span>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        {% if author.social_links %}
+        <div class="social-links">
+            {% for platform, url in author.social_links.items() %}
+            <a href="{{ url }}" target="_blank" rel="nofollow noopener">{{ platform | capitalize }}</a>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        {% if author.bio %}
+        <div class="author-bio">
+            {{ author.bio | safe }}
+        </div>
+        {% endif %}
+
+        {% if author_articles %}
+        <div class="author-articles">
+            <h2>Articles by {{ author.name }}</h2>
+            {% for article in author_articles %}
+            <div class="author-article-item">
+                <a href="{{ prefix }}{{ article.url | replace('^/', '') }}">{{ article.title }}</a>
+                <div class="author-article-meta">
+                    <span class="badge-type">{{ article.type | replace('-', ' ') | title }}</span>
+                    {% if article.published_date %}
+                    <span> &middot; {{ article.published_date }}</span>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- RIGHT: SIDEBAR -->
+    <aside class="sidebar">
+        {% if cta_table %}
+        {% include '_cta_table.html' %}
+        {% endif %}
+
+        {% if cluster_links %}
+        <div class="quick-links">
+            <h3>Related</h3>
+            {% for link in cluster_links %}
+            <a href="{{ link.url }}" class="quick-link">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
+                {{ link.label }}
+            </a>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        <div class="responsible-gambling">
+            <h3>Responsible Gambling</h3>
+            <p>Gambling should be fun, not a way to make money. Set limits and never bet more than you can afford to lose.</p>
+            <p><strong>18+</strong> | BeGambleAware.org</p>
+        </div>
+    </aside>
+
+</main>
+{% endblock body_content %}

@@ -17,6 +17,7 @@ def create_app(test_config=None):
     # Ensure upload directory exists
     upload_folder = app.config.get('UPLOAD_FOLDER', os.path.join(app.root_path, '..', 'uploads'))
     os.makedirs(os.path.join(upload_folder, 'logos'), exist_ok=True)
+    os.makedirs(os.path.join(upload_folder, 'avatars'), exist_ok=True)
     app.config['UPLOAD_FOLDER'] = upload_folder
 
     db.init_app(app)
@@ -78,6 +79,15 @@ def _auto_migrate(db):
     if 'tips_leagues' not in sites_cols:
         db.session.execute(sqlalchemy.text(
             'ALTER TABLE sites ADD COLUMN tips_leagues TEXT'
+        ))
+    if 'default_author_id' not in sites_cols:
+        db.session.execute(sqlalchemy.text(
+            'ALTER TABLE sites ADD COLUMN default_author_id INTEGER'
+        ))
+
+    if 'author_id' not in site_pages_cols:
+        db.session.execute(sqlalchemy.text(
+            'ALTER TABLE site_pages ADD COLUMN author_id INTEGER'
         ))
 
     db.session.commit()

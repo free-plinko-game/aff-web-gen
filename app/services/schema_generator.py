@@ -9,7 +9,8 @@ from datetime import datetime
 
 
 def generate_schema(page_type_slug, content, page_title, site_name, domain,
-                    page_url, brand_info=None, rating=None, generated_at=None):
+                    page_url, brand_info=None, rating=None, generated_at=None,
+                    author_info=None):
     """Generate JSON-LD structured data for a page.
 
     Args:
@@ -22,6 +23,7 @@ def generate_schema(page_type_slug, content, page_title, site_name, domain,
         brand_info: dict with brand data (for review pages)
         rating: float rating value (for review pages)
         generated_at: datetime of content generation (for datePublished)
+        author_info: dict with author data (for Person schema instead of Organization)
 
     Returns:
         str: JSON-LD script tag(s) ready for injection into <head>, or empty string.
@@ -31,19 +33,24 @@ def generate_schema(page_type_slug, content, page_title, site_name, domain,
     full_url = f'{base_url}{page_url}'
     date_str = generated_at.strftime('%Y-%m-%d') if generated_at else datetime.now().strftime('%Y-%m-%d')
 
+    # Build author schema block (Person if author exists, else Organization)
+    author_schema = _build_author_block(author_info, domain) if author_info else {
+        '@type': 'Organization', 'name': site_name,
+    }
+
     if page_type_slug == 'homepage':
         schemas.append(_website_schema(site_name, base_url))
 
     elif page_type_slug == 'brand-review':
         schemas.append(_review_schema(
             content, page_title, full_url, site_name,
-            brand_info, rating, date_str,
+            brand_info, rating, date_str, author_schema,
         ))
 
     elif page_type_slug == 'bonus-review':
         schemas.append(_review_schema(
             content, page_title, full_url, site_name,
-            brand_info, rating, date_str,
+            brand_info, rating, date_str, author_schema,
         ))
 
     elif page_type_slug == 'comparison':
@@ -51,17 +58,22 @@ def generate_schema(page_type_slug, content, page_title, site_name, domain,
 
     elif page_type_slug == 'evergreen':
         schemas.append(_article_schema(
-            content, page_title, full_url, site_name, date_str,
+            content, page_title, full_url, site_name, date_str, author_schema,
         ))
 
     elif page_type_slug == 'news-article':
         schemas.append(_article_schema(
-            content, page_title, full_url, site_name, date_str,
+            content, page_title, full_url, site_name, date_str, author_schema,
         ))
 
     elif page_type_slug == 'tips-article':
         schemas.append(_article_schema(
-            content, page_title, full_url, site_name, date_str,
+            content, page_title, full_url, site_name, date_str, author_schema,
+        ))
+
+    elif page_type_slug == 'author':
+        schemas.append(_profile_page_schema(
+            content, full_url,
         ))
 
     # Append FAQPage schema if the content has FAQ data
@@ -92,17 +104,14 @@ def _website_schema(site_name, base_url):
 
 
 def _review_schema(content, page_title, full_url, site_name,
-                   brand_info, rating, date_str):
+                   brand_info, rating, date_str, author_schema=None):
     """Review schema for brand/bonus review pages."""
     schema = {
         '@context': 'https://schema.org',
         '@type': 'Review',
         'name': page_title,
         'url': full_url,
-        'author': {
-            '@type': 'Organization',
-            'name': site_name,
-        },
+        'author': author_schema or {'@type': 'Organization', 'name': site_name},
         'datePublished': date_str,
     }
 
@@ -151,7 +160,8 @@ def _itemlist_schema(content, full_url, site_name):
     return schema
 
 
-def _article_schema(content, page_title, full_url, site_name, date_str):
+def _article_schema(content, page_title, full_url, site_name, date_str,
+                    author_schema=None):
     """Article schema for evergreen content pages."""
     return {
         '@context': 'https://schema.org',
@@ -160,10 +170,7 @@ def _article_schema(content, page_title, full_url, site_name, date_str):
         'url': full_url,
         'datePublished': date_str,
         'dateModified': date_str,
-        'author': {
-            '@type': 'Organization',
-            'name': site_name,
-        },
+        'author': author_schema or {'@type': 'Organization', 'name': site_name},
         'publisher': {
             '@type': 'Organization',
             'name': site_name,
@@ -198,4 +205,41 @@ def _faq_schema(content):
         '@context': 'https://schema.org',
         '@type': 'FAQPage',
         'mainEntity': items,
+    }
+
+
+def _build_author_block(author_info, domain):
+    """Build a Person schema block from author_info dict."""
+    person = {
+        '@type': 'Person',
+        'name': author_info.get('name', ''),
+        'url': f'https://{domain}/authors/{author_info.get("slug", "")}',
+    }
+    if author_info.get('role'):
+        person['jobTitle'] = author_info['role']
+    return person
+
+
+def _profile_page_schema(author_info, full_url):
+    """ProfilePage schema for author profile pages."""
+    person = {
+        '@type': 'Person',
+        'name': author_info.get('name', ''),
+        'url': full_url,
+    }
+    if author_info.get('role'):
+        person['jobTitle'] = author_info['role']
+    if author_info.get('short_bio'):
+        person['description'] = author_info['short_bio']
+    if author_info.get('expertise'):
+        person['knowsAbout'] = author_info['expertise']
+    if author_info.get('social_links'):
+        same_as = [v for v in author_info['social_links'].values() if v]
+        if same_as:
+            person['sameAs'] = same_as
+
+    return {
+        '@context': 'https://schema.org',
+        '@type': 'ProfilePage',
+        'mainEntity': person,
     }
