@@ -6,19 +6,30 @@
     {% for row in cta_table.rows %}
     {% if row.is_visible %}
     <div class="cta-row">
-        <div class="cta-rank">{{ row.rank }}</div>
         <div class="cta-brand">
             {% if row.brand.logo_filename %}
             <img src="{{ prefix | default('') }}assets/logos/{{ row.brand.logo_filename }}"
                  alt="{{ row.brand.name }}" class="cta-logo">
+            {% else %}
+            <div class="cta-logo-placeholder">{{ row.brand.name[:2] }}</div>
             {% endif %}
-            <span class="cta-brand-name">{{ row.brand.name }}</span>
-            {% if row.badge %}
-            <span class="cta-badge">{{ row.badge }}</span>
-            {% endif %}
+            <div class="cta-brand-info">
+                <span class="cta-brand-name">{{ row.brand.name }}</span>
+                {% if row.brand.rating %}
+                <span class="cta-stars">
+                    {% set full = row.brand.rating | int %}
+                    {{ '\u2605' * full }}{{ '\u2606' * (5 - full) }}
+                    <span class="cta-rating-num">{{ row.brand.rating }}/5</span>
+                </span>
+                {% endif %}
+                {% if row.badge %}
+                <span class="cta-badge">{{ row.badge }}</span>
+                {% endif %}
+            </div>
         </div>
+        {% if row.bonus_text %}
         <div class="cta-bonus">{{ row.bonus_text }}</div>
-        <div class="cta-rating">{{ row.brand.rating }}/5</div>
+        {% endif %}
         <div class="cta-action">
             <a href="{{ row.brand.affiliate_link or '#' }}" class="btn-cta" target="_blank" rel="nofollow noopener">
                 {{ row.cta_text }}

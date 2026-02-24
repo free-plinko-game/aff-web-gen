@@ -2142,6 +2142,7 @@ a.brand-rating-score:hover {
    CTA TABLE STYLES
    ============================================= */
 
+/* --- CTA Table Widget --- */
 .cta-table {
     background: var(--white);
     border-radius: var(--radius);
@@ -2152,7 +2153,7 @@ a.brand-rating-score:hover {
 }
 .cta-table-header {
     background: var(--navy);
-    padding: 1rem 1.5rem;
+    padding: 1rem 1.25rem;
 }
 .cta-table-header h3 {
     font-family: 'Plus Jakarta Sans', 'DM Sans', sans-serif;
@@ -2162,11 +2163,10 @@ a.brand-rating-score:hover {
     margin: 0;
 }
 .cta-row {
-    display: grid;
-    grid-template-columns: 48px 1fr auto auto auto;
+    display: flex;
     align-items: center;
     gap: 1rem;
-    padding: 0.85rem 1.5rem;
+    padding: 1rem 1.25rem;
     border-bottom: 1px solid var(--gray-100);
     transition: background 0.15s;
 }
@@ -2176,65 +2176,79 @@ a.brand-rating-score:hover {
 .cta-row:hover {
     background: var(--gray-50);
 }
-.cta-rank {
-    font-family: 'Plus Jakarta Sans', 'DM Sans', sans-serif;
-    font-weight: 800;
-    font-size: 1rem;
-    color: var(--navy);
-    text-align: center;
-    width: 32px;
-    height: 32px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: var(--gray-100);
-    border-radius: 50%;
-}
 .cta-brand {
     display: flex;
     align-items: center;
     gap: 0.75rem;
     min-width: 0;
+    flex-shrink: 0;
 }
 .cta-logo {
-    width: 40px;
-    height: 28px;
+    width: 44px;
+    height: 32px;
     object-fit: contain;
     border-radius: 4px;
     flex-shrink: 0;
 }
+.cta-logo-placeholder {
+    width: 44px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--navy);
+    border-radius: 4px;
+    flex-shrink: 0;
+    font-weight: 800;
+    font-size: 0.7rem;
+    color: var(--white);
+}
+.cta-brand-info {
+    display: flex;
+    flex-direction: column;
+    gap: 0.1rem;
+    min-width: 0;
+}
 .cta-brand-name {
-    font-weight: 600;
+    font-weight: 700;
     font-size: 0.92rem;
     color: var(--navy);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    line-height: 1.2;
+}
+.cta-stars {
+    font-size: 0.75rem;
+    color: var(--amber);
+    line-height: 1;
+}
+.cta-rating-num {
+    font-family: 'Plus Jakarta Sans', 'DM Sans', sans-serif;
+    font-weight: 700;
+    font-size: 0.75rem;
+    color: var(--gray-500);
+    margin-left: 0.25rem;
 }
 .cta-badge {
     display: inline-flex;
-    font-size: 0.68rem;
+    font-size: 0.65rem;
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.04em;
-    padding: 0.2rem 0.5rem;
+    padding: 0.15rem 0.45rem;
     background: rgba(0,180,216,0.1);
     color: var(--teal);
     border-radius: 100px;
     white-space: nowrap;
-    flex-shrink: 0;
+    width: fit-content;
 }
 .cta-bonus {
-    font-size: 0.85rem;
-    font-weight: 600;
-    color: var(--gray-700);
+    flex: 1;
+    font-size: 0.82rem;
+    font-weight: 500;
+    color: var(--gray-500);
+    min-width: 0;
 }
-.cta-rating {
-    font-family: 'Plus Jakarta Sans', 'DM Sans', sans-serif;
-    font-weight: 700;
-    font-size: 0.85rem;
-    color: var(--amber);
-    white-space: nowrap;
+.cta-action {
+    flex-shrink: 0;
 }
 .btn-cta {
     display: inline-flex;
@@ -2258,33 +2272,22 @@ a.brand-rating-score:hover {
 /* --- CTA Table Responsive --- */
 @media (max-width: 768px) {
     .cta-row {
-        grid-template-columns: 36px 1fr;
+        flex-wrap: wrap;
         gap: 0.5rem 0.75rem;
-        padding: 1rem 1.25rem;
+        padding: 1rem;
     }
-    .cta-bonus,
-    .cta-rating {
-        grid-column: 2;
-        font-size: 0.82rem;
+    .cta-brand {
+        width: 100%;
+    }
+    .cta-bonus {
+        width: 100%;
     }
     .cta-action {
-        grid-column: 1 / -1;
+        width: 100%;
     }
     .btn-cta {
         width: 100%;
         justify-content: center;
-    }
-}
-@media (max-width: 480px) {
-    .cta-row {
-        grid-template-columns: 1fr;
-    }
-    .cta-rank {
-        display: none;
-    }
-    .cta-bonus,
-    .cta-rating {
-        grid-column: 1;
     }
 }
 
