@@ -972,6 +972,445 @@ a.brand-rating-score:hover {
     }
 }
 
+/* ===== Homepage Hub Sections ===== */
+.hp-section {
+    padding: 3rem 2rem;
+    background: var(--white);
+}
+.hp-section--alt {
+    background: var(--gray-50);
+}
+.hp-section-inner {
+    max-width: 1200px;
+    margin: 0 auto;
+}
+.hp-section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 1.5rem;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+.hp-section-header h2 {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-weight: 800;
+    font-size: 1.5rem;
+    color: var(--navy);
+    margin: 0;
+}
+.hp-section-link {
+    font-size: 0.88rem;
+    font-weight: 600;
+    color: var(--teal);
+    text-decoration: none;
+    transition: color 0.2s;
+}
+.hp-section-link:hover { color: var(--teal-dark, #0891b2); }
+.hp-placeholder {
+    text-align: center;
+    padding: 2rem;
+    color: var(--gray-500);
+    font-size: 0.95rem;
+}
+
+/* Hero CTA Buttons */
+.hero-ctas {
+    display: flex;
+    gap: 1rem;
+    margin-top: 1.5rem;
+    flex-wrap: wrap;
+}
+.hero-cta-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    font-weight: 700;
+    font-size: 0.95rem;
+    padding: 0.75rem 1.5rem;
+    border-radius: var(--radius-sm);
+    text-decoration: none;
+    transition: all 0.2s;
+}
+.hero-cta-primary {
+    background: var(--green);
+    color: var(--white);
+}
+.hero-cta-primary:hover {
+    background: var(--green-dark, #059669);
+    transform: translateY(-1px);
+}
+.hero-cta-secondary {
+    background: rgba(255,255,255,0.1);
+    color: var(--white);
+    border: 1px solid rgba(255,255,255,0.25);
+}
+.hero-cta-secondary:hover {
+    background: rgba(255,255,255,0.2);
+    transform: translateY(-1px);
+}
+
+/* --- Tips Preview Cards --- */
+.hp-tips-row {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1rem;
+}
+.hp-tip-card {
+    background: var(--white);
+    border: 1px solid var(--gray-200);
+    border-radius: var(--radius);
+    padding: 1.25rem;
+    text-decoration: none;
+    color: inherit;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    transition: box-shadow 0.25s, transform 0.25s;
+}
+.hp-tip-card:hover {
+    box-shadow: var(--shadow-card-hover, 0 8px 25px rgba(0,0,0,0.12));
+    transform: translateY(-2px);
+}
+.hp-tip-comp {
+    display: inline-flex;
+    align-items: center;
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: var(--gray-500);
+    background: var(--gray-100);
+    padding: 2px 8px;
+    border-radius: var(--radius-sm);
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    align-self: flex-start;
+}
+.hp-tip-title {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-weight: 700;
+    font-size: 1rem;
+    color: var(--navy);
+    line-height: 1.3;
+    margin: 0;
+}
+.hp-tip-date {
+    font-size: 0.8rem;
+    color: var(--gray-500);
+}
+.hp-tip-prediction {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    padding: 3px 10px;
+    border-radius: var(--radius-sm);
+    align-self: flex-start;
+    background: var(--gray-50);
+    color: var(--gray-600);
+}
+.hp-tip-prediction--high {
+    background: rgba(16,185,129,0.1);
+    color: var(--green);
+}
+.hp-tip-prediction--medium {
+    background: rgba(245,158,11,0.1);
+    color: var(--amber);
+}
+.hp-tip-prediction--low {
+    background: var(--gray-100);
+    color: var(--gray-500);
+}
+.hp-tip-confidence { opacity: 0.7; }
+.hp-tip-readmore {
+    margin-top: auto;
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--teal);
+}
+
+/* --- Top Rated Brands --- */
+.hp-brands-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+.hp-brand-card {
+    background: var(--white);
+    border: 1px solid var(--gray-200);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-card, 0 1px 3px rgba(0,0,0,0.06));
+    padding: 1.25rem;
+    display: grid;
+    grid-template-columns: 100px 1fr auto;
+    gap: 1.25rem;
+    align-items: center;
+    transition: box-shadow 0.25s, transform 0.25s;
+}
+.hp-brand-card:hover {
+    box-shadow: var(--shadow-card-hover, 0 8px 25px rgba(0,0,0,0.12));
+    transform: translateY(-2px);
+}
+.hp-brand-logo {
+    background: var(--navy);
+    border-radius: var(--radius-sm);
+    height: 70px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.5rem;
+}
+.hp-brand-logo img {
+    max-width: 80px;
+    max-height: 40px;
+    object-fit: contain;
+}
+.hp-brand-initials {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-weight: 800;
+    color: var(--white);
+    font-size: 1.1rem;
+}
+.hp-brand-info h3 {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-weight: 700;
+    font-size: 1.05rem;
+    color: var(--navy);
+    margin: 0 0 0.25rem;
+}
+.hp-brand-rating {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    margin-bottom: 0.35rem;
+}
+.hp-brand-rating .stars {
+    display: flex;
+    gap: 1px;
+}
+.hp-brand-rating .stars svg {
+    width: 14px;
+    height: 14px;
+    color: var(--amber);
+}
+.hp-brand-score {
+    font-weight: 700;
+    font-size: 0.82rem;
+    color: var(--amber);
+}
+.hp-brand-bonus {
+    font-weight: 700;
+    font-size: 0.9rem;
+    color: var(--navy);
+    margin-bottom: 0.35rem;
+}
+.hp-brand-badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+}
+.hp-brand-badge {
+    font-size: 0.72rem;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: var(--radius-sm);
+    background: rgba(0,180,216,0.1);
+    color: var(--teal-dark, #0891b2);
+}
+.hp-brand-actions {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5rem;
+    min-width: 140px;
+}
+.hp-brand-review-link {
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--teal);
+    text-decoration: none;
+}
+.hp-brand-review-link:hover { text-decoration: underline; }
+
+/* --- News Cards --- */
+.hp-news-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1rem;
+}
+.hp-news-card {
+    background: var(--white);
+    border: 1px solid var(--gray-200);
+    border-radius: var(--radius);
+    padding: 1.25rem;
+    text-decoration: none;
+    color: inherit;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    transition: box-shadow 0.25s, transform 0.25s;
+}
+.hp-news-card:hover {
+    box-shadow: var(--shadow-card-hover, 0 8px 25px rgba(0,0,0,0.12));
+    transform: translateY(-2px);
+}
+.hp-news-title {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-weight: 700;
+    font-size: 1.05rem;
+    color: var(--navy);
+    line-height: 1.3;
+    margin: 0;
+}
+.hp-news-meta {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    font-size: 0.8rem;
+    color: var(--gray-500);
+}
+.hp-news-author { font-weight: 600; }
+.hp-news-excerpt {
+    font-size: 0.88rem;
+    color: var(--gray-600);
+    line-height: 1.6;
+    margin: 0;
+}
+.hp-news-readmore {
+    margin-top: auto;
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--teal);
+}
+
+/* --- Author Cards --- */
+.hp-authors-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+    gap: 1rem;
+}
+.hp-author-card {
+    background: var(--white);
+    border: 1px solid var(--gray-200);
+    border-radius: var(--radius);
+    padding: 1.25rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: 0.5rem;
+    transition: box-shadow 0.2s;
+}
+.hp-author-card:hover {
+    box-shadow: var(--shadow-card-hover, 0 8px 25px rgba(0,0,0,0.12));
+}
+.hp-author-avatar {
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    object-fit: cover;
+}
+.hp-author-initials {
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 1.25rem;
+    color: var(--white);
+}
+.hp-author-info h3 {
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--navy);
+    margin: 0 0 0.15rem;
+}
+.hp-author-role {
+    font-size: 0.82rem;
+    color: var(--gray-500);
+    margin-bottom: 0.25rem;
+}
+.hp-author-bio {
+    font-size: 0.82rem;
+    color: var(--gray-600);
+    line-height: 1.5;
+    margin: 0;
+}
+.hp-author-stats {
+    font-size: 0.78rem;
+    color: var(--gray-400);
+}
+.hp-author-link {
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--teal);
+    text-decoration: none;
+    margin-top: 0.25rem;
+}
+.hp-author-link:hover { text-decoration: underline; }
+
+/* --- SEO Content below fold --- */
+.hp-seo-content {
+    max-width: 800px;
+}
+
+/* ===== Homepage Hub Responsive ===== */
+@media (max-width: 1024px) {
+    .hp-tips-row {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (max-width: 768px) {
+    .hp-section { padding: 2rem 1rem; }
+    .hp-tips-row {
+        display: flex;
+        overflow-x: auto;
+        scroll-snap-type: x mandatory;
+        -webkit-overflow-scrolling: touch;
+        gap: 0.75rem;
+        padding-bottom: 0.5rem;
+    }
+    .hp-tip-card {
+        min-width: 280px;
+        flex-shrink: 0;
+        scroll-snap-align: start;
+    }
+    .hp-brand-card {
+        grid-template-columns: 1fr;
+        text-align: center;
+    }
+    .hp-brand-logo {
+        height: 60px;
+        max-width: 120px;
+        margin: 0 auto;
+    }
+    .hp-brand-rating { justify-content: center; }
+    .hp-brand-badges { justify-content: center; }
+    .hp-brand-actions {
+        min-width: unset;
+        width: 100%;
+    }
+    .hp-news-grid { grid-template-columns: 1fr; }
+    .hero-ctas {
+        flex-direction: column;
+    }
+    .hero-cta-btn {
+        text-align: center;
+        justify-content: center;
+    }
+}
+
+@media (max-width: 480px) {
+    .hp-tip-card { min-width: 260px; }
+    .hp-section-header {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+}
+
 /* ==========================================================================
    LEGACY STYLES — Inner page templates (comparison, review, bonus, evergreen)
    These pages render inside <main class="main-content"> from base.html.

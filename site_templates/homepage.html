@@ -1,30 +1,25 @@
 {% extends "base.html" %}
 
 {% block body_content %}
+{% if preview_asset_prefix %}
+{% set prefix = preview_asset_prefix %}
+{% else %}
+{% set prefix = '' %}
+{% endif %}
+
 <!-- HERO -->
 <section class="hero">
     <div class="hero-inner">
         <div class="hero-badge">&#127942; {{ content.hero_badge | default('Updated ' ~ year) }}</div>
         <h1>{{ content.hero_title }}</h1>
         <p class="hero-sub">{{ content.hero_subtitle }}</p>
-        <div class="hero-stats">
-            {% if content.hero_stats %}
-            {% for stat in content.hero_stats %}
-            <div class="hero-stat">
-                <div class="hero-stat-number">{{ stat.number }}</div>
-                <div class="hero-stat-label">{{ stat.label }}</div>
-            </div>
-            {% endfor %}
-            {% else %}
-            <div class="hero-stat">
-                <div class="hero-stat-number">{{ site_brands | length }}</div>
-                <div class="hero-stat-label">Sites Reviewed</div>
-            </div>
-            <div class="hero-stat">
-                <div class="hero-stat-number">100%</div>
-                <div class="hero-stat-label">Licensed</div>
-            </div>
-            {% endif %}
+        <div class="hero-ctas">
+            <a href="/tips/" class="hero-cta-btn hero-cta-primary">
+                Today's Tips &rarr;
+            </a>
+            <a href="{{ compare_url }}" class="hero-cta-btn hero-cta-secondary">
+                Best Sportsbooks &rarr;
+            </a>
         </div>
     </div>
 </section>
@@ -32,235 +27,195 @@
 <!-- TRUST BAR -->
 <div class="trust-bar">
     <div class="trust-bar-inner">
-        {% if content.trust_items %}
-        {% for item in content.trust_items %}
+        {% if page_counts.tips > 0 %}
         <div class="trust-item">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 12l2 2 4-4"/><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20z"/></svg>
-            {{ item }}
-        </div>
-        {% endfor %}
-        {% else %}
-        <div class="trust-item">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 12l2 2 4-4"/><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20z"/></svg>
-            Expert Reviewed
-        </div>
-        <div class="trust-item">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 12l2 2 4-4"/><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20z"/></svg>
-            Independently Verified
-        </div>
-        <div class="trust-item">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 12l2 2 4-4"/><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20z"/></svg>
-            Updated Monthly
+            {{ page_counts.tips }}+ Expert Tips
         </div>
         {% endif %}
+        <div class="trust-item">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 12l2 2 4-4"/><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20z"/></svg>
+            {{ page_counts.brands }} Sportsbooks Reviewed
+        </div>
+        <div class="trust-item">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 12l2 2 4-4"/><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20z"/></svg>
+            Updated Daily
+        </div>
     </div>
 </div>
 
-<!-- MAIN -->
-<main class="main">
-
-    <!-- LEFT: BRAND CARDS -->
-    <div class="content-area">
-
-        <div class="section-header">
-            <h2>{{ content.section_title | default('Top Rated ' ~ vertical_name) }}</h2>
-            <p>{{ content.section_subtitle | default('Ranked by our team based on bonuses, quality, user experience, and trustworthiness.') }}</p>
+<!-- SECTION: BETTING TIPS PREVIEW -->
+<section class="hp-section hp-section--alt">
+    <div class="hp-section-inner">
+        <div class="hp-section-header">
+            <h2>Latest Betting Tips</h2>
+            <a href="/tips/" class="hp-section-link">View All Tips &rarr;</a>
         </div>
 
-        {% if cta_table and cta_table.rows %}
-        {# CTA table replaces brand cards when assigned #}
-        {% for row in cta_table.rows %}
-        {% if row.is_visible %}
-        {% set bi = brand_lookup.get(row.brand.slug) %}
-        {% set b = bi if bi else row.brand %}
-        <div class="brand-card">
-            <div class="brand-card-top">
-                <div>
-                    <div class="brand-logo-area">
-                        {% if loop.index <= 3 %}
-                        <span class="rank-badge rank-{{ loop.index }}">
-                            {%- if loop.index == 1 %}Recommended{% elif loop.index == 2 %}Hot Offer{% elif loop.index == 3 %}3rd{% endif -%}
-                        </span>
-                        {% else %}
-                        <span class="rank-badge rank-default">{{ loop.index }}th</span>
-                        {% endif %}
-                        {% if row.brand.logo_filename %}
-                        <img src="{{ prefix | default('') }}assets/logos/{{ row.brand.logo_filename }}" alt="{{ row.brand.name }}">
-                        {% else %}
-                        <div class="brand-logo-placeholder">{{ row.brand.name }}</div>
-                        {% endif %}
-                    </div>
-                    {% if row.brand.rating %}
-                    <div class="brand-rating">
-                        <div class="stars">
-                            {% set full_stars = row.brand.rating | int %}
-                            {% for i in range(5) %}
-                            <svg viewBox="0 0 24 24" fill="currentColor"{% if i >= full_stars %} style="opacity:0.3"{% endif %}><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
-                            {% endfor %}
-                        </div>
-                        <a href="/reviews/{{ row.brand.slug }}" class="brand-rating-score">{{ row.brand.rating }}/5 &middot; Our Review</a>
-                    </div>
-                    {% endif %}
-                </div>
-                <div class="brand-info">
-                    <h3><a href="/reviews/{{ row.brand.slug }}">{{ row.brand.name }} Review</a></h3>
-                    <div class="brand-info-label">{% if loop.index == 1 %}Why we recommend it{% else %}Key strengths{% endif %}</div>
-                    {% if bi and bi.selling_points %}
-                    <ul class="selling-points">
-                        {% for point in bi.selling_points %}
-                        <li>
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg>
-                            {{ point }}
-                        </li>
-                        {% endfor %}
-                    </ul>
-                    {% elif bi and bi.short_description %}
-                    <ul class="selling-points">
-                        <li>
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg>
-                            {{ bi.short_description }}
-                        </li>
-                    </ul>
-                    {% endif %}
-                    {% if row.badge %}
-                    <div style="margin-top:0.5rem;"><span class="rank-badge rank-2" style="position:static;border-radius:100px;font-size:0.68rem;">{{ row.badge }}</span></div>
-                    {% endif %}
-                </div>
-                <div class="brand-cta">
-                    <div class="bonus-label">{{ row.brand.name }} Bonus</div>
-                    {% if row.bonus_text %}
-                    <div class="bonus-offer">{{ row.bonus_text }}</div>
-                    {% endif %}
-                    {% set code = bi.bonus_code if bi and bi.bonus_code else b.bonus_code if b.bonus_code is defined else none %}
-                    {% if code and code != 'None' %}
-                    <div class="bonus-code-box">
-                        <span class="bonus-code-value">{{ code }}</span>
-                        <button class="bonus-code-copy" data-code="{{ code }}" title="Copy code">
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
-                        </button>
-                    </div>
-                    {% endif %}
-                    {% set link = bi.affiliate_link if bi and bi.affiliate_link else b.affiliate_link if b.affiliate_link is defined else '#' %}
-                    <a href="{{ link or '#' }}" class="cta-button" target="_blank" rel="nofollow noopener">
-                        {{ row.cta_text }}
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
-                    </a>
-                    {% set pm = bi.payment_methods if bi and bi.payment_methods else b.payment_methods if b.payment_methods is defined else none %}
-                    {% if pm %}
-                    <div class="payment-icons">
-                        {% for pmi in pm.split(',')[:6] %}
-                        {% set pm_slug = pmi.strip().lower().replace(' ', '-') %}
-                        {% if pm_slug in payment_icon_map %}
-                        <span class="payment-icon" title="{{ pmi.strip() }}">{{ payment_icon_map[pm_slug] }}</span>
-                        {% endif %}
-                        {% endfor %}
-                    </div>
-                    {% endif %}
-                </div>
-            </div>
-            <div class="brand-card-tcs">
-                <span class="tcs-text">18+. T&amp;Cs apply. New customers only. Please gamble responsibly.</span>
-                {% set lic = bi.license_info if bi and bi.license_info else b.license_info if b.license_info is defined else none %}
-                {% if lic %}
-                <span class="tcs-licence">Licensed: {{ lic }}</span>
+        {% if tips_preview %}
+        <div class="hp-tips-row">
+            {% for tip in tips_preview %}
+            <a href="/tips/{{ tip.slug }}" class="hp-tip-card">
+                {% if tip.competition %}
+                <div class="hp-tip-comp">{{ tip.competition }}</div>
                 {% endif %}
-            </div>
+                <h3 class="hp-tip-title">{{ tip.title }}</h3>
+                {% if tip.match_date %}
+                <div class="hp-tip-date">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px;vertical-align:-2px;margin-right:4px;"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+                    {{ tip.match_date }}
+                </div>
+                {% endif %}
+                {% if tip.prediction_result %}
+                <div class="hp-tip-prediction{% if tip.prediction_confidence == 'High' %} hp-tip-prediction--high{% elif tip.prediction_confidence == 'Medium' %} hp-tip-prediction--medium{% else %} hp-tip-prediction--low{% endif %}">
+                    {{ tip.prediction_result }}
+                    {% if tip.prediction_confidence %}
+                    <span class="hp-tip-confidence">({{ tip.prediction_confidence }})</span>
+                    {% endif %}
+                </div>
+                {% endif %}
+                <span class="hp-tip-readmore">Read Tip &rarr;</span>
+            </a>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="hp-placeholder">
+            <p>Tips coming soon &mdash; check back daily for expert match predictions.</p>
         </div>
         {% endif %}
-        {% endfor %}
-        {% else %}
-        {# Default: show all site brands #}
-        {% for brand in site_brands %}
-        <div class="brand-card">
-            <div class="brand-card-top">
-                <div>
-                    <div class="brand-logo-area">
-                        {% if brand.rank <= 3 %}
-                        <span class="rank-badge rank-{{ brand.rank }}">
-                            {%- if brand.rank == 1 %}Recommended{% elif brand.rank == 2 %}Hot Offer{% elif brand.rank == 3 %}3rd{% endif -%}
-                        </span>
-                        {% else %}
-                        <span class="rank-badge rank-default">{{ brand.rank }}th</span>
-                        {% endif %}
-                        {% if brand.logo_filename %}
-                        <img src="assets/logos/{{ brand.logo_filename }}" alt="{{ brand.name }}">
-                        {% else %}
-                        <div class="brand-logo-placeholder">{{ brand.name }}</div>
-                        {% endif %}
-                    </div>
+    </div>
+</section>
+
+<!-- SECTION: TOP RATED BRANDS -->
+<section class="hp-section">
+    <div class="hp-section-inner">
+        <div class="hp-section-header">
+            <h2>Top Rated Sportsbooks{% if geo_name %} in {{ geo_name }}{% endif %}</h2>
+            <a href="{{ compare_url }}" class="hp-section-link">Compare All &rarr;</a>
+        </div>
+
+        <div class="hp-brands-grid">
+            {% for brand in site_brands[:5] %}
+            <div class="hp-brand-card">
+                <div class="hp-brand-logo">
+                    {% if brand.logo_filename %}
+                    <img src="{{ prefix }}assets/logos/{{ brand.logo_filename }}" alt="{{ brand.name }}">
+                    {% else %}
+                    <div class="hp-brand-initials">{{ brand.name[:2] | upper }}</div>
+                    {% endif %}
+                </div>
+                <div class="hp-brand-info">
+                    <h3>{{ brand.name }}</h3>
                     {% if brand.rating %}
-                    <div class="brand-rating">
+                    <div class="hp-brand-rating">
                         <div class="stars">
                             {% set full_stars = brand.rating | int %}
                             {% for i in range(5) %}
                             <svg viewBox="0 0 24 24" fill="currentColor"{% if i >= full_stars %} style="opacity:0.3"{% endif %}><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
                             {% endfor %}
                         </div>
-                        <a href="/reviews/{{ brand.slug }}" class="brand-rating-score">{{ brand.rating }}/5 &middot; Our Review</a>
+                        <span class="hp-brand-score">{{ brand.rating }}/5</span>
                     </div>
                     {% endif %}
-                </div>
-                <div class="brand-info">
-                    <h3><a href="/reviews/{{ brand.slug }}">{{ brand.name }} Review</a></h3>
-                    <div class="brand-info-label">{% if brand.rank == 1 %}Why we recommend it{% else %}Key strengths{% endif %}</div>
-                    {% if brand.selling_points %}
-                    <ul class="selling-points">
-                        {% for point in brand.selling_points %}
-                        <li>
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg>
-                            {{ point }}
-                        </li>
-                        {% endfor %}
-                    </ul>
-                    {% elif brand.short_description %}
-                    <ul class="selling-points">
-                        <li>
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg>
-                            {{ brand.short_description }}
-                        </li>
-                    </ul>
-                    {% endif %}
-                </div>
-                <div class="brand-cta">
-                    <div class="bonus-label">{{ brand.name }} Bonus</div>
                     {% if brand.welcome_bonus %}
-                    <div class="bonus-offer">{{ brand.welcome_bonus }}</div>
+                    <div class="hp-brand-bonus">{{ brand.welcome_bonus }}</div>
                     {% endif %}
-                    {% if brand.bonus_code and brand.bonus_code != 'None' %}
-                    <div class="bonus-code-box">
-                        <span class="bonus-code-value">{{ brand.bonus_code }}</span>
-                        <button class="bonus-code-copy" data-code="{{ brand.bonus_code }}" title="Copy code">
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
-                        </button>
+                    {% if brand.feature_badges %}
+                    <div class="hp-brand-badges">
+                        {% for badge in brand.feature_badges[:3] %}
+                        <span class="hp-brand-badge">{{ badge }}</span>
+                        {% endfor %}
                     </div>
                     {% endif %}
-                    <a href="{{ brand.affiliate_link }}" class="cta-button" target="_blank" rel="nofollow noopener">
-                        Visit Provider
+                </div>
+                <div class="hp-brand-actions">
+                    <a href="{{ brand.affiliate_link or '#' }}" class="cta-button" target="_blank" rel="nofollow noopener">
+                        Visit Site
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
                     </a>
-                    {% if brand.payment_methods %}
-                    <div class="payment-icons">
-                        {% for pm in brand.payment_methods.split(',')[:6] %}
-                        {% set pm_slug = pm.strip().lower().replace(' ', '-') %}
-                        {% if pm_slug in payment_icon_map %}
-                        <span class="payment-icon" title="{{ pm.strip() }}">{{ payment_icon_map[pm_slug] }}</span>
-                        {% endif %}
-                        {% endfor %}
-                    </div>
+                    {% if brand.slug in review_slugs %}
+                    <a href="/reviews/{{ brand.slug }}" class="hp-brand-review-link">Read Review &rarr;</a>
                     {% endif %}
                 </div>
             </div>
-            <div class="brand-card-tcs">
-                <span class="tcs-text">18+. T&amp;Cs apply. New customers only. Please gamble responsibly.</span>
-                {% if brand.license_info %}
-                <span class="tcs-licence">Licensed: {{ brand.license_info }}</span>
-                {% endif %}
-            </div>
+            {% endfor %}
         </div>
-        {% endfor %}
-        {% endif %}
+    </div>
+</section>
 
-        <!-- WHY TRUST US -->
+<!-- SECTION: LATEST NEWS -->
+{% if news_preview %}
+<section class="hp-section hp-section--alt">
+    <div class="hp-section-inner">
+        <div class="hp-section-header">
+            <h2>Latest Betting News</h2>
+            <a href="/news/" class="hp-section-link">All News &rarr;</a>
+        </div>
+
+        <div class="hp-news-grid">
+            {% for article in news_preview %}
+            <a href="/news/{{ article.slug }}" class="hp-news-card">
+                <h3 class="hp-news-title">{{ article.title }}</h3>
+                <div class="hp-news-meta">
+                    {% if article.published_date %}
+                    <span class="hp-news-date">{{ article.published_date }}</span>
+                    {% endif %}
+                    {% if article.author_name %}
+                    <span class="hp-news-author">{{ article.author_name }}</span>
+                    {% endif %}
+                </div>
+                {% if article.summary %}
+                <p class="hp-news-excerpt">{{ article.summary }}</p>
+                {% endif %}
+                <span class="hp-news-readmore">Read More &rarr;</span>
+            </a>
+            {% endfor %}
+        </div>
+    </div>
+</section>
+{% endif %}
+
+<!-- SECTION: MEET OUR EXPERTS -->
+{% if has_authors and authors_list %}
+<section class="hp-section">
+    <div class="hp-section-inner">
+        <div class="hp-section-header">
+            <h2>Meet Our Experts</h2>
+            <a href="/authors/" class="hp-section-link">View All &rarr;</a>
+        </div>
+
+        <div class="hp-authors-grid">
+            {% for author in authors_list %}
+            <div class="hp-author-card">
+                {% if author.avatar_filename %}
+                <img src="{{ prefix }}assets/avatars/{{ author.avatar_filename }}" alt="{{ author.name }}" class="hp-author-avatar">
+                {% else %}
+                <span class="hp-author-initials" style="background:{{ author.color }}">{{ author.initials }}</span>
+                {% endif %}
+                <div class="hp-author-info">
+                    <h3>{{ author.name }}</h3>
+                    {% if author.role %}
+                    <div class="hp-author-role">{{ author.role }}</div>
+                    {% endif %}
+                    {% if author.short_bio %}
+                    <p class="hp-author-bio">{{ author.short_bio[:100] }}{% if author.short_bio | length > 100 %}&hellip;{% endif %}</p>
+                    {% endif %}
+                    <div class="hp-author-stats">
+                        <span>{{ author.article_count }} article{{ 's' if author.article_count != 1 }}</span>
+                    </div>
+                </div>
+                <a href="/authors/{{ author.slug }}" class="hp-author-link">View Profile &rarr;</a>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</section>
+{% endif %}
+
+<!-- SECTION: SEO CONTENT -->
+<section class="hp-section hp-section--alt">
+    <div class="hp-section-inner hp-seo-content">
+
         {% if content.why_trust_us %}
         <div class="content-block">
             <h2>{{ content.why_trust_us_title | default('Why Trust Our Recommendations') }}</h2>
@@ -268,7 +223,6 @@
         </div>
         {% endif %}
 
-        <!-- FAQ -->
         {% if content.faq %}
         <div class="content-block">
             <h2>Frequently Asked Questions</h2>
@@ -287,92 +241,13 @@
         </div>
         {% endif %}
 
+        {% if content.closing_paragraph %}
+        <div class="content-block">
+            <p>{{ content.closing_paragraph }}</p>
+        </div>
+        {% endif %}
+
     </div>
+</section>
 
-    <!-- SIDEBAR -->
-    <aside class="sidebar">
-
-        <!-- Top Picks -->
-        <div class="sidebar-card">
-            <div class="sidebar-card-header">
-                <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
-                <h3>Top Picks</h3>
-            </div>
-            {% for brand in site_brands[:5] %}
-            <a href="/reviews/{{ brand.slug }}" class="sidebar-brand-item">
-                <div class="sidebar-brand-logo">
-                    {% if brand.logo_filename %}
-                    <img src="assets/logos/{{ brand.logo_filename }}" alt="{{ brand.name }}" style="max-width:36px;max-height:24px;object-fit:contain;">
-                    {% else %}
-                    <span>{{ brand.name[:8] }}</span>
-                    {% endif %}
-                </div>
-                <div class="sidebar-brand-info">
-                    <div class="sidebar-brand-name">{{ brand.name }}</div>
-                    {% if brand.rating %}
-                    <div class="sidebar-brand-rating">
-                        {% set full = brand.rating | round | int %}
-                        <span>{{ '\u2605' * full }}{{ '\u2606' * (5 - full) }}</span>
-                    </div>
-                    {% endif %}
-                </div>
-                {% if brand.rating %}
-                <div class="sidebar-brand-score">{{ brand.rating }}</div>
-                {% endif %}
-            </a>
-            {% endfor %}
-        </div>
-
-        <!-- Quick Links / Cluster Links -->
-        <div class="sidebar-card">
-            <div class="sidebar-card-header">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
-                <h3>{{ 'Related Articles' if cluster_links else 'Quick Links' }}</h3>
-            </div>
-            <div class="quick-links">
-                {% if cluster_links %}
-                {% for link in cluster_links %}
-                <a href="{{ link.url }}" class="quick-link">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
-                    {{ link.label }}
-                </a>
-                {% endfor %}
-                {% else %}
-                {% for link in nav_links %}
-                {% if link.type != 'homepage' %}
-                <a href="{{ link.url }}" class="quick-link">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
-                    {{ link.label }}
-                </a>
-                {% endif %}
-                {% endfor %}
-                {% for brand in site_brands[:3] %}
-                {% if brand.slug in bonus_slugs %}
-                <a href="/bonuses/{{ brand.slug }}" class="quick-link">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 12H4M12 4v16"/></svg>
-                    {{ brand.name }} Bonus
-                </a>
-                {% endif %}
-                {% endfor %}
-                {% endif %}
-            </div>
-        </div>
-
-        <!-- Responsible Gambling -->
-        <div class="sidebar-card">
-            <div class="sidebar-card-header" style="background: var(--gray-700);">
-                <svg viewBox="0 0 24 24" fill="none" stroke="var(--amber)" stroke-width="2"><path d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                <h3>Gamble Responsibly</h3>
-            </div>
-            <div style="padding: 1rem 1.1rem;">
-                <p style="font-size:0.82rem; color:var(--gray-600); line-height:1.7; margin-bottom:0.75rem;">If you feel you may have a gambling problem, help is available. Please gamble responsibly.</p>
-                <a href="https://www.gambleaware.org" target="_blank" rel="noopener" style="display:block; text-align:center; font-size:0.82rem; font-weight:600; color:var(--teal); text-decoration:none; padding:0.6rem; background:var(--gray-50); border-radius:var(--radius-sm);">
-                    GambleAware.org &rarr;
-                </a>
-            </div>
-        </div>
-
-    </aside>
-
-</main>
 {% endblock body_content %}

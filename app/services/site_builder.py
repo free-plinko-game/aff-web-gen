@@ -478,6 +478,73 @@ def build_site(site, output_base_dir, upload_folder):
             # Update brand_lookup so CTA table rows also get enriched data
             enriched_lookup = _build_brand_lookup(enriched)
             ctx['brand_lookup'] = enriched_lookup
+
+            # --- Homepage hub data ---
+
+            # Tips preview: 4 most recent tips-articles
+            tips_preview = []
+            for p in pages:
+                if p.page_type.slug == 'tips-article' and p.content_json:
+                    p_content = json.loads(p.content_json)
+                    match_info = p_content.get('match_info', {})
+                    prediction = p_content.get('prediction', {})
+                    tips_preview.append({
+                        'slug': p.slug, 'title': p.title,
+                        'published_date': p.published_date.strftime('%d %b %Y') if p.published_date else '',
+                        'summary': p_content.get('hero_subtitle', ''),
+                        'competition': match_info.get('competition', ''),
+                        'match_date': match_info.get('date', ''),
+                        'prediction_result': prediction.get('result', ''),
+                        'prediction_confidence': prediction.get('confidence', ''),
+                    })
+            tips_preview.sort(key=lambda a: a['match_date'] or a['published_date'], reverse=True)
+            ctx['tips_preview'] = tips_preview[:4]
+
+            # News preview: 3 most recent news-articles
+            news_preview = []
+            for p in pages:
+                if p.page_type.slug == 'news-article' and p.content_json:
+                    p_content = json.loads(p.content_json)
+                    pub_date = p.published_date.strftime('%d %b %Y') if p.published_date else ''
+                    p_author = author_map.get(p.author_id) if p.author_id else None
+                    news_preview.append({
+                        'slug': p.slug, 'title': p.title, 'published_date': pub_date,
+                        'summary': (p_content.get('hero_subtitle', '') or '')[:120],
+                        'author_name': p_author['name'] if p_author else None,
+                    })
+            news_preview.sort(key=lambda a: a['published_date'], reverse=True)
+            ctx['news_preview'] = news_preview[:3]
+
+            # Authors list with article counts
+            hp_authors_list = []
+            if authors:
+                hp_content_types = {'brand-review', 'bonus-review', 'evergreen', 'news-article', 'tips-article'}
+                author_counts = {}
+                for p in pages:
+                    if p.author_id and p.author_id in author_map and p.page_type.slug in hp_content_types:
+                        author_counts[p.author_id] = author_counts.get(p.author_id, 0) + 1
+                for a in authors:
+                    entry = dict(author_map[a.id])
+                    entry['article_count'] = author_counts.get(a.id, 0)
+                    hp_authors_list.append(entry)
+            ctx['authors_list'] = hp_authors_list
+
+            # Page counts for trust badges
+            type_counts = {}
+            for p in pages:
+                type_counts[p.page_type.slug] = type_counts.get(p.page_type.slug, 0) + 1
+            ctx['page_counts'] = {
+                'tips': type_counts.get('tips-article', 0),
+                'reviews': type_counts.get('brand-review', 0),
+                'news': type_counts.get('news-article', 0),
+                'brands': len(brand_info_list),
+            }
+
+            # Geo name and comparison URL for hero
+            ctx['geo_name'] = geo.name
+            compare_url = next((l['url'] for l in nav_links if l.get('type') == 'comparison'), None)
+            ctx['compare_url'] = compare_url or '/'
+
         elif pt_slug == 'comparison':
             output_file = os.path.join(version_dir, f'{page.slug}.html')
             # Merge AI-generated feature_badges into brand_lookup for comparison cards
