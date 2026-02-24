@@ -754,3 +754,117 @@ def seed_all_comments(site_id):
             'errors': errors,
         },
     })
+
+
+# --- Comment Moderation ---
+
+@bp.route('/sites/<int:site_id>/comments')
+def list_comments(site_id):
+    """List all comments for admin moderation. Supports filters."""
+    site = db.session.get(Site, site_id) or abort(404)
+
+    query = Comment.query.filter_by(site_id=site_id)
+
+    page_slug = request.args.get('page')
+    if page_slug:
+        query = query.filter_by(page_slug=page_slug)
+
+    user_type = request.args.get('user_type')
+    if user_type == 'bot':
+        query = query.join(CommentUser).filter(CommentUser.is_bot.is_(True))
+    elif user_type == 'guest':
+        query = query.join(CommentUser).filter(CommentUser.is_bot.is_(False))
+
+    status = request.args.get('status')
+    if status == 'hidden':
+        query = query.filter(Comment.is_hidden.is_(True))
+    elif status == 'visible':
+        query = query.filter(Comment.is_hidden.is_(False))
+    elif status == 'flagged':
+        query = query.filter(Comment.flag_count > 0)
+
+    comments = query.order_by(Comment.created_at.desc()).all()
+
+    user_ids = {c.user_id for c in comments}
+    users = {u.id: u for u in CommentUser.query.filter(
+        CommentUser.id.in_(user_ids)
+    ).all()} if user_ids else {}
+
+    page_slugs = db.session.query(Comment.page_slug).filter_by(
+        site_id=site_id
+    ).distinct().order_by(Comment.page_slug).all()
+
+    return jsonify({
+        'comments': [{
+            'id': c.id,
+            'page_slug': c.page_slug,
+            'body': c.body,
+            'is_hidden': c.is_hidden,
+            'is_pinned': c.is_pinned,
+            'flag_count': c.flag_count or 0,
+            'upvotes': c.upvotes,
+            'downvotes': c.downvotes,
+            'parent_id': c.parent_id,
+            'created_at': c.created_at.isoformat() if c.created_at else None,
+            'user': {
+                'id': users[c.user_id].id,
+                'username': users[c.user_id].username,
+                'display_name': users[c.user_id].display_name,
+                'is_bot': users[c.user_id].is_bot,
+                'is_banned': getattr(users[c.user_id], 'is_banned', False),
+            } if c.user_id in users else None,
+        } for c in comments],
+        'page_slugs': [p[0] for p in page_slugs],
+        'total': len(comments),
+    })
+
+
+@bp.route('/sites/<int:site_id>/comments/<int:comment_id>/toggle-hidden', methods=['POST'])
+def toggle_comment_hidden(site_id, comment_id):
+    comment = Comment.query.filter_by(id=comment_id, site_id=site_id).first()
+    if not comment:
+        return jsonify({'error': 'Comment not found'}), 404
+    comment.is_hidden = not comment.is_hidden
+    db.session.commit()
+    return jsonify({'success': True, 'is_hidden': comment.is_hidden})
+
+
+@bp.route('/sites/<int:site_id>/comments/<int:comment_id>/toggle-pinned', methods=['POST'])
+def toggle_comment_pinned(site_id, comment_id):
+    comment = Comment.query.filter_by(id=comment_id, site_id=site_id).first()
+    if not comment:
+        return jsonify({'error': 'Comment not found'}), 404
+    comment.is_pinned = not comment.is_pinned
+    db.session.commit()
+    return jsonify({'success': True, 'is_pinned': comment.is_pinned})
+
+
+@bp.route('/sites/<int:site_id>/comments/<int:comment_id>/delete', methods=['POST'])
+def delete_comment(site_id, comment_id):
+    comment = Comment.query.filter_by(id=comment_id, site_id=site_id).first()
+    if not comment:
+        return jsonify({'error': 'Comment not found'}), 404
+    Comment.query.filter_by(parent_id=comment_id).delete()
+    db.session.delete(comment)
+    db.session.commit()
+    return jsonify({'success': True})
+
+
+@bp.route('/sites/<int:site_id>/comment-users/<int:user_id>/toggle-banned', methods=['POST'])
+def toggle_user_banned(site_id, user_id):
+    user = CommentUser.query.filter_by(id=user_id, site_id=site_id).first()
+    if not user:
+        return jsonify({'error': 'User not found'}), 404
+    user.is_banned = not getattr(user, 'is_banned', False)
+    db.session.commit()
+    return jsonify({'success': True, 'is_banned': user.is_banned})
+
+
+@bp.route('/sites/<int:site_id>/comments/<int:comment_id>/clear-flags', methods=['POST'])
+def clear_comment_flags(site_id, comment_id):
+    comment = Comment.query.filter_by(id=comment_id, site_id=site_id).first()
+    if not comment:
+        return jsonify({'error': 'Comment not found'}), 404
+    comment.flag_count = 0
+    db.session.commit()
+    return jsonify({'success': True})

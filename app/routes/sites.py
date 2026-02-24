@@ -7,7 +7,7 @@ from datetime import datetime, timezone, timedelta
 from flask import Blueprint, render_template, request, redirect, url_for, flash, abort, current_app, send_from_directory
 
 from ..models import (
-    db, Author, Site, SiteBrand, SiteBrandOverride, SitePage, Geo, Vertical, Brand, BrandGeo, BrandVertical,
+    db, Author, Comment, CommentUser, Site, SiteBrand, SiteBrandOverride, SitePage, Geo, Vertical, Brand, BrandGeo, BrandVertical,
     PageType, Domain, ContentHistory, CTATable, CTATableRow,
 )
 from ..services.content_generator import start_generation, generate_page_content, save_content_to_page, generate_meta_tags
@@ -1370,3 +1370,19 @@ def _create_site_pages(site, brand_ids, form):
             )
             _apply_menu_defaults(page, 'evergreen')
             db.session.add(page)
+
+
+@bp.route('/<int:site_id>/comments')
+def comments(site_id):
+    """Comment moderation page."""
+    site = db.session.get(Site, site_id) or abort(404)
+    total_comments = Comment.query.filter_by(site_id=site_id).count()
+    flagged_count = Comment.query.filter_by(site_id=site_id).filter(Comment.flag_count > 0).count()
+    hidden_count = Comment.query.filter_by(site_id=site_id, is_hidden=True).count()
+    guest_count = (Comment.query.join(CommentUser)
+                   .filter(Comment.site_id == site_id, CommentUser.is_bot.is_(False)).count())
+    return render_template('sites/comments.html', site=site,
+                           total_comments=total_comments,
+                           flagged_count=flagged_count,
+                           hidden_count=hidden_count,
+                           guest_count=guest_count)

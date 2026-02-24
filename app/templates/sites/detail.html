@@ -290,9 +290,12 @@
             <span class="badge bg-{{ 'success' if site.comments_enabled else 'secondary' }} ms-1" id="commentsEnabledBadge">{{ 'Enabled' if site.comments_enabled else 'Disabled' }}</span>
             <small class="ms-1 text-muted">&#9662;</small>
         </a>
-        <div class="form-check form-switch mb-0">
-            <input class="form-check-input" type="checkbox" id="commentsToggle" {{ 'checked' if site.comments_enabled else '' }} onchange="toggleComments()">
-            <label class="form-check-label small" for="commentsToggle">Enable</label>
+        <div class="d-flex align-items-center gap-2">
+            <a href="{{ url_for('sites.comments', site_id=site.id) }}" class="btn btn-sm btn-outline-warning">Moderate</a>
+            <div class="form-check form-switch mb-0">
+                <input class="form-check-input" type="checkbox" id="commentsToggle" {{ 'checked' if site.comments_enabled else '' }} onchange="toggleComments()">
+                <label class="form-check-label small" for="commentsToggle">Enable</label>
+            </div>
         </div>
     </div>
     <div class="collapse" id="commentsCollapse">

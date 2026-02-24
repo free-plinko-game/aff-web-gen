@@ -3300,6 +3300,18 @@ a.brand-rating-score:hover {
 }
 .comment-reply-btn:hover { color: var(--teal); }
 .comment--reply .comment-reply-btn { margin-left: calc(28px + 0.6rem); }
+.comment-flag-btn {
+    background: none;
+    border: none;
+    color: var(--gray-400);
+    font-size: 0.75rem;
+    cursor: pointer;
+    padding: 0.25rem 0;
+    margin-left: 0.75rem;
+    transition: color 0.2s;
+}
+.comment-flag-btn:hover { color: #e53e3e; }
+.comment-flag-btn:disabled { color: var(--gray-300); cursor: default; }
 .comment-reply-form-slot:empty { display: none; }
 .comment-form-msg {
     font-size: 0.8rem;

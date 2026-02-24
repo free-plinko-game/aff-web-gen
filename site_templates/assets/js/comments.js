@@ -27,11 +27,15 @@
     return d.innerHTML;
   }
 
+  var flaggedIds = [];
+  try { flaggedIds = JSON.parse(localStorage.getItem('flagged_comments') || '[]'); } catch (ex) {}
+
   function renderComment(c, isReply) {
     var cls = 'comment' + (c.is_pinned ? ' comment--pinned' : '') + (isReply ? ' comment--reply' : '');
     var pinBadge = c.is_pinned ? '<span class="comment-pin">Pinned</span>' : '';
     var score = (c.upvotes || 0) - (c.downvotes || 0);
     var scoreClass = score > 0 ? 'comment-score--positive' : score < 0 ? 'comment-score--negative' : '';
+    var alreadyFlagged = flaggedIds.indexOf(c.id) !== -1;
     // For replies, flatten parent_id to root so reply-to-reply goes to root
     var effectiveParentId = c.parent_id || c.id;
 
@@ -59,6 +63,10 @@
       '</div>' +
       '<div class="comment-body">' + escapeHtml(c.body) + '</div>' +
       '<button class="comment-reply-btn" data-parent-id="' + effectiveParentId + '">Reply</button>' +
+      '<button class="comment-flag-btn" data-comment-id="' + c.id + '"' +
+        (alreadyFlagged ? ' disabled' : '') + '>' +
+        (alreadyFlagged ? 'Reported' : 'Report') +
+      '</button>' +
       '<div class="comment-reply-form-slot"></div>' +
       repliesHtml +
     '</div>';
@@ -233,6 +241,25 @@
           prefillForm(slot.querySelector('form'));
           slot.querySelector('textarea').focus();
         }
+        return;
+      }
+
+      var flagBtn = e.target.closest('.comment-flag-btn');
+      if (flagBtn && !flagBtn.disabled) {
+        e.preventDefault();
+        var commentId = flagBtn.getAttribute('data-comment-id');
+        flagBtn.disabled = true;
+        flagBtn.textContent = 'Reported';
+
+        var flagUrl = apiBaseUrl.replace(/\/+$/, '') + '/comments-api/' + siteId + '/' + pageSlug + '/flag/' + commentId;
+        fetch(flagUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' } })
+          .then(function () {})
+          .catch(function () {});
+
+        try {
+          flaggedIds.push(parseInt(commentId, 10));
+          localStorage.setItem('flagged_comments', JSON.stringify(flaggedIds));
+        } catch (ex) {}
         return;
       }
 

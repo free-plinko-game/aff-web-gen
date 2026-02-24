@@ -105,6 +105,21 @@ def _auto_migrate(db):
             db.session.execute(sqlalchemy.text(
                 'ALTER TABLE comment_users ADD COLUMN email VARCHAR(254)'
             ))
+        if 'is_banned' not in cu_cols:
+            db.session.execute(sqlalchemy.text(
+                'ALTER TABLE comment_users ADD COLUMN is_banned BOOLEAN NOT NULL DEFAULT 0'
+            ))
+
+    if insp.has_table('comments'):
+        comments_cols = {c['name'] for c in insp.get_columns('comments')}
+        if 'is_hidden' not in comments_cols:
+            db.session.execute(sqlalchemy.text(
+                'ALTER TABLE comments ADD COLUMN is_hidden BOOLEAN NOT NULL DEFAULT 0'
+            ))
+        if 'flag_count' not in comments_cols:
+            db.session.execute(sqlalchemy.text(
+                'ALTER TABLE comments ADD COLUMN flag_count INTEGER NOT NULL DEFAULT 0'
+            ))
 
     db.session.commit()
 

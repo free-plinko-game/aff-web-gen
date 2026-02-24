@@ -1,0 +1,204 @@
+{% extends "base.html" %}
+
+{% block title %}Comments — {{ site.name }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <div>
+        <a href="{{ url_for('sites.detail', site_id=site.id) }}" class="text-decoration-none">&larr; {{ site.name }}</a>
+        <h1 class="mb-0 mt-1">Comment Moderation</h1>
+    </div>
+    <div class="d-flex gap-2">
+        <span class="badge bg-primary fs-6">{{ total_comments }} total</span>
+        {% if flagged_count %}<span class="badge bg-warning text-dark fs-6">{{ flagged_count }} flagged</span>{% endif %}
+        {% if hidden_count %}<span class="badge bg-secondary fs-6">{{ hidden_count }} hidden</span>{% endif %}
+        <span class="badge bg-info fs-6">{{ guest_count }} from guests</span>
+    </div>
+</div>
+
+<!-- Filters -->
+<div class="card mb-3">
+    <div class="card-body py-2">
+        <div class="row g-2 align-items-end">
+            <div class="col-auto">
+                <label class="form-label small mb-0">Page</label>
+                <select id="filterPage" class="form-select form-select-sm" onchange="loadComments()">
+                    <option value="">All pages</option>
+                </select>
+            </div>
+            <div class="col-auto">
+                <label class="form-label small mb-0">User type</label>
+                <select id="filterUserType" class="form-select form-select-sm" onchange="loadComments()">
+                    <option value="">All</option>
+                    <option value="bot">Bot</option>
+                    <option value="guest">Guest</option>
+                </select>
+            </div>
+            <div class="col-auto">
+                <label class="form-label small mb-0">Status</label>
+                <select id="filterStatus" class="form-select form-select-sm" onchange="loadComments()">
+                    <option value="">All</option>
+                    <option value="visible">Visible</option>
+                    <option value="hidden">Hidden</option>
+                    <option value="flagged">Flagged</option>
+                </select>
+            </div>
+            <div class="col-auto">
+                <span id="resultCount" class="text-muted small"></span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Comments table -->
+<div class="table-responsive">
+    <table class="table table-striped table-sm align-middle">
+        <thead>
+            <tr>
+                <th>User</th>
+                <th>Page</th>
+                <th>Comment</th>
+                <th>Score</th>
+                <th>Status</th>
+                <th>Date</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody id="commentsTableBody">
+            <tr><td colspan="7" class="text-center text-muted py-3">Loading...</td></tr>
+        </tbody>
+    </table>
+</div>
+
+<script>
+const SITE_ID = {{ site.id }};
+const API_BASE = '{{ url_for("api.list_comments", site_id=site.id) }}';
+
+function loadComments() {
+    const page = document.getElementById('filterPage').value;
+    const userType = document.getElementById('filterUserType').value;
+    const status = document.getElementById('filterStatus').value;
+
+    const params = new URLSearchParams();
+    if (page) params.set('page', page);
+    if (userType) params.set('user_type', userType);
+    if (status) params.set('status', status);
+
+    const url = API_BASE + (params.toString() ? '?' + params.toString() : '');
+
+    fetch(url)
+        .then(r => r.json())
+        .then(data => {
+            document.getElementById('resultCount').textContent = data.total + ' comments';
+
+            // Populate page filter dropdown (once)
+            const pageSelect = document.getElementById('filterPage');
+            if (pageSelect.options.length <= 1 && data.page_slugs) {
+                data.page_slugs.forEach(slug => {
+                    const opt = document.createElement('option');
+                    opt.value = slug;
+                    opt.textContent = slug.length > 40 ? slug.substring(0, 40) + '...' : slug;
+                    pageSelect.appendChild(opt);
+                });
+            }
+
+            renderTable(data.comments);
+        })
+        .catch(() => {
+            document.getElementById('commentsTableBody').innerHTML =
+                '<tr><td colspan="7" class="text-center text-danger">Failed to load comments.</td></tr>';
+        });
+}
+
+function renderTable(comments) {
+    const tbody = document.getElementById('commentsTableBody');
+    if (!comments.length) {
+        tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted py-3">No comments found.</td></tr>';
+        return;
+    }
+
+    tbody.innerHTML = comments.map(c => {
+        const user = c.user;
+        const name = user ? (user.display_name || user.username) : 'Unknown';
+        const typeBadge = user && user.is_bot
+            ? '<span class="badge bg-info ms-1">Bot</span>'
+            : '<span class="badge bg-success ms-1">Guest</span>';
+        const bannedBadge = user && user.is_banned
+            ? '<span class="badge bg-danger ms-1">Banned</span>'
+            : '';
+
+        const statusBadges = [];
+        if (c.is_hidden) statusBadges.push('<span class="badge bg-secondary">Hidden</span>');
+        if (c.is_pinned) statusBadges.push('<span class="badge bg-primary">Pinned</span>');
+        if (c.flag_count > 0) statusBadges.push('<span class="badge bg-warning text-dark">Flagged x' + c.flag_count + '</span>');
+        if (c.parent_id) statusBadges.push('<span class="badge bg-light text-dark">Reply</span>');
+
+        const body = c.body.length > 80 ? c.body.substring(0, 80) + '...' : c.body;
+        const score = c.upvotes - c.downvotes;
+        const scoreClass = score > 0 ? 'text-success' : score < 0 ? 'text-danger' : '';
+
+        const date = c.created_at ? new Date(c.created_at).toLocaleDateString() : '';
+
+        return `<tr data-id="${c.id}">
+            <td class="text-nowrap">${escapeHtml(name)}${typeBadge}${bannedBadge}</td>
+            <td><small class="text-muted">${escapeHtml(c.page_slug.length > 25 ? c.page_slug.substring(0, 25) + '...' : c.page_slug)}</small></td>
+            <td title="${escapeHtml(c.body)}">${escapeHtml(body)}</td>
+            <td class="${scoreClass}">${score}</td>
+            <td>${statusBadges.join(' ') || '<span class="text-muted">—</span>'}</td>
+            <td><small>${date}</small></td>
+            <td class="text-nowrap">
+                <div class="btn-group btn-group-sm">
+                    <button class="btn btn-outline-secondary" onclick="toggleHidden(${c.id})" title="${c.is_hidden ? 'Unhide' : 'Hide'}">
+                        ${c.is_hidden ? '&#128065;' : '&#128064;'}
+                    </button>
+                    <button class="btn btn-outline-primary" onclick="togglePinned(${c.id})" title="${c.is_pinned ? 'Unpin' : 'Pin'}">
+                        &#128204;
+                    </button>
+                    ${user && !user.is_bot ? `<button class="btn btn-outline-warning" onclick="toggleBanned(${user.id})" title="${user.is_banned ? 'Unban' : 'Ban'} user">${user.is_banned ? '&#9989;' : '&#128683;'}</button>` : ''}
+                    ${c.flag_count > 0 ? `<button class="btn btn-outline-info" onclick="clearFlags(${c.id})" title="Clear flags">&#10003;</button>` : ''}
+                    <button class="btn btn-outline-danger" onclick="deleteComment(${c.id})" title="Delete">&#128465;</button>
+                </div>
+            </td>
+        </tr>`;
+    }).join('');
+}
+
+function escapeHtml(text) {
+    const d = document.createElement('div');
+    d.textContent = text;
+    return d.innerHTML;
+}
+
+function doAction(url, callback) {
+    fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' } })
+        .then(r => r.json())
+        .then(data => { if (data.success) loadComments(); })
+        .catch(err => alert('Action failed: ' + err.message));
+}
+
+function toggleHidden(id) {
+    doAction(`/api/sites/${SITE_ID}/comments/${id}/toggle-hidden`);
+}
+
+function togglePinned(id) {
+    doAction(`/api/sites/${SITE_ID}/comments/${id}/toggle-pinned`);
+}
+
+function toggleBanned(userId) {
+    if (!confirm('Toggle ban on this user?')) return;
+    doAction(`/api/sites/${SITE_ID}/comment-users/${userId}/toggle-banned`);
+}
+
+function clearFlags(id) {
+    doAction(`/api/sites/${SITE_ID}/comments/${id}/clear-flags`);
+}
+
+function deleteComment(id) {
+    if (!confirm('Delete this comment and its replies? This cannot be undone.')) return;
+    doAction(`/api/sites/${SITE_ID}/comments/${id}/delete`);
+}
+
+// Initial load
+loadComments();
+</script>
+{% endblock %}

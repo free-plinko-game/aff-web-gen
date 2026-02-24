@@ -345,6 +345,7 @@ class CommentUser(db.Model):
     email = db.Column(db.String(254), nullable=True)
     persona_json = db.Column(db.Text)
     is_bot = db.Column(db.Boolean, default=True)
+    is_banned = db.Column(db.Boolean, default=False, nullable=False)
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
     site = db.relationship('Site', backref='comment_users')
@@ -366,6 +367,8 @@ class Comment(db.Model):
     upvotes = db.Column(db.Integer, default=0)
     downvotes = db.Column(db.Integer, default=0)
     is_pinned = db.Column(db.Boolean, default=False)
+    is_hidden = db.Column(db.Boolean, default=False, nullable=False)
+    flag_count = db.Column(db.Integer, default=0, nullable=False)
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
     site = db.relationship('Site', backref='comments')

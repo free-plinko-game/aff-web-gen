@@ -35,6 +35,25 @@ def _record_request(ip):
 _EMAIL_RE = re.compile(r'^[^@\s]+@[^@\s]+\.[^@\s]+$')
 
 
+def _check_spam(body):
+    """Simple spam heuristics. Returns error message or None."""
+    # Excessive links
+    if len(re.findall(r'https?://', body)) > 2:
+        return 'Too many links in comment.'
+    # Repetitive text (same word 60%+ of content)
+    words = body.split()
+    if len(words) >= 6:
+        from collections import Counter
+        most_common_count = Counter(w.lower() for w in words).most_common(1)[0][1]
+        if most_common_count >= len(words) * 0.6 and most_common_count >= 4:
+            return 'Comment appears to be spam.'
+    # All caps (>80% uppercase, min 20 alpha chars)
+    alpha = [c for c in body if c.isalpha()]
+    if len(alpha) >= 20 and sum(1 for c in alpha if c.isupper()) / len(alpha) > 0.8:
+        return 'Please avoid using all caps.'
+    return None
+
+
 def _validate_comment_input(data):
     """Validate guest comment. Returns ('honeypot', {}) or (errors_list, cleaned_dict)."""
     name = (data.get('name') or '').strip()
@@ -93,7 +112,7 @@ def get_comments(site_id, page_slug):
     """Return threaded comments for a page."""
     comments = (
         Comment.query
-        .filter_by(site_id=site_id, page_slug=page_slug)
+        .filter_by(site_id=site_id, page_slug=page_slug, is_hidden=False)
         .order_by(Comment.created_at.asc())
         .all()
     )
@@ -134,7 +153,7 @@ def get_comments(site_id, page_slug):
 @cross_origin()
 def get_comment_count(site_id, page_slug):
     """Return comment count for a page (lightweight)."""
-    count = Comment.query.filter_by(site_id=site_id, page_slug=page_slug).count()
+    count = Comment.query.filter_by(site_id=site_id, page_slug=page_slug, is_hidden=False).count()
     return jsonify({'count': count})
 
 
@@ -192,6 +211,13 @@ def post_comment(site_id, page_slug):
         if user.display_name != cleaned['name']:
             user.display_name = cleaned['name']
 
+    if getattr(user, 'is_banned', False):
+        return jsonify({'errors': ['Your account has been suspended.']}), 403
+
+    spam_error = _check_spam(cleaned['body'])
+    if spam_error:
+        return jsonify({'errors': [spam_error]}), 422
+
     comment = Comment(
         site_id=site_id,
         page_slug=page_slug,
@@ -204,6 +230,29 @@ def post_comment(site_id, page_slug):
 
     _record_request(ip)
     return jsonify({'success': True, 'comment_id': comment.id}), 201
+
+
+@bp.route('/<int:site_id>/<path:page_slug>/flag/<int:comment_id>', methods=['POST'])
+@cross_origin()
+def flag_comment(site_id, page_slug, comment_id):
+    """Increment flag count on a comment. Always returns success to prevent gaming."""
+    ip = request.headers.get('X-Forwarded-For', request.remote_addr)
+    if ip:
+        ip = ip.split(',')[0].strip()
+
+    flag_key = f'flag_{ip}'
+    if _is_rate_limited(flag_key):
+        return jsonify({'success': True})
+
+    comment = Comment.query.filter_by(
+        id=comment_id, site_id=site_id, page_slug=page_slug
+    ).first()
+    if comment:
+        comment.flag_count = (comment.flag_count or 0) + 1
+        db.session.commit()
+        _record_request(flag_key)
+
+    return jsonify({'success': True})
 
 
 # --- Internal helpers (used by comment_seeder, not HTTP-exposed) ---
