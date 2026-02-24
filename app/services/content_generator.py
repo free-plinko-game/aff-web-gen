@@ -36,7 +36,8 @@ Return a JSON object with:
 - "section_title": string (heading for the brand listing, e.g. "Top Rated Betting Sites")
 - "section_subtitle": string (one sentence explaining the ranking criteria)
 - "top_brands": [{{"name": string, "slug": string, "bonus": string, "rating": float, "selling_points": [string, string, string], "feature_badges": [string, string, string]}}]
-  (feature_badges: exactly 3 short labels per brand, max 3 words each, highlighting unique strengths e.g. "Live Streaming", "Cash Out", "Instant Payouts", "24/7 Support", "VIP Programme". Vary across brands — avoid repeating the same badges.)
+  IMPORTANT: You MUST include an entry for EVERY brand listed above — do not skip any. Use the exact slug shown in [slug: ...] for each brand.
+  (selling_points: exactly 3 unique strengths per brand. feature_badges: exactly 3 short labels per brand, max 3 words each, e.g. "Live Streaming", "Cash Out", "Instant Payouts". Vary across brands.)
 - "why_trust_us": string (2-3 paragraphs about review methodology)
 - "faq": [{{"question": string, "answer": string}}] (4-5 FAQs)
 - "closing_paragraph": string (1-2 sentences with call to action)
@@ -53,7 +54,8 @@ Return a JSON object with:
 - "hero_subtitle": string (15-20 words)
 - "intro_paragraph": string (2-3 sentences)
 - "comparison_rows": [{{ "brand": string, "slug": string, "bonus": string, "rating": float, "pros": [string], "cons": [string], "verdict": string, "feature_badges": [string, string, string] }}]
-  (feature_badges: exactly 3 short labels per brand, max 3 words each, highlighting unique strengths e.g. "Live Streaming", "Cash Out", "Instant Payouts", "24/7 Support". Vary across brands.)
+  IMPORTANT: You MUST include a row for EVERY brand listed above — do not skip any. Use the exact slug shown in [slug: ...] for each brand.
+  (feature_badges: exactly 3 short labels per brand, max 3 words each, e.g. "Live Streaming", "Cash Out", "Instant Payouts". Vary across brands.)
 - "faq": [{{ "question": string, "answer": string }}] (4-6 FAQs)
 - "closing_paragraph": string (1-2 sentences)
 
@@ -188,7 +190,7 @@ def build_prompt(page_type_slug, geo, vertical, brands=None, brand=None,
         for sb in brands:
             bg = next((bg for bg in sb.brand.brand_geos if bg.geo_id == geo.id), None)
             bonus = bg.welcome_bonus if bg else 'N/A'
-            parts.append(f"{sb.rank}. {sb.brand.name} (Bonus: {bonus}, Rating: {sb.brand.rating or 'N/A'}/5)")
+            parts.append(f"{sb.rank}. {sb.brand.name} [slug: {sb.brand.slug}] (Bonus: {bonus}, Rating: {sb.brand.rating or 'N/A'}/5)")
         brand_list = '\n'.join(parts)
 
     return template.format(
