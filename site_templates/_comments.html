@@ -1,0 +1,11 @@
+{% if comments_enabled and comments_api_url %}
+<div class="comments-section" id="comments"
+     data-api-url="{{ comments_api_url }}"
+     data-site-id="{{ site_id }}"
+     data-page-slug="{{ page_slug }}">
+    <h2>Comments <span class="comments-count"></span></h2>
+    <div class="comments-list">
+        <div class="comments-loading">Loading comments...</div>
+    </div>
+</div>
+{% endif %}

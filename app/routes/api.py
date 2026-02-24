@@ -4,7 +4,7 @@ import os
 
 from flask import Blueprint, jsonify, request, abort, Response, send_from_directory, current_app
 
-from ..models import db, Author, Brand, BrandGeo, BrandVertical, Site, SitePage, PageType
+from ..models import db, Author, Brand, BrandGeo, BrandVertical, Comment, CommentUser, Site, SitePage, PageType
 from ..services.content_generator import call_openai
 from ..services.preview_renderer import render_page_preview
 
@@ -659,3 +659,89 @@ def _author_to_dict(author):
         'is_active': author.is_active,
         'article_count': article_count,
     }
+
+
+# ── Comments Management ─────────────────────────────────────────────
+
+@bp.route('/sites/<int:site_id>/toggle-comments', methods=['POST'])
+def toggle_comments(site_id):
+    site = db.session.get(Site, site_id) or abort(404)
+    site.comments_enabled = not site.comments_enabled
+    db.session.commit()
+    return jsonify({'success': True, 'enabled': site.comments_enabled})
+
+
+@bp.route('/sites/<int:site_id>/save-comments-config', methods=['POST'])
+def save_comments_config(site_id):
+    site = db.session.get(Site, site_id) or abort(404)
+    data = request.get_json(force=True)
+    site.comments_api_url = (data.get('comments_api_url') or '').strip() or None
+    db.session.commit()
+    return jsonify({'success': True})
+
+
+@bp.route('/sites/<int:site_id>/generate-personas', methods=['POST'])
+def generate_personas_endpoint(site_id):
+    site = db.session.get(Site, site_id) or abort(404)
+    data = request.get_json(force=True)
+    count = min(int(data.get('count', 10)), 30)
+
+    try:
+        from ..services.persona_manager import generate_personas
+        created = generate_personas(site.id, count=count)
+        return jsonify({'success': True, 'count': created})
+    except Exception as e:
+        logger.error('Persona generation failed for site %d: %s', site_id, e)
+        return jsonify({'error': str(e)}), 500
+
+
+@bp.route('/sites/<int:site_id>/seed-comments/<path:page_slug>', methods=['POST'])
+def seed_comments_endpoint(site_id, page_slug):
+    site = db.session.get(Site, site_id) or abort(404)
+    page = SitePage.query.filter_by(site_id=site_id, slug=page_slug).first()
+    if not page:
+        return jsonify({'error': 'Page not found'}), 404
+
+    try:
+        from ..services.comment_seeder import seed_comments_for_page
+        count = seed_comments_for_page(site.id, page.slug, page.title)
+        return jsonify({'success': True, 'count': count})
+    except Exception as e:
+        logger.error('Comment seeding failed for %s: %s', page_slug, e)
+        return jsonify({'error': str(e)}), 500
+
+
+@bp.route('/sites/<int:site_id>/seed-all-comments', methods=['POST'])
+def seed_all_comments(site_id):
+    site = db.session.get(Site, site_id) or abort(404)
+
+    # Find article pages with no comments
+    content_types = {'brand-review', 'bonus-review', 'evergreen', 'news-article', 'tips-article'}
+    pages = SitePage.query.filter_by(site_id=site_id, is_generated=True).all()
+    pages = [p for p in pages if p.page_type.slug in content_types]
+
+    # Filter to pages with zero comments
+    pages_to_seed = []
+    for p in pages:
+        count = Comment.query.filter_by(site_id=site_id, page_slug=p.slug).count()
+        if count == 0:
+            pages_to_seed.append(p)
+
+    from ..services.comment_seeder import seed_comments_for_page
+
+    seeded_pages = 0
+    total_comments = 0
+    for p in pages_to_seed:
+        try:
+            count = seed_comments_for_page(site.id, p.slug, p.title)
+            if count > 0:
+                seeded_pages += 1
+                total_comments += count
+        except Exception as e:
+            logger.warning('Comment seeding failed for %s: %s', p.slug, e)
+
+    return jsonify({
+        'success': True,
+        'seeded_pages': seeded_pages,
+        'total_comments': total_comments,
+    })

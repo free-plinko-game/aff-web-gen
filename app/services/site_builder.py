@@ -454,6 +454,10 @@ def build_site(site, output_base_dir, upload_folder):
             'cta_table': cta_table_data,
             'cluster_links': cluster_links,
             'custom_head': (site.custom_head or '') + '\n' + (page.custom_head or ''),
+            'comments_enabled': getattr(site, 'comments_enabled', False),
+            'comments_api_url': getattr(site, 'comments_api_url', '') or '',
+            'site_id': site.id,
+            'page_slug': page.slug,
         }
 
         if pt_slug == 'homepage':

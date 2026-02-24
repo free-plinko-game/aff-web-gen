@@ -210,6 +210,14 @@ def fetch_and_generate_tips(site_id, app=None):
             created_count += 1
             logger.info('Created tip: %s (fixture %d)', title, fixture_id)
 
+            # Auto-seed comments if enabled
+            if getattr(site, 'comments_enabled', False):
+                try:
+                    from .comment_seeder import seed_comments_for_page
+                    seed_comments_for_page(site_id, slug, title, app=app)
+                except Exception as ce:
+                    logger.warning('Comment seeding failed for %s: %s', slug, ce)
+
         except RateLimitError:
             logger.warning('Rate limit reached after creating %d tips', created_count)
             db.session.rollback()

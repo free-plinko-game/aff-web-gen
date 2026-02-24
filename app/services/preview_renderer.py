@@ -115,6 +115,10 @@ def render_page_preview(site_page, site, asset_url_prefix=''):
         'bonus_slugs': bonus_slugs,
         'page_author': page_author,
         'has_authors': len(authors) > 0,
+        'comments_enabled': getattr(site, 'comments_enabled', False),
+        'comments_api_url': getattr(site, 'comments_api_url', '') or '',
+        'site_id': site.id,
+        'page_slug': site_page.slug,
     }
 
     # Add page-type-specific context (same as site_builder.py)

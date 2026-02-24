@@ -90,6 +90,15 @@ def _auto_migrate(db):
             'ALTER TABLE site_pages ADD COLUMN author_id INTEGER'
         ))
 
+    if 'comments_enabled' not in sites_cols:
+        db.session.execute(sqlalchemy.text(
+            'ALTER TABLE sites ADD COLUMN comments_enabled BOOLEAN NOT NULL DEFAULT 0'
+        ))
+    if 'comments_api_url' not in sites_cols:
+        db.session.execute(sqlalchemy.text(
+            'ALTER TABLE sites ADD COLUMN comments_api_url TEXT'
+        ))
+
     db.session.commit()
 
 

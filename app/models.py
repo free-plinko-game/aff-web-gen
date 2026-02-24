@@ -139,6 +139,8 @@ class Site(db.Model):
     custom_head = db.Column(db.Text)  # Site-wide custom HTML for <head>
     tips_leagues = db.Column(db.Text, nullable=True)  # JSON array of league configs for tips pipeline
     default_author_id = db.Column(db.Integer, db.ForeignKey('authors.id'), nullable=True)
+    comments_enabled = db.Column(db.Boolean, default=False, nullable=False)
+    comments_api_url = db.Column(db.Text, nullable=True)
 
     geo = db.relationship('Geo', back_populates='sites')
     vertical = db.relationship('Vertical', back_populates='sites')
@@ -326,3 +328,61 @@ class CTATableRow(db.Model):
 
     cta_table = db.relationship('CTATable', back_populates='rows')
     brand = db.relationship('Brand')
+
+
+class CommentUser(db.Model):
+    __tablename__ = 'comment_users'
+    __table_args__ = (
+        db.UniqueConstraint('site_id', 'username', name='uq_comment_user_username'),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    site_id = db.Column(db.Integer, db.ForeignKey('sites.id'), nullable=False)
+    username = db.Column(db.String(100), nullable=False)
+    display_name = db.Column(db.String(200))
+    avatar_style = db.Column(db.String(50), default='bottts')
+    avatar_seed = db.Column(db.String(100))
+    persona_json = db.Column(db.Text)
+    is_bot = db.Column(db.Boolean, default=True)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+
+    site = db.relationship('Site', backref='comment_users')
+    comments = db.relationship('Comment', back_populates='user', cascade='all, delete-orphan')
+
+
+class Comment(db.Model):
+    __tablename__ = 'comments'
+    __table_args__ = (
+        db.Index('ix_comment_site_page', 'site_id', 'page_slug'),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    site_id = db.Column(db.Integer, db.ForeignKey('sites.id'), nullable=False)
+    page_slug = db.Column(db.String(300), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('comment_users.id'), nullable=False)
+    parent_id = db.Column(db.Integer, db.ForeignKey('comments.id'), nullable=True)
+    body = db.Column(db.Text, nullable=False)
+    upvotes = db.Column(db.Integer, default=0)
+    downvotes = db.Column(db.Integer, default=0)
+    is_pinned = db.Column(db.Boolean, default=False)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+
+    site = db.relationship('Site', backref='comments')
+    user = db.relationship('CommentUser', back_populates='comments')
+    replies = db.relationship('Comment', backref=db.backref('parent', remote_side='Comment.id'), lazy='select')
+    votes = db.relationship('CommentVote', back_populates='comment', cascade='all, delete-orphan')
+
+
+class CommentVote(db.Model):
+    __tablename__ = 'comment_votes'
+    __table_args__ = (
+        db.UniqueConstraint('comment_id', 'user_id', name='uq_comment_vote'),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    comment_id = db.Column(db.Integer, db.ForeignKey('comments.id'), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('comment_users.id'), nullable=False)
+    value = db.Column(db.Integer, nullable=False)  # +1 or -1
+
+    comment = db.relationship('Comment', back_populates='votes')
+    user = db.relationship('CommentUser')

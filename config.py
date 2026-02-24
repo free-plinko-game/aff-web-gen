@@ -19,6 +19,9 @@ class Config:
     API_FOOTBALL_KEY = os.getenv('API_FOOTBALL_KEY', '')
     TIPS_MAX_MATCHES_PER_DAY = int(os.getenv('TIPS_MAX_MATCHES_PER_DAY', '20'))
 
+    # Comments
+    COMMENTS_API_URL = os.getenv('COMMENTS_API_URL', '')
+
     # VPS Deployment
     VPS_HOST = os.getenv('VPS_HOST', '')
     VPS_USER = os.getenv('VPS_USER', 'deploy')
