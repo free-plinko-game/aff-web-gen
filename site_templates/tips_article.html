@@ -41,7 +41,7 @@
                 </div>
             </div>
             <div class="comp-card-body">
-                <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(140px, 1fr)); gap:0.75rem;">
+                <div class="match-info-grid" style="display:grid; grid-template-columns:repeat(auto-fit, minmax(140px, 1fr)); gap:0.75rem;">
                     {% if match_info.date %}
                     <div>
                         <div style="font-size:0.75rem; color:var(--gray-500); text-transform:uppercase; letter-spacing:0.05em;">Date</div>
@@ -133,33 +133,25 @@
         </div>
         {% endif %}
 
-        <!-- Betting Tips Table -->
+        <!-- Betting Tips -->
         {% if betting_tips %}
         <div class="content-block">
             <h2>Betting Tips</h2>
-            <div style="overflow-x:auto; margin-top:0.75rem;">
-                <table style="width:100%; border-collapse:collapse; font-size:0.9rem;">
-                    <thead>
-                        <tr style="background:var(--gray-50); text-align:left;">
-                            <th style="padding:0.75rem 1rem; font-weight:600; color:var(--gray-700);">Market</th>
-                            <th style="padding:0.75rem 1rem; font-weight:600; color:var(--gray-700);">Selection</th>
-                            <th style="padding:0.75rem 1rem; font-weight:600; color:var(--gray-700);">Odds</th>
-                            <th style="padding:0.75rem 1rem; font-weight:600; color:var(--gray-700);">Reasoning</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for tip in betting_tips %}
-                        <tr style="border-bottom:1px solid var(--gray-100);">
-                            <td style="padding:0.75rem 1rem; font-weight:500;">{{ tip.market }}</td>
-                            <td style="padding:0.75rem 1rem;">
-                                <span style="background:var(--teal); color:white; padding:2px 8px; border-radius:var(--radius-sm); font-size:0.82rem; font-weight:600;">{{ tip.selection }}</span>
-                            </td>
-                            <td style="padding:0.75rem 1rem; font-weight:600;">{{ tip.odds }}</td>
-                            <td style="padding:0.75rem 1rem; color:var(--gray-600); font-size:0.85rem;">{{ tip.reasoning }}</td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
+            <div class="tips-cards">
+                {% for tip in betting_tips %}
+                <div class="tip-card">
+                    <div class="tip-card-header">
+                        <span class="tip-card-market">{{ tip.market }}</span>
+                        <span class="tip-card-odds">{{ tip.odds }}</span>
+                    </div>
+                    <div class="tip-card-selection">
+                        <span style="background:var(--teal); color:white; padding:2px 10px; border-radius:var(--radius-sm); font-size:0.85rem; font-weight:600;">{{ tip.selection }}</span>
+                    </div>
+                    {% if tip.reasoning %}
+                    <div class="tip-card-reasoning">{{ tip.reasoning }}</div>
+                    {% endif %}
+                </div>
+                {% endfor %}
             </div>
         </div>
         {% endif %}
