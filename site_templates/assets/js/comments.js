@@ -189,8 +189,9 @@
         }
         listEl.innerHTML = html;
       })
-      .catch(function () {
-        listEl.innerHTML = '<p class="comments-empty">Comments unavailable.</p>';
+      .catch(function (err) {
+        console.error('Comments load failed:', url, err);
+        listEl.innerHTML = '<p class="comments-empty">Comments unavailable. <!-- ' + url + ' : ' + (err.message || err) + ' --></p>';
       });
   }
 
