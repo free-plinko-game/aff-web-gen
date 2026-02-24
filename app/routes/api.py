@@ -717,8 +717,8 @@ def seed_all_comments(site_id):
 
     # Find article pages with no comments
     content_types = {'brand-review', 'bonus-review', 'evergreen', 'news-article', 'tips-article'}
-    pages = SitePage.query.filter_by(site_id=site_id, is_generated=True).all()
-    pages = [p for p in pages if p.page_type.slug in content_types]
+    all_pages = SitePage.query.filter_by(site_id=site_id, is_generated=True).all()
+    pages = [p for p in all_pages if p.page_type and p.page_type.slug in content_types]
 
     # Filter to pages with zero comments
     pages_to_seed = []
@@ -731,6 +731,7 @@ def seed_all_comments(site_id):
 
     seeded_pages = 0
     total_comments = 0
+    errors = []
     for p in pages_to_seed:
         try:
             count = seed_comments_for_page(site.id, p.slug, p.title)
@@ -739,9 +740,17 @@ def seed_all_comments(site_id):
                 total_comments += count
         except Exception as e:
             logger.warning('Comment seeding failed for %s: %s', p.slug, e)
+            errors.append(f'{p.slug}: {e}')
 
     return jsonify({
         'success': True,
         'seeded_pages': seeded_pages,
         'total_comments': total_comments,
+        'debug': {
+            'total_generated_pages': len(all_pages),
+            'article_pages': len(pages),
+            'pages_needing_comments': len(pages_to_seed),
+            'persona_count': CommentUser.query.filter_by(site_id=site_id, is_bot=True).count(),
+            'errors': errors,
+        },
     })

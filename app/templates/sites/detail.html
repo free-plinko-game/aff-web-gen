@@ -1045,7 +1045,16 @@ function seedAllComments() {
         btn.disabled = false;
         btn.textContent = 'Seed All Pages';
         if (data.success) {
-            status.innerHTML = '<div class="alert alert-success py-1 px-2 small">Seeded ' + data.total_comments + ' comments across ' + data.seeded_pages + ' pages.</div>';
+            var msg = 'Seeded ' + data.total_comments + ' comments across ' + data.seeded_pages + ' pages.';
+            if (data.debug) {
+                msg += '<br><small class="text-muted">Debug: ' + data.debug.total_generated_pages + ' generated, '
+                    + data.debug.article_pages + ' articles, '
+                    + data.debug.pages_needing_comments + ' needing comments, '
+                    + data.debug.persona_count + ' personas'
+                    + (data.debug.errors.length ? ', errors: ' + data.debug.errors.join('; ') : '')
+                    + '</small>';
+            }
+            status.innerHTML = '<div class="alert alert-success py-1 px-2 small">' + msg + '</div>';
         } else {
             status.innerHTML = '<div class="alert alert-danger py-1 px-2 small">' + (data.error || 'Failed') + '</div>';
         }
