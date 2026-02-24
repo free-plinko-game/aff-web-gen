@@ -52,8 +52,8 @@ def _generate_nginx_config(domain, web_root, ssl=False, comments_proxy_port=None
     site_root = posixpath.join(web_root, domain, 'current')
     static_cache = """
     location ~* \\.(css|js|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ {
-        expires 30d;
-        add_header Cache-Control "public, immutable";
+        expires 7d;
+        add_header Cache-Control "public";
     }"""
 
     comments_block = ''
