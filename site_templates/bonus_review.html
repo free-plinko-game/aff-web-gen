@@ -195,7 +195,9 @@
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
                 </a>
                 {% endif %}
+                {% if brand_slug in review_slugs %}
                 <a href="/reviews/{{ brand_slug }}" class="review-sidebar-bonus-link">Read Full Review &rarr;</a>
+                {% endif %}
                 <p class="review-sidebar-tcs">18+. T&amp;Cs apply. New customers only.</p>
             </div>
         </div>
@@ -226,6 +228,7 @@
                 <h3>Other Bonuses</h3>
             </div>
             {% for ob in other_brands %}
+            {% if ob.slug in bonus_slugs %}
             <a href="/bonuses/{{ ob.slug }}" class="sidebar-brand-item">
                 <div class="sidebar-brand-logo">
                     {% if ob.logo_filename %}
@@ -244,6 +247,7 @@
                 <div class="sidebar-brand-score">{{ ob.rating }}</div>
                 {% endif %}
             </a>
+            {% endif %}
             {% endfor %}
         </div>
         {% endif %}

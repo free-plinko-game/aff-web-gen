@@ -380,6 +380,10 @@ def build_site(site, output_base_dir, upload_folder):
         if p.nav_parent_id is not None:
             cluster_map.setdefault(p.nav_parent_id, []).append(p)
 
+    # Build sets of brand slugs that have actual pages (for conditional linking)
+    review_slugs = {p.slug for p in pages if p.page_type.slug == 'brand-review'}
+    bonus_slugs = {p.slug for p in pages if p.page_type.slug == 'bonus-review'}
+
     common_ctx = {
         'site_name': site.name,
         'language': geo.language,
@@ -390,6 +394,8 @@ def build_site(site, output_base_dir, upload_folder):
         'brand_lookup': brand_lookup,
         'year': datetime.now().year,
         'payment_icon_map': PAYMENT_ICON_MAP,
+        'review_slugs': review_slugs,
+        'bonus_slugs': bonus_slugs,
     }
 
     # Render each page

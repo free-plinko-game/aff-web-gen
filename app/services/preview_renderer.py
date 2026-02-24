@@ -72,6 +72,10 @@ def render_page_preview(site_page, site, asset_url_prefix=''):
                     'label': _page_display_title(sib),
                 })
 
+    # Build sets of brand slugs that have actual pages (for conditional linking)
+    review_slugs = {p.slug for p in pages if p.page_type.slug == 'brand-review'}
+    bonus_slugs = {p.slug for p in pages if p.page_type.slug == 'bonus-review'}
+
     ctx = {
         'site_name': site.name,
         'language': geo.language,
@@ -91,6 +95,8 @@ def render_page_preview(site_page, site, asset_url_prefix=''):
         'schema_json_ld': '',  # Skip schema in preview
         'custom_head': (site.custom_head or '') + '\n' + (site_page.custom_head or ''),
         'payment_icon_map': PAYMENT_ICON_MAP,
+        'review_slugs': review_slugs,
+        'bonus_slugs': bonus_slugs,
     }
 
     # Add page-type-specific context (same as site_builder.py)

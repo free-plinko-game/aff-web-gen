@@ -347,10 +347,12 @@
                 {% endif %}
                 {% endfor %}
                 {% for brand in site_brands[:3] %}
+                {% if brand.slug in bonus_slugs %}
                 <a href="/bonuses/{{ brand.slug }}" class="quick-link">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 12H4M12 4v16"/></svg>
                     {{ brand.name }} Bonus
                 </a>
+                {% endif %}
                 {% endfor %}
                 {% endif %}
             </div>

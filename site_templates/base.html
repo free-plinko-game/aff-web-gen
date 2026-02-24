@@ -96,7 +96,9 @@
             <div class="footer-col">
                 <h4>{{ vertical_name }}</h4>
                 {% for brand in site_brands[:4] %}
+                {% if brand.slug in review_slugs %}
                 <a href="/reviews/{{ brand.slug }}">{{ brand.name }}</a>
+                {% endif %}
                 {% endfor %}
                 {% for link in nav_links %}
                 {% if link.type == 'comparison' %}
@@ -115,7 +117,9 @@
             <div class="footer-col">
                 <h4>Bonuses</h4>
                 {% for brand in site_brands[:4] %}
+                {% if brand.slug in bonus_slugs %}
                 <a href="/bonuses/{{ brand.slug }}">{{ brand.name }} Bonus</a>
+                {% endif %}
                 {% endfor %}
             </div>
             {% endif %}
