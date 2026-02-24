@@ -385,3 +385,19 @@ def save_menu_order(site_id):
 
     db.session.commit()
     return jsonify({'success': True})
+
+
+@bp.route('/sites/<int:site_id>/sweep-links', methods=['POST'])
+def sweep_links(site_id):
+    """Scan (and optionally fix) dead internal links in content_json."""
+    site = db.session.get(Site, site_id)
+    if not site:
+        return jsonify({'error': 'Site not found'}), 404
+
+    mode = request.args.get('mode', 'report')
+    fix = mode == 'fix'
+
+    from ..services.link_sweeper import sweep_dead_links
+    result = sweep_dead_links(site.id, fix=fix)
+
+    return jsonify({'success': True, **result})

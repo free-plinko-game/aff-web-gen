@@ -281,6 +281,28 @@
     </div>
 </div>
 
+<!-- Dead Internal Links -->
+<div class="card mb-4">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <strong>Dead Internal Links</strong>
+        <button type="button" class="btn btn-sm btn-outline-warning" id="btnSweepLinks" onclick="sweepLinks('report')">
+            Scan for Dead Links
+        </button>
+    </div>
+    <div id="sweepResults" class="d-none">
+        <div class="card-body">
+            <div id="sweepStatus"></div>
+            <table id="sweepTable" class="table table-sm d-none mb-2">
+                <thead><tr><th>Page</th><th>Dead Link</th><th>Link Text</th></tr></thead>
+                <tbody></tbody>
+            </table>
+            <button type="button" class="btn btn-sm btn-danger d-none" id="btnFixLinks" onclick="sweepLinks('fix')">
+                Fix All Dead Links
+            </button>
+        </div>
+    </div>
+</div>
+
 <!-- Tabs -->
 <ul class="nav nav-tabs mb-3" role="tablist">
     <li class="nav-item">
@@ -801,6 +823,59 @@ function runTipsPipeline() {
         status.innerHTML = '<div class="alert alert-danger">Request failed: ' + err.message + '</div>';
         btn.disabled = false;
         btn.textContent = 'Run Tips Pipeline';
+    });
+}
+
+/* --- Dead Link Sweep --- */
+function sweepLinks(mode) {
+    const btn = document.getElementById('btnSweepLinks');
+    const fixBtn = document.getElementById('btnFixLinks');
+    const results = document.getElementById('sweepResults');
+    const status = document.getElementById('sweepStatus');
+    const table = document.getElementById('sweepTable');
+    const tbody = table.querySelector('tbody');
+
+    btn.disabled = true;
+    btn.textContent = mode === 'fix' ? 'Fixing...' : 'Scanning...';
+    results.classList.remove('d-none');
+    fixBtn.classList.add('d-none');
+    table.classList.add('d-none');
+    status.innerHTML = '<div class="spinner-border spinner-border-sm me-2"></div>Working...';
+
+    fetch('{{ url_for("api.sweep_links", site_id=site.id) }}?mode=' + mode, {
+        method: 'POST',
+    })
+    .then(r => r.json())
+    .then(data => {
+        btn.disabled = false;
+        btn.textContent = 'Scan for Dead Links';
+
+        if (mode === 'fix') {
+            status.innerHTML = '<div class="alert alert-success mb-0">Fixed ' + data.fixed + ' dead link(s) across ' + data.pages_updated + ' page(s).</div>';
+            fixBtn.classList.add('d-none');
+            table.classList.add('d-none');
+            return;
+        }
+
+        if (data.count === 0) {
+            status.innerHTML = '<div class="alert alert-success mb-0">No dead links found.</div>';
+            return;
+        }
+
+        status.innerHTML = '<div class="alert alert-warning">Found ' + data.count + ' dead link(s) across ' + new Set(data.dead_links.map(d => d.page_id)).size + ' page(s).</div>';
+        tbody.innerHTML = '';
+        data.dead_links.forEach(d => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = '<td>' + d.page_title + '</td><td><code>' + d.link_url + '</code></td><td>' + d.link_text + '</td>';
+            tbody.appendChild(tr);
+        });
+        table.classList.remove('d-none');
+        fixBtn.classList.remove('d-none');
+    })
+    .catch(err => {
+        btn.disabled = false;
+        btn.textContent = 'Scan for Dead Links';
+        status.innerHTML = '<div class="alert alert-danger">Error: ' + err.message + '</div>';
     });
 }
 

@@ -6,6 +6,7 @@ Jinja2 Environment pointed at site_templates/ — NOT Flask's render_template.
 
 import hashlib
 import json
+import logging
 import os
 import shutil
 from datetime import datetime, timezone
@@ -13,6 +14,8 @@ from datetime import datetime, timezone
 import jinja2
 
 from markupsafe import Markup
+
+logger = logging.getLogger(__name__)
 
 from ..models import db, Site, SitePage, SiteBrand
 from .schema_generator import generate_schema
@@ -346,6 +349,13 @@ def build_site(site, output_base_dir, upload_folder):
     Returns:
         str: Path to the built site version folder
     """
+    # Auto-sweep dead internal links before building
+    from .link_sweeper import sweep_dead_links
+    sweep_result = sweep_dead_links(site.id, fix=True)
+    if sweep_result['fixed']:
+        logger.info('Pre-build sweep: fixed %d dead link(s) in %d page(s)',
+                     sweep_result['fixed'], sweep_result['pages_updated'])
+
     env = _get_jinja_env()
     geo = site.geo
     vertical = site.vertical
