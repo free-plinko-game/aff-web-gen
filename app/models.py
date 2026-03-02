@@ -390,3 +390,68 @@ class CommentVote(db.Model):
 
     comment = db.relationship('Comment', back_populates='votes')
     user = db.relationship('CommentUser')
+
+
+# ── Odds Comparison ─────────────────────────────────────────────────
+
+
+class OddsConfig(db.Model):
+    """Per-site odds comparison configuration."""
+    __tablename__ = 'odds_configs'
+
+    id = db.Column(db.Integer, primary_key=True)
+    site_id = db.Column(db.Integer, db.ForeignKey('sites.id'), nullable=False, unique=True)
+    enabled = db.Column(db.Boolean, default=False)
+    bookmaker_ids = db.Column(db.Text)       # JSON array of API-Football bookmaker IDs
+    manual_bookmakers = db.Column(db.Text)   # JSON array: [{"name": "Bet9ja", "brand_slug": "bet9ja"}]
+    markets = db.Column(db.Text)             # JSON array: ["h2h", "totals", "btts", "double_chance"]
+    leagues = db.Column(db.Text)             # JSON array of league configs
+    lookahead_hours = db.Column(db.Integer, default=168)  # 7 days
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+
+    site = db.relationship('Site', backref=db.backref('odds_config', uselist=False))
+
+
+class OddsFixture(db.Model):
+    """A football fixture with associated odds data."""
+    __tablename__ = 'odds_fixtures'
+    __table_args__ = (
+        db.UniqueConstraint('site_id', 'fixture_id', name='uq_odds_site_fixture'),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    site_id = db.Column(db.Integer, db.ForeignKey('sites.id'), nullable=False)
+    fixture_id = db.Column(db.Integer, nullable=False)  # API-Football fixture ID
+    league_id = db.Column(db.Integer, nullable=False)
+    league_name = db.Column(db.String(200))
+    league_slug = db.Column(db.String(200))
+    home_team = db.Column(db.String(200), nullable=False)
+    away_team = db.Column(db.String(200), nullable=False)
+    home_logo = db.Column(db.String(500))
+    away_logo = db.Column(db.String(500))
+    kickoff = db.Column(db.DateTime, nullable=False)
+    slug = db.Column(db.String(500), nullable=False)
+    status = db.Column(db.String(20), default='upcoming')  # upcoming, live, finished
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+
+    odds = db.relationship('OddsData', backref='fixture', cascade='all, delete-orphan')
+    site = db.relationship('Site', backref='odds_fixtures')
+
+
+class OddsData(db.Model):
+    """Individual odds values per bookmaker, market, and outcome."""
+    __tablename__ = 'odds_data'
+    __table_args__ = (
+        db.UniqueConstraint('odds_fixture_id', 'bookmaker_id', 'market', 'outcome',
+                            name='uq_odds_bookie_market_outcome'),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    odds_fixture_id = db.Column(db.Integer, db.ForeignKey('odds_fixtures.id'), nullable=False)
+    bookmaker_id = db.Column(db.Integer, nullable=False)
+    bookmaker_name = db.Column(db.String(100), nullable=False)
+    market = db.Column(db.String(50), nullable=False)     # h2h, totals, btts, double_chance
+    outcome = db.Column(db.String(100), nullable=False)   # Home, Draw, Away, Over 2.5, etc.
+    odds_value = db.Column(db.Float, nullable=False)
+    last_updated = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))

@@ -241,6 +241,21 @@
     </div>
 </div>
 
+<!-- Odds Comparison -->
+<div class="card mb-4">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <div>
+            <strong>Odds Comparison</strong>
+            {% set odds_fixture_count = site.odds_fixtures | length if site.odds_fixtures else 0 %}
+            <span class="badge bg-{{ 'success' if site.odds_config and site.odds_config.enabled else 'secondary' }} ms-1">
+                {{ 'Enabled' if site.odds_config and site.odds_config.enabled else 'Disabled' }}
+            </span>
+            <span class="badge bg-secondary ms-1">{{ odds_fixture_count }} fixtures</span>
+        </div>
+        <a href="{{ url_for('odds_admin.odds_comparison', site_id=site.id) }}" class="btn btn-sm btn-outline-primary">Manage Odds</a>
+    </div>
+</div>
+
 <!-- Betting Tips Pipeline -->
 <div class="card mb-4">
     <div class="card-header d-flex justify-content-between align-items-center">

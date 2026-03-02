@@ -1,0 +1,213 @@
+{% extends "base.html" %}
+
+{% block body_content %}
+<!-- HERO -->
+<section class="hero">
+    <div class="hero-inner">
+        <div class="hero-badge">&#128200; Odds Comparison</div>
+        <h1 style="display:flex; align-items:center; justify-content:center; gap:0.75rem; flex-wrap:wrap;">
+            {% if fixture_data.home_logo %}<img src="{{ fixture_data.home_logo }}" alt="{{ fixture_data.home_team }}" style="width:40px;height:40px;object-fit:contain;">{% endif %}
+            {{ fixture_data.home_team }} vs {{ fixture_data.away_team }}
+            {% if fixture_data.away_logo %}<img src="{{ fixture_data.away_logo }}" alt="{{ fixture_data.away_team }}" style="width:40px;height:40px;object-fit:contain;">{% endif %}
+        </h1>
+        <p class="hero-sub">{{ fixture_data.league_name }} &middot; {{ fixture_data.kickoff_display }}</p>
+    </div>
+</section>
+
+<style>
+.odds-table-wrap { overflow-x: auto; margin-bottom: 2rem; }
+.odds-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+.odds-table th { background: var(--navy); color: var(--white); padding: 0.65rem 0.9rem; text-align: center; font-weight: 600; font-size: 0.82rem; text-transform: uppercase; letter-spacing: 0.03em; }
+.odds-table th:first-child { text-align: left; }
+.odds-table td { padding: 0.6rem 0.9rem; text-align: center; border-bottom: 1px solid var(--gray-200); }
+.odds-table td:first-child { text-align: left; font-weight: 500; }
+.odds-table tr:nth-child(even) { background: var(--gray-50); }
+.odds-table tr:hover { background: rgba(0,180,216,0.04); }
+.odds-table tr.best-row { background: var(--navy); color: var(--white); font-weight: 700; }
+.odds-table tr.best-row td { border-bottom: none; }
+.odds-best { background: rgba(34,197,94,0.12); color: var(--green-dark); font-weight: 700; border-radius: 4px; }
+.odds-val { font-variant-numeric: tabular-nums; }
+.check-odds-btn {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 4px 14px; border-radius: var(--radius-sm);
+    background: var(--teal); color: var(--white);
+    font-size: 0.78rem; font-weight: 600; text-decoration: none;
+    white-space: nowrap; transition: background 0.15s;
+}
+.check-odds-btn:hover { background: var(--teal-dark); color: var(--white); }
+.bookie-name-link { color: inherit; text-decoration: none; }
+.bookie-name-link:hover { color: var(--teal); text-decoration: underline; }
+.section-header { margin-top: 1.5rem; }
+</style>
+
+<!-- MAIN -->
+<main class="main">
+
+    <div class="content-area">
+
+        {% for market in market_tables %}
+        <div class="section-header">
+            <h2>{{ market.title }}</h2>
+        </div>
+        <div class="odds-table-wrap">
+            <table class="odds-table">
+                <thead>
+                    <tr>
+                        <th>Bookmaker</th>
+                        {% for col in market.columns %}
+                        <th>{{ col }}</th>
+                        {% endfor %}
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in market.rows %}
+                    <tr>
+                        <td>
+                            {% if row.review_url %}
+                            <a href="{{ row.review_url }}" class="bookie-name-link">{{ row.name }}</a>
+                            {% else %}
+                            {{ row.name }}
+                            {% endif %}
+                        </td>
+                        {% if row.is_manual %}
+                        <td colspan="{{ market.columns | length }}" style="text-align:center;">
+                            <a href="{{ row.affiliate_url }}" target="_blank" rel="noopener sponsored" class="check-odds-btn">
+                                Check Odds &rarr;
+                            </a>
+                        </td>
+                        {% else %}
+                        {% for col in market.columns %}
+                        {% set val = row.odds.get(col) %}
+                        <td class="odds-val {{ 'odds-best' if val and val == market.best.get(col) else '' }}">
+                            {{ '%.2f' | format(val) if val else '—' }}
+                        </td>
+                        {% endfor %}
+                        {% endif %}
+                    </tr>
+                    {% endfor %}
+                    <!-- Best odds summary row -->
+                    <tr class="best-row">
+                        <td>BEST</td>
+                        {% for col in market.columns %}
+                        <td class="odds-val">{{ '%.2f' | format(market.best[col]) if market.best.get(col) else '—' }}</td>
+                        {% endfor %}
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+        {% endfor %}
+
+        {% if not market_tables %}
+        <div class="content-block">
+            <p style="color:var(--gray-500);">No odds data available for this fixture yet.</p>
+        </div>
+        {% endif %}
+
+        <!-- Cross-link to tips article -->
+        {% if tips_article_url %}
+        <div class="comp-card" style="margin-top:1.5rem;">
+            <div class="comp-card-header">
+                <div class="comp-card-brand" style="flex:1;">
+                    <div>
+                        <h3 style="margin:0;">&#128161; Expert Prediction Available</h3>
+                        <p style="margin:0.3rem 0 0; color:var(--gray-500); font-size:0.85rem;">Read our match analysis and betting tips for this fixture.</p>
+                    </div>
+                </div>
+                <div class="comp-card-cta">
+                    <a href="{{ tips_article_url }}" class="cta-button">
+                        Read Prediction
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+                    </a>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Best Odds CTA -->
+        {% if best_bookmaker %}
+        <div style="margin-top:2rem; padding:1.5rem; background:var(--navy); border-radius:var(--radius); text-align:center;">
+            <p style="color:var(--gray-300); font-size:0.9rem; margin-bottom:0.5rem;">Best odds available at</p>
+            <p style="color:var(--white); font-size:1.3rem; font-weight:700; margin-bottom:1rem;">{{ best_bookmaker.name }}</p>
+            <a href="{{ best_bookmaker.affiliate_url }}" target="_blank" rel="noopener sponsored" class="cta-button" style="display:inline-flex;">
+                Open Account &rarr;
+            </a>
+        </div>
+        {% endif %}
+
+        <div style="margin-top:1.5rem; font-size:0.78rem; color:var(--gray-400);">
+            Last updated: {{ last_updated }}. Odds are subject to change. 18+ only.
+        </div>
+
+        <div style="margin-top:1.5rem;">
+            <a href="/odds/{{ fixture_data.league_slug }}/" style="color:var(--teal); font-weight:600; text-decoration:none;">&larr; {{ fixture_data.league_name }} Odds</a>
+            <span style="color:var(--gray-300); margin:0 0.5rem;">|</span>
+            <a href="/odds/" style="color:var(--teal); font-weight:600; text-decoration:none;">All Odds</a>
+        </div>
+
+    </div>
+
+    <!-- SIDEBAR -->
+    <aside class="sidebar">
+
+        <div class="sidebar-card">
+            <div class="sidebar-card-header">
+                <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+                <h3>Top Bookmakers</h3>
+            </div>
+            {% for brand in site_brands[:5] %}
+            <a href="/reviews/{{ brand.slug }}" class="sidebar-brand-item">
+                <div class="sidebar-brand-logo">
+                    {% if brand.logo_filename %}
+                    <img src="{{ prefix }}assets/logos/{{ brand.logo_filename }}" alt="{{ brand.name }}" style="max-width:36px;max-height:24px;object-fit:contain;">
+                    {% else %}
+                    <span>{{ brand.name[:8] }}</span>
+                    {% endif %}
+                </div>
+                <div class="sidebar-brand-info">
+                    <div class="sidebar-brand-name">{{ brand.name }}</div>
+                    {% if brand.rating %}
+                    <div class="sidebar-brand-rating">
+                        {% set full = brand.rating | round | int %}
+                        <span>{{ '\u2605' * full }}{{ '\u2606' * (5 - full) }}</span>
+                    </div>
+                    {% endif %}
+                </div>
+                {% if brand.rating %}
+                <div class="sidebar-brand-score">{{ brand.rating }}</div>
+                {% endif %}
+            </a>
+            {% endfor %}
+        </div>
+
+        <div class="sidebar-card">
+            <div class="sidebar-card-header">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+                <h3>Quick Links</h3>
+            </div>
+            <div class="quick-links">
+                {% for link in nav_links %}
+                <a href="{{ link.url }}" class="quick-link">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
+                    {{ link.label }}
+                </a>
+                {% endfor %}
+            </div>
+        </div>
+
+        <div class="sidebar-card">
+            <div class="sidebar-card-header" style="background: var(--gray-700);">
+                <svg viewBox="0 0 24 24" fill="none" stroke="var(--amber)" stroke-width="2"><path d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                <h3>Gamble Responsibly</h3>
+            </div>
+            <div style="padding: 1rem 1.1rem;">
+                <p style="font-size:0.82rem; color:var(--gray-600); line-height:1.7; margin-bottom:0.75rem;">If you feel you may have a gambling problem, help is available. Please gamble responsibly.</p>
+                <a href="https://www.gambleaware.org" target="_blank" rel="noopener" style="display:block; text-align:center; font-size:0.82rem; font-weight:600; color:var(--teal); text-decoration:none; padding:0.6rem; background:var(--gray-50); border-radius:var(--radius-sm);">
+                    GambleAware.org &rarr;
+                </a>
+            </div>
+        </div>
+
+    </aside>
+
+</main>
+{% endblock body_content %}

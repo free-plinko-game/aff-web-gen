@@ -17,7 +17,7 @@ from markupsafe import Markup
 
 logger = logging.getLogger(__name__)
 
-from ..models import db, Author, Site, SitePage, SiteBrand
+from ..models import db, Author, Site, SitePage, SiteBrand, OddsConfig, OddsFixture, OddsData
 from .schema_generator import generate_schema
 
 
@@ -414,6 +414,17 @@ def build_site(site, output_base_dir, upload_folder):
         'cache_bust': int(datetime.now().timestamp()),
     }
 
+    # Build odds fixture lookup for cross-linking tips → odds
+    odds_link_by_fixture_id = {}
+    odds_link_by_teams = {}
+    odds_config = OddsConfig.query.filter_by(site_id=site.id).first()
+    if odds_config and odds_config.enabled:
+        for ofx in OddsFixture.query.filter_by(site_id=site.id, status='upcoming').all():
+            url = f'/odds/{ofx.league_slug}/{ofx.slug}'
+            odds_link_by_fixture_id[ofx.fixture_id] = url
+            teams_key = f'{ofx.home_team} vs {ofx.away_team}'.lower()
+            odds_link_by_teams[teams_key] = url
+
     # Render each page
     for page in pages:
         content = json.loads(page.content_json) if page.content_json else {}
@@ -645,6 +656,13 @@ def build_site(site, output_base_dir, upload_folder):
             ctx['prediction'] = content.get('prediction', {})
             ctx['betting_tips'] = content.get('betting_tips', [])
             ctx['match_info'] = content.get('match_info', {})
+            # Cross-link to odds page if available
+            odds_url = None
+            if page.fixture_id:
+                odds_url = odds_link_by_fixture_id.get(page.fixture_id)
+            if not odds_url:
+                odds_url = odds_link_by_teams.get(page.title.lower() if page.title else '')
+            ctx['odds_comparison_url'] = odds_url
         elif pt_slug == 'evergreen':
             if page.nav_parent_id and page.nav_parent:
                 parent_dir = os.path.join(version_dir, page.nav_parent.slug)
@@ -735,6 +753,12 @@ def build_site(site, output_base_dir, upload_folder):
         with open(os.path.join(authors_dir, 'index.html'), 'w', encoding='utf-8') as f:
             f.write(html)
 
+    # ── Generate odds comparison pages ──────────────────────────────────
+    odds_sitemap_pages = _build_odds_pages(
+        env, site, common_ctx, brand_info_list, brand_lookup,
+        review_slugs, pages, version_dir, domain,
+    )
+
     # Copy assets
     src_assets = os.path.join(_get_site_templates_path(), 'assets')
     dst_assets = os.path.join(version_dir, 'assets')
@@ -778,6 +802,9 @@ def build_site(site, output_base_dir, upload_folder):
         for a in authors:
             sitemap_pages.append({'url': f'authors/{a.slug}', 'lastmod': now_str})
         sitemap_pages.append({'url': 'authors', 'lastmod': now_str})
+    # Add odds pages to sitemap
+    sitemap_pages.extend(odds_sitemap_pages)
+
     sitemap_template = env.get_template('sitemap.xml')
     sitemap_html = sitemap_template.render(domain=domain, pages=sitemap_pages)
     with open(os.path.join(version_dir, 'sitemap.xml'), 'w', encoding='utf-8') as f:
@@ -798,3 +825,353 @@ def build_site(site, output_base_dir, upload_folder):
     site.built_at = datetime.now(timezone.utc)
 
     return version_dir
+
+
+# ── Odds comparison page builder ─────────────────────────────────────
+
+MARKET_TITLES = {
+    'h2h': 'Match Winner',
+    'totals': 'Over/Under 2.5 Goals',
+    'btts': 'Both Teams to Score',
+    'double_chance': 'Double Chance',
+}
+
+MARKET_COLUMNS = {
+    'h2h': ['Home', 'Draw', 'Away'],
+    'totals': ['Over 2.5', 'Under 2.5'],
+    'btts': ['Yes', 'No'],
+    'double_chance': ['Home/Draw', 'Home/Away', 'Draw/Away'],
+}
+
+
+def _build_odds_pages(env, site, common_ctx, brand_info_list, brand_lookup,
+                      review_slugs, pages, version_dir, domain):
+    """Generate static odds hub, league, and fixture pages.
+
+    Returns a list of sitemap entries for the generated odds pages.
+    """
+    config = OddsConfig.query.filter_by(site_id=site.id).first()
+    if not config or not config.enabled:
+        return []
+
+    odds_fixtures = (
+        OddsFixture.query
+        .filter_by(site_id=site.id, status='upcoming')
+        .order_by(OddsFixture.kickoff.asc())
+        .all()
+    )
+
+    if not odds_fixtures:
+        return []
+
+    try:
+        manual_bookmakers = json.loads(config.manual_bookmakers) if config.manual_bookmakers else []
+    except (json.JSONDecodeError, TypeError):
+        manual_bookmakers = []
+
+    try:
+        configured_markets = json.loads(config.markets) if config.markets else ['h2h']
+    except (json.JSONDecodeError, TypeError):
+        configured_markets = ['h2h']
+
+    # Build brand lookup for affiliate links of manual bookmakers
+    manual_bk_info = []
+    for mb in manual_bookmakers:
+        brand_slug = mb.get('brand_slug', '')
+        brand = brand_lookup.get(brand_slug)
+        affiliate_url = brand['affiliate_link'] if brand else '#'
+        review_url = f'/reviews/{brand_slug}' if brand_slug in review_slugs else None
+        manual_bk_info.append({
+            'name': mb.get('name', brand_slug),
+            'brand_slug': brand_slug,
+            'affiliate_url': affiliate_url,
+            'review_url': review_url,
+            'is_manual': True,
+        })
+
+    # Build tips article lookup for cross-linking (fixture_id -> slug)
+    tips_by_fixture_id = {}
+    tips_by_teams = {}
+    for p in pages:
+        if p.page_type.slug == 'tips-article':
+            if p.fixture_id:
+                tips_by_fixture_id[p.fixture_id] = f'/tips/{p.slug}'
+            # Also index by team names for fuzzy matching
+            title_lower = (p.title or '').lower()
+            tips_by_teams[title_lower] = f'/tips/{p.slug}'
+
+    # Group fixtures by league
+    fixtures_by_league = {}
+    league_info = {}
+    for fx in odds_fixtures:
+        ls = fx.league_slug or 'other'
+        fixtures_by_league.setdefault(ls, []).append(fx)
+        if ls not in league_info:
+            league_info[ls] = {'name': fx.league_name, 'slug': ls}
+
+    sitemap_entries = []
+    now_str = datetime.now(timezone.utc).strftime('%Y-%m-%d')
+
+    # Create /odds/ directory
+    odds_dir = os.path.join(version_dir, 'odds')
+    os.makedirs(odds_dir, exist_ok=True)
+
+    # Helper: build fixture display data
+    def _fixture_display(fx):
+        kickoff_str = ''
+        if fx.kickoff:
+            kickoff_str = fx.kickoff.strftime('%d %b %Y, %H:%M')
+
+        # Get best h2h odds for inline display
+        best_odds = {}
+        h2h_data = OddsData.query.filter_by(
+            odds_fixture_id=fx.id, market='h2h'
+        ).all()
+        for od in h2h_data:
+            current_best = best_odds.get(od.outcome)
+            if current_best is None or od.odds_value > current_best:
+                best_odds[od.outcome] = od.odds_value
+
+        best_display = {}
+        if best_odds.get('Home'):
+            best_display['home'] = f'{best_odds["Home"]:.2f}'
+        if best_odds.get('Draw'):
+            best_display['draw'] = f'{best_odds["Draw"]:.2f}'
+        if best_odds.get('Away'):
+            best_display['away'] = f'{best_odds["Away"]:.2f}'
+
+        return {
+            'home_team': fx.home_team,
+            'away_team': fx.away_team,
+            'home_logo': fx.home_logo,
+            'away_logo': fx.away_logo,
+            'league_name': fx.league_name,
+            'league_slug': fx.league_slug,
+            'slug': fx.slug,
+            'kickoff_display': kickoff_str,
+            'best_odds': best_display,
+        }
+
+    # Helper: build market tables for a fixture
+    def _build_market_tables(fx, configured_markets, manual_bk_info):
+        tables = []
+        for market_key in configured_markets:
+            title = MARKET_TITLES.get(market_key, market_key)
+            columns = MARKET_COLUMNS.get(market_key, [])
+
+            odds_records = OddsData.query.filter_by(
+                odds_fixture_id=fx.id, market=market_key
+            ).all()
+
+            if not odds_records and not manual_bk_info:
+                continue
+
+            # Group by bookmaker
+            by_bookie = {}
+            for od in odds_records:
+                bk_key = od.bookmaker_id
+                if bk_key not in by_bookie:
+                    review_url = None
+                    # Try to find review page for this bookmaker
+                    bk_slug = od.bookmaker_name.lower().replace(' ', '-').replace("'", '')
+                    if bk_slug in review_slugs:
+                        review_url = f'/reviews/{bk_slug}'
+                    by_bookie[bk_key] = {
+                        'name': od.bookmaker_name,
+                        'review_url': review_url,
+                        'is_manual': False,
+                        'odds': {},
+                    }
+                by_bookie[bk_key]['odds'][od.outcome] = od.odds_value
+
+            rows = list(by_bookie.values())
+            rows.sort(key=lambda r: r['name'])
+
+            # Add manual bookmakers at the end
+            for mb in manual_bk_info:
+                rows.append(mb)
+
+            # Calculate best odds per column
+            best = {}
+            for col in columns:
+                vals = [r['odds'].get(col) for r in rows if not r.get('is_manual') and r.get('odds', {}).get(col)]
+                if vals:
+                    best[col] = max(vals)
+
+            if rows:
+                tables.append({
+                    'title': title,
+                    'columns': columns,
+                    'rows': rows,
+                    'best': best,
+                })
+
+        return tables
+
+    # ── Generate fixture pages ──
+    for fx in odds_fixtures:
+        league_dir = os.path.join(odds_dir, fx.league_slug or 'other')
+        os.makedirs(league_dir, exist_ok=True)
+
+        fx_display = _fixture_display(fx)
+        market_tables = _build_market_tables(fx, configured_markets, manual_bk_info)
+
+        # Cross-link to tips article
+        tips_url = tips_by_fixture_id.get(fx.fixture_id)
+        if not tips_url:
+            match_key = f'{fx.home_team} vs {fx.away_team}'.lower()
+            tips_url = tips_by_teams.get(match_key)
+
+        # Find best overall bookmaker (most frequent best odds)
+        best_bookmaker = None
+        if market_tables:
+            bk_counts = {}
+            for mt in market_tables:
+                for col, best_val in mt['best'].items():
+                    for row in mt['rows']:
+                        if not row.get('is_manual') and row.get('odds', {}).get(col) == best_val:
+                            name = row['name']
+                            bk_counts[name] = bk_counts.get(name, 0) + 1
+            if bk_counts:
+                best_name = max(bk_counts, key=bk_counts.get)
+                # Find affiliate URL for this bookmaker
+                bk_brand = brand_lookup.get(best_name.lower().replace(' ', '-'))
+                best_bookmaker = {
+                    'name': best_name,
+                    'affiliate_url': bk_brand['affiliate_link'] if bk_brand else '#',
+                }
+
+        last_updated = fx.updated_at.strftime('%d %b %Y, %H:%M UTC') if fx.updated_at else now_str
+
+        # SportsEvent schema
+        schema = _sports_event_schema(fx, site.name, domain)
+
+        fixture_ctx = {
+            **common_ctx,
+            'fixture_data': fx_display,
+            'market_tables': market_tables,
+            'tips_article_url': tips_url,
+            'best_bookmaker': best_bookmaker,
+            'last_updated': last_updated,
+            'subdirectory': True,
+            'page_title': f'{fx.home_team} vs {fx.away_team} Odds',
+            'meta_title': f'{fx.home_team} vs {fx.away_team} Odds Comparison — {site.name}',
+            'meta_description': f'Compare betting odds for {fx.home_team} vs {fx.away_team}. Find the best odds from top bookmakers.',
+            'page_author': None,
+            'cta_table': None,
+            'cluster_links': [],
+            'custom_head': site.custom_head or '',
+            'schema_json_ld': schema,
+            'comments_enabled': False,
+            'comments_api_url': '',
+            'site_id': site.id,
+            'page_slug': f'odds-{fx.slug}',
+        }
+
+        html = env.get_template('odds_fixture.html').render(**fixture_ctx)
+        output_file = os.path.join(league_dir, f'{fx.slug}.html')
+        with open(output_file, 'w', encoding='utf-8') as f:
+            f.write(html)
+
+        sitemap_entries.append({
+            'url': f'odds/{fx.league_slug}/{fx.slug}',
+            'lastmod': now_str,
+        })
+
+    # ── Generate league pages ──
+    for league_slug, league_fixtures in fixtures_by_league.items():
+        league_dir = os.path.join(odds_dir, league_slug)
+        os.makedirs(league_dir, exist_ok=True)
+
+        info = league_info[league_slug]
+        fx_displays = [_fixture_display(fx) for fx in league_fixtures]
+
+        league_ctx = {
+            **common_ctx,
+            'league_name': info['name'],
+            'league_slug': league_slug,
+            'league_fixtures': fx_displays,
+            'subdirectory': True,
+            'page_title': f'{info["name"]} Odds Comparison',
+            'meta_title': f'{info["name"]} Odds Comparison — {site.name}',
+            'meta_description': f'Compare betting odds for upcoming {info["name"]} fixtures. Best odds from top bookmakers.',
+            'page_author': None,
+            'cta_table': None,
+            'cluster_links': [],
+            'custom_head': site.custom_head or '',
+            'schema_json_ld': '',
+            'comments_enabled': False,
+            'comments_api_url': '',
+            'site_id': site.id,
+            'page_slug': f'odds-{league_slug}',
+        }
+
+        html = env.get_template('odds_league.html').render(**league_ctx)
+        with open(os.path.join(league_dir, 'index.html'), 'w', encoding='utf-8') as f:
+            f.write(html)
+
+        sitemap_entries.append({
+            'url': f'odds/{league_slug}',
+            'lastmod': now_str,
+        })
+
+    # ── Generate odds hub page ──
+    odds_leagues = list(league_info.values())
+    odds_by_league = {
+        ls: [_fixture_display(fx) for fx in fxs]
+        for ls, fxs in fixtures_by_league.items()
+    }
+
+    hub_ctx = {
+        **common_ctx,
+        'odds_leagues': odds_leagues,
+        'odds_by_league': odds_by_league,
+        'odds_fixtures': odds_fixtures,
+        'subdirectory': True,
+        'page_title': 'Odds Comparison',
+        'meta_title': f'Compare Betting Odds — {site.name}',
+        'meta_description': f'Compare betting odds from top bookmakers. Find the best value for upcoming football matches.',
+        'page_author': None,
+        'cta_table': None,
+        'cluster_links': [],
+        'custom_head': site.custom_head or '',
+        'schema_json_ld': '',
+        'comments_enabled': False,
+        'comments_api_url': '',
+        'site_id': site.id,
+        'page_slug': 'odds',
+    }
+
+    html = env.get_template('odds_hub.html').render(**hub_ctx)
+    with open(os.path.join(odds_dir, 'index.html'), 'w', encoding='utf-8') as f:
+        f.write(html)
+
+    sitemap_entries.append({'url': 'odds', 'lastmod': now_str})
+
+    logger.info('Generated %d odds pages (%d fixtures, %d leagues)',
+                len(sitemap_entries), len(odds_fixtures), len(fixtures_by_league))
+
+    return sitemap_entries
+
+
+def _sports_event_schema(fixture, site_name, domain):
+    """Generate SportsEvent JSON-LD for a fixture odds page."""
+    schema = {
+        '@context': 'https://schema.org',
+        '@type': 'SportsEvent',
+        'name': f'{fixture.home_team} vs {fixture.away_team}',
+        'startDate': fixture.kickoff.isoformat() if fixture.kickoff else '',
+        'homeTeam': {
+            '@type': 'SportsTeam',
+            'name': fixture.home_team,
+        },
+        'awayTeam': {
+            '@type': 'SportsTeam',
+            'name': fixture.away_team,
+        },
+        'organizer': {
+            '@type': 'SportsOrganization',
+            'name': fixture.league_name or '',
+        },
+    }
+    return f'<script type="application/ld+json">{json.dumps(schema, ensure_ascii=False)}</script>'

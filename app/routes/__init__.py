@@ -4,6 +4,7 @@ from .domains import bp as domains_bp
 from .sites import bp as sites_bp
 from .api import bp as api_bp
 from .comments_api import bp as comments_api_bp
+from .odds_admin import bp as odds_admin_bp
 
 
 def register_blueprints(app):
@@ -13,3 +14,4 @@ def register_blueprints(app):
     app.register_blueprint(sites_bp)
     app.register_blueprint(api_bp)
     app.register_blueprint(comments_api_bp)
+    app.register_blueprint(odds_admin_bp)

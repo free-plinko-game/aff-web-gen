@@ -186,6 +186,25 @@
         </div>
         {% endif %}
 
+        {% if odds_comparison_url %}
+        <div class="comp-card" style="margin-top:1.5rem;">
+            <div class="comp-card-header">
+                <div class="comp-card-brand" style="flex:1;">
+                    <div>
+                        <h3 style="margin:0;">&#128200; Compare Odds for This Match</h3>
+                        <p style="margin:0.3rem 0 0; color:var(--gray-500); font-size:0.85rem;">See side-by-side odds from top bookmakers and find the best value.</p>
+                    </div>
+                </div>
+                <div class="comp-card-cta">
+                    <a href="{{ odds_comparison_url }}" class="cta-button">
+                        Compare Odds
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+                    </a>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
         <!-- Back to Tips -->
         <div style="margin-top:1.5rem;">
             <a href="{{ '../' if subdirectory else '' }}tips" style="display:inline-flex; align-items:center; gap:6px; color:var(--teal); text-decoration:none; font-weight:600; font-size:0.9rem;">
