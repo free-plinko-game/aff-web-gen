@@ -8,7 +8,7 @@ from flask import Blueprint, render_template, request, redirect, url_for, flash,
 
 from ..models import (
     db, Author, Comment, CommentUser, Site, SiteBrand, SiteBrandOverride, SitePage, Geo, Vertical, Brand, BrandGeo, BrandVertical,
-    PageType, Domain, ContentHistory, CTATable, CTATableRow,
+    PageType, Domain, ContentHistory, CTATable, CTATableRow, OddsConfig,
 )
 from ..services.content_generator import start_generation, generate_page_content, save_content_to_page, generate_meta_tags
 from ..services.site_builder import build_site
@@ -1175,6 +1175,12 @@ def menu(site_id):
                     pid = None  # Invalid: missing, self-ref, or multi-level
             page.nav_parent_id = pid
 
+        # Save odds menu settings if odds is enabled
+        odds_config = OddsConfig.query.filter_by(site_id=site.id).first()
+        if odds_config and odds_config.enabled:
+            odds_config.show_in_nav = request.form.get('odds_show_in_nav') == 'on'
+            odds_config.show_in_footer = request.form.get('odds_show_in_footer') == 'on'
+
         # Mark all pages as menu-updated so rebuild warning triggers
         now = datetime.now(timezone.utc)
         for page in site.site_pages:
@@ -1186,8 +1192,9 @@ def menu(site_id):
 
     # GET — sort pages for display
     pages = sorted(site.site_pages, key=lambda p: (p.nav_order, p.id))
+    odds_config = OddsConfig.query.filter_by(site_id=site.id).first()
 
-    return render_template('sites/menu.html', site=site, pages=pages)
+    return render_template('sites/menu.html', site=site, pages=pages, odds_config=odds_config)
 
 
 @bp.route('/<int:site_id>/cta-tables')

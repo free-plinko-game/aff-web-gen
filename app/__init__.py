@@ -121,6 +121,17 @@ def _auto_migrate(db):
                 'ALTER TABLE comments ADD COLUMN flag_count INTEGER NOT NULL DEFAULT 0'
             ))
 
+    if insp.has_table('odds_configs'):
+        oc_cols = {c['name'] for c in insp.get_columns('odds_configs')}
+        if 'show_in_nav' not in oc_cols:
+            db.session.execute(sqlalchemy.text(
+                'ALTER TABLE odds_configs ADD COLUMN show_in_nav BOOLEAN NOT NULL DEFAULT 1'
+            ))
+        if 'show_in_footer' not in oc_cols:
+            db.session.execute(sqlalchemy.text(
+                'ALTER TABLE odds_configs ADD COLUMN show_in_footer BOOLEAN NOT NULL DEFAULT 1'
+            ))
+
     db.session.commit()
 
 
