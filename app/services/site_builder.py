@@ -143,7 +143,7 @@ def _build_nav_links(site_pages):
         top_level_pages.sort(key=lambda p: (p.nav_order, p.id))
 
         for p in top_level_pages:
-            entry = {'url': _page_url_for_link(p), 'label': p.nav_label or p.title, 'type': p.page_type.slug}
+            entry = {'url': _page_url_for_link(p), 'label': p.nav_label or p.title, 'type': p.page_type.slug, '_nav_order': p.nav_order}
 
             kids = children_by_parent.get(p.id, [])
             if kids:
@@ -419,6 +419,15 @@ def build_site(site, output_base_dir, upload_folder):
     odds_link_by_teams = {}
     odds_config = OddsConfig.query.filter_by(site_id=site.id).first()
     if odds_config and odds_config.enabled:
+        odds_nav_label = odds_config.nav_label or 'Odds'
+        odds_nav_order = odds_config.nav_order or 30
+        if odds_config.show_in_nav:
+            odds_entry = {'url': '/odds', 'label': odds_nav_label, 'type': 'odds', '_nav_order': odds_nav_order}
+            nav_links.append(odds_entry)
+            nav_links.sort(key=lambda l: l.get('_nav_order', 999))
+        if odds_config.show_in_footer and footer_links is not None:
+            footer_links['guides'].append({'url': '/odds', 'label': odds_nav_label, 'type': 'odds'})
+
         for ofx in OddsFixture.query.filter_by(site_id=site.id, status='upcoming').all():
             url = f'/odds/{ofx.league_slug}/{ofx.slug}'
             odds_link_by_fixture_id[ofx.fixture_id] = url
