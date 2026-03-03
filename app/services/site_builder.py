@@ -419,14 +419,10 @@ def build_site(site, output_base_dir, upload_folder):
     odds_link_by_teams = {}
     odds_config = OddsConfig.query.filter_by(site_id=site.id).first()
     if odds_config and odds_config.enabled:
-        odds_nav_label = odds_config.nav_label or 'Odds'
-        odds_nav_order = odds_config.nav_order or 30
-        if odds_config.show_in_nav:
-            odds_entry = {'url': '/odds', 'label': odds_nav_label, 'type': 'odds', '_nav_order': odds_nav_order}
-            nav_links.append(odds_entry)
-            nav_links.sort(key=lambda l: l.get('_nav_order', 999))
-        if odds_config.show_in_footer and footer_links is not None:
-            footer_links['guides'].append({'url': '/odds', 'label': odds_nav_label, 'type': 'odds'})
+        nav_links.append({'url': '/odds', 'label': 'Odds', 'type': 'odds', '_nav_order': 30})
+        nav_links.sort(key=lambda l: l.get('_nav_order', 999))
+        if footer_links is not None:
+            footer_links['guides'].append({'url': '/odds', 'label': 'Odds', 'type': 'odds'})
 
         for ofx in OddsFixture.query.filter_by(site_id=site.id, status='upcoming').all():
             url = f'/odds/{ofx.league_slug}/{ofx.slug}'

@@ -76,37 +76,6 @@
                 </td>
             </tr>
             {% endfor %}
-
-            {% if odds_config and odds_config.enabled %}
-            <tr class="table-info">
-                <td>
-                    Odds Comparison
-                    <small class="text-muted ms-1">(auto-generated)</small>
-                </td>
-                <td><span class="badge bg-info">Odds</span></td>
-                <td>
-                    <select class="form-select form-select-sm" disabled>
-                        <option>&mdash;</option>
-                    </select>
-                </td>
-                <td>
-                    <input type="text" name="odds_nav_label"
-                           class="form-control form-control-sm"
-                           placeholder="Odds"
-                           value="{{ odds_config.nav_label or '' }}">
-                </td>
-                <td class="text-center">
-                    <input type="checkbox" name="odds_show_in_nav"
-                           class="form-check-input"
-                           {{ 'checked' if odds_config.show_in_nav }}>
-                </td>
-                <td class="text-center">
-                    <input type="checkbox" name="odds_show_in_footer"
-                           class="form-check-input"
-                           {{ 'checked' if odds_config.show_in_footer }}>
-                </td>
-            </tr>
-            {% endif %}
         </tbody>
     </table>
 
