@@ -76,32 +76,6 @@
                 </td>
             </tr>
             {% endfor %}
-
-            {% if odds_config and odds_config.enabled %}
-            <tr>
-                <td>Odds</td>
-                <td><span class="badge bg-secondary">Odds</span></td>
-                <td>
-                    <select class="form-select form-select-sm" disabled>
-                        <option>&mdash;</option>
-                    </select>
-                </td>
-                <td>
-                    <input type="text" class="form-control form-control-sm" disabled
-                           placeholder="Odds">
-                </td>
-                <td class="text-center">
-                    <input type="checkbox" name="odds_show_in_nav"
-                           class="form-check-input"
-                           {{ 'checked' if odds_config.show_in_nav }}>
-                </td>
-                <td class="text-center">
-                    <input type="checkbox" name="odds_show_in_footer"
-                           class="form-check-input"
-                           {{ 'checked' if odds_config.show_in_footer }}>
-                </td>
-            </tr>
-            {% endif %}
         </tbody>
     </table>
 

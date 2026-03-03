@@ -5,7 +5,7 @@ import logging
 
 from flask import Blueprint, render_template, jsonify, request, current_app, abort
 
-from ..models import db, Site, OddsConfig, OddsFixture, OddsData
+from ..models import db, Site, SitePage, PageType, OddsConfig, OddsFixture, OddsData
 
 logger = logging.getLogger(__name__)
 
@@ -107,6 +107,19 @@ def save_odds_config(site_id):
             config.leagues = json.dumps(leagues)
     if 'lookahead_hours' in data:
         config.lookahead_hours = int(data['lookahead_hours'])
+
+    # Auto-create or remove odds SitePage based on enabled state
+    odds_pt = PageType.query.filter_by(slug='odds-hub').first()
+    if odds_pt:
+        existing_page = SitePage.query.filter_by(site_id=site_id, page_type_id=odds_pt.id).first()
+        if config.enabled and not existing_page:
+            from ..routes.sites import _apply_menu_defaults
+            page = SitePage(site_id=site_id, page_type_id=odds_pt.id,
+                            slug='odds', title='Odds Comparison', is_generated=True)
+            _apply_menu_defaults(page, 'odds-hub')
+            db.session.add(page)
+        elif not config.enabled and existing_page:
+            db.session.delete(existing_page)
 
     db.session.commit()
     return jsonify({'success': True})

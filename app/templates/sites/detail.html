@@ -600,14 +600,6 @@
             {% endif %}
             {% endfor %}
 
-            {% if site.odds_config and site.odds_config.enabled and site.odds_config.show_in_nav %}
-            <div class="menu-order-row d-flex align-items-center border rounded mb-2 p-2"
-                 data-page-id="odds">
-                <span class="drag-handle me-2 text-muted" style="cursor:grab; font-size:1.2rem;">&#9776;</span>
-                <strong class="me-2">Odds</strong>
-                <span class="badge bg-secondary">Odds</span>
-            </div>
-            {% endif %}
         </div>
         <div id="menuOrderStatus" class="mt-2"></div>
         {% else %}
@@ -759,9 +751,8 @@ function saveMenuOrder() {
     if (!list) return;
 
     list.querySelectorAll(':scope > .menu-order-row, :scope > .menu-order-children > .menu-order-row').forEach(function(row) {
-        var rawId = row.dataset.pageId;
         order.push({
-            page_id: isNaN(rawId) ? rawId : parseInt(rawId),
+            page_id: parseInt(row.dataset.pageId),
             nav_order: position * 10,
         });
         position++;
