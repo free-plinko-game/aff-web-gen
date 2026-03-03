@@ -409,6 +409,7 @@ class OddsConfig(db.Model):
     lookahead_hours = db.Column(db.Integer, default=168)  # 7 days
     show_in_nav = db.Column(db.Boolean, default=True)
     show_in_footer = db.Column(db.Boolean, default=True)
+    nav_order = db.Column(db.Integer, default=30)
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
     site = db.relationship('Site', backref=db.backref('odds_config', uselist=False))

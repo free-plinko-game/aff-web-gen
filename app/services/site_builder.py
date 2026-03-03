@@ -420,7 +420,7 @@ def build_site(site, output_base_dir, upload_folder):
     odds_config = OddsConfig.query.filter_by(site_id=site.id).first()
     if odds_config and odds_config.enabled:
         if odds_config.show_in_nav:
-            nav_links.append({'url': '/odds', 'label': 'Odds', 'type': 'odds', '_nav_order': 30})
+            nav_links.append({'url': '/odds', 'label': 'Odds', 'type': 'odds', '_nav_order': odds_config.nav_order or 30})
             nav_links.sort(key=lambda l: l.get('_nav_order', 999))
         if odds_config.show_in_footer and footer_links is not None:
             footer_links['guides'].append({'url': '/odds', 'label': 'Odds', 'type': 'odds'})

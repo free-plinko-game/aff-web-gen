@@ -131,6 +131,10 @@ def _auto_migrate(db):
             db.session.execute(sqlalchemy.text(
                 'ALTER TABLE odds_configs ADD COLUMN show_in_footer BOOLEAN NOT NULL DEFAULT 1'
             ))
+        if 'nav_order' not in oc_cols:
+            db.session.execute(sqlalchemy.text(
+                'ALTER TABLE odds_configs ADD COLUMN nav_order INTEGER NOT NULL DEFAULT 30'
+            ))
 
     db.session.commit()
 

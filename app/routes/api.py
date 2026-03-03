@@ -4,7 +4,7 @@ import os
 
 from flask import Blueprint, jsonify, request, abort, Response, send_from_directory, current_app
 
-from ..models import db, Author, Brand, BrandGeo, BrandVertical, Comment, CommentUser, Site, SitePage, PageType
+from ..models import db, Author, Brand, BrandGeo, BrandVertical, Comment, CommentUser, OddsConfig, Site, SitePage, PageType
 from ..services.content_generator import call_openai
 from ..services.preview_renderer import render_page_preview
 
@@ -379,6 +379,11 @@ def save_menu_order(site_id):
     for item in data['order']:
         page_id = item.get('page_id')
         nav_order = item.get('nav_order', 0)
+        if page_id == 'odds':
+            odds_config = OddsConfig.query.filter_by(site_id=site.id).first()
+            if odds_config:
+                odds_config.nav_order = nav_order
+            continue
         page = page_lookup.get(page_id)
         if page:
             page.nav_order = nav_order
