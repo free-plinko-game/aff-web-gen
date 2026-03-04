@@ -596,10 +596,7 @@ def build_site(site, output_base_dir, upload_folder):
             ctx['brand_slug'] = page.slug
             ctx['other_brands'] = [b for b in brand_info_list if b['slug'] != page.slug][:4]
         elif pt_slug == 'news':
-            news_dir = os.path.join(version_dir, 'news')
-            os.makedirs(news_dir, exist_ok=True)
-            output_file = os.path.join(news_dir, 'index.html')
-            ctx['subdirectory'] = True
+            output_file = os.path.join(version_dir, 'news.html')
             # Collect news articles for listing
             news_articles = []
             for p in pages:
@@ -625,10 +622,7 @@ def build_site(site, output_base_dir, upload_folder):
             ctx['subdirectory'] = True
             ctx['published_date'] = page.published_date.strftime('%d %b %Y') if page.published_date else ''
         elif pt_slug == 'tips':
-            tips_dir = os.path.join(version_dir, 'tips')
-            os.makedirs(tips_dir, exist_ok=True)
-            output_file = os.path.join(tips_dir, 'index.html')
-            ctx['subdirectory'] = True
+            output_file = os.path.join(version_dir, 'tips.html')
             tips_articles = []
             for p in pages:
                 if p.page_type.slug == 'tips-article' and p.content_json:
@@ -1097,7 +1091,6 @@ def _build_odds_pages(env, site, common_ctx, brand_info_list, brand_lookup,
             'league_slug': league_slug,
             'league_fixtures': fx_displays,
             'subdirectory': True,
-            'asset_prefix': '../../',
             'page_title': f'{info["name"]} Odds Comparison',
             'meta_title': f'{info["name"]} Odds Comparison — {site.name}',
             'meta_description': f'Compare betting odds for upcoming {info["name"]} fixtures. Best odds from top bookmakers.',
@@ -1113,7 +1106,7 @@ def _build_odds_pages(env, site, common_ctx, brand_info_list, brand_lookup,
         }
 
         html = env.get_template('odds_league.html').render(**league_ctx)
-        with open(os.path.join(league_dir, 'index.html'), 'w', encoding='utf-8') as f:
+        with open(os.path.join(odds_dir, f'{league_slug}.html'), 'w', encoding='utf-8') as f:
             f.write(html)
 
         sitemap_entries.append({
@@ -1133,7 +1126,6 @@ def _build_odds_pages(env, site, common_ctx, brand_info_list, brand_lookup,
         'odds_leagues': odds_leagues,
         'odds_by_league': odds_by_league,
         'odds_fixtures': odds_fixtures,
-        'subdirectory': True,
         'page_title': 'Odds Comparison',
         'meta_title': f'Compare Betting Odds — {site.name}',
         'meta_description': f'Compare betting odds from top bookmakers. Find the best value for upcoming football matches.',
@@ -1149,7 +1141,7 @@ def _build_odds_pages(env, site, common_ctx, brand_info_list, brand_lookup,
     }
 
     html = env.get_template('odds_hub.html').render(**hub_ctx)
-    with open(os.path.join(odds_dir, 'index.html'), 'w', encoding='utf-8') as f:
+    with open(os.path.join(version_dir, 'odds.html'), 'w', encoding='utf-8') as f:
         f.write(html)
 
     sitemap_entries.append({'url': 'odds', 'lastmod': now_str})
