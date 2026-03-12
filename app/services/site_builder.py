@@ -596,7 +596,10 @@ def build_site(site, output_base_dir, upload_folder):
             ctx['brand_slug'] = page.slug
             ctx['other_brands'] = [b for b in brand_info_list if b['slug'] != page.slug][:4]
         elif pt_slug == 'news':
-            output_file = os.path.join(version_dir, 'news.html')
+            news_dir = os.path.join(version_dir, 'news')
+            os.makedirs(news_dir, exist_ok=True)
+            output_file = os.path.join(news_dir, 'index.html')
+            ctx['subdirectory'] = True
             # Collect news articles for listing
             news_articles = []
             for p in pages:
@@ -622,7 +625,10 @@ def build_site(site, output_base_dir, upload_folder):
             ctx['subdirectory'] = True
             ctx['published_date'] = page.published_date.strftime('%d %b %Y') if page.published_date else ''
         elif pt_slug == 'tips':
-            output_file = os.path.join(version_dir, 'tips.html')
+            tips_dir = os.path.join(version_dir, 'tips')
+            os.makedirs(tips_dir, exist_ok=True)
+            output_file = os.path.join(tips_dir, 'index.html')
+            ctx['subdirectory'] = True
             tips_articles = []
             for p in pages:
                 if p.page_type.slug == 'tips-article' and p.content_json:
@@ -1141,7 +1147,9 @@ def _build_odds_pages(env, site, common_ctx, brand_info_list, brand_lookup,
     }
 
     html = env.get_template('odds_hub.html').render(**hub_ctx)
-    with open(os.path.join(version_dir, 'odds.html'), 'w', encoding='utf-8') as f:
+    odds_hub_dir = os.path.join(version_dir, 'odds')
+    os.makedirs(odds_hub_dir, exist_ok=True)
+    with open(os.path.join(odds_hub_dir, 'index.html'), 'w', encoding='utf-8') as f:
         f.write(html)
 
     sitemap_entries.append({'url': 'odds', 'lastmod': now_str})
