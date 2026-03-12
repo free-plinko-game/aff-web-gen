@@ -1,3 +1,5 @@
+import os
+
 from app import create_app
 from app.seed import seed_all
 
@@ -7,4 +9,4 @@ with app.app_context():
     seed_all()
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(debug=os.environ.get('FLASK_DEBUG', '').lower() in ('1', 'true'))

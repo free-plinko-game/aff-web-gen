@@ -5,6 +5,7 @@ import re
 from datetime import datetime, timezone, timedelta
 
 from flask import Blueprint, render_template, request, redirect, url_for, flash, abort, current_app, send_from_directory
+from flask_login import login_required
 
 from ..models import (
     db, Author, Comment, CommentUser, Site, SiteBrand, SiteBrandOverride, SitePage, Geo, Vertical, Brand, BrandGeo, BrandVertical,
@@ -15,6 +16,12 @@ from ..services.site_builder import build_site
 from ..services.deployer import deploy_site, rollback_site
 
 bp = Blueprint('sites', __name__, url_prefix='/sites')
+
+
+@bp.before_request
+@login_required
+def require_login():
+    pass
 
 
 def _slugify(text):
@@ -424,11 +431,17 @@ def preview(site_id, filename='index.html'):
         flash('Site must be built before previewing.', 'error')
         return redirect(url_for('sites.detail', site_id=site.id))
 
+    # Validate the resolved path stays within the output directory
+    full_path = os.path.realpath(os.path.join(site.output_path, filename))
+    safe_root = os.path.realpath(site.output_path)
+    if not full_path.startswith(safe_root + os.sep) and full_path != safe_root:
+        abort(403)
+
     # Try exact path first, then with .html (mirrors Nginx try_files $uri $uri.html)
-    full_path = os.path.join(site.output_path, filename)
     if not os.path.isfile(full_path) and not filename.endswith('.html'):
         html_filename = filename + '.html'
-        if os.path.isfile(os.path.join(site.output_path, html_filename)):
+        html_full = os.path.realpath(os.path.join(site.output_path, html_filename))
+        if html_full.startswith(safe_root + os.sep) and os.path.isfile(html_full):
             filename = html_filename
 
     return send_from_directory(site.output_path, filename)

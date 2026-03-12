@@ -12,6 +12,8 @@ Deploys built static sites to a VPS using symlink-based versioning:
 import logging
 import os
 import posixpath
+import re
+import shlex
 from datetime import datetime, timezone
 
 from fabric import Connection
@@ -23,6 +25,18 @@ from ..models import db, Site
 
 # Number of release versions to keep on the server
 MAX_RELEASES = 3
+
+# Strict domain name validation (RFC 1123)
+_DOMAIN_RE = re.compile(r'^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$')
+
+
+def _validate_domain(domain):
+    """Validate a domain name to prevent command injection."""
+    if not domain or not _DOMAIN_RE.match(domain.lower()):
+        raise ValueError(f'Invalid domain name: {domain!r}')
+    if len(domain) > 253:
+        raise ValueError(f'Domain name too long: {len(domain)} chars')
+    return domain.lower()
 
 
 def _get_connection(app_config):
@@ -49,6 +63,9 @@ def _generate_nginx_config(domain, web_root, ssl=False, comments_proxy_port=None
              where Certbot has already provisioned a certificate)
         comments_proxy_port: If set, add a /comments-api/ proxy to this local port
     """
+    domain = _validate_domain(domain)
+    if comments_proxy_port is not None:
+        comments_proxy_port = int(comments_proxy_port)
     site_root = posixpath.join(web_root, domain, 'current')
     static_cache = """
     location ~* \\.(css|js|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ {
@@ -128,7 +145,7 @@ def deploy_site(site, app_config):
     if not site.output_path:
         raise ValueError('Site must be built before deploying.')
 
-    domain = site.domain.domain
+    domain = _validate_domain(site.domain.domain)
     web_root = app_config.get('VPS_WEB_ROOT', '/var/www/sites')
     sites_available = app_config.get('NGINX_SITES_AVAILABLE', '/etc/nginx/sites-available')
     sites_enabled = app_config.get('NGINX_SITES_ENABLED', '/etc/nginx/sites-enabled')
@@ -232,12 +249,13 @@ def rollback_site(site, app_config, target_version=None):
     if not site.domain:
         raise ValueError('Site must have a domain assigned.')
 
-    domain = site.domain.domain
+    domain = _validate_domain(site.domain.domain)
     web_root = app_config.get('VPS_WEB_ROOT', '/var/www/sites')
 
     if target_version is None:
         target_version = site.current_version - 1
 
+    target_version = int(target_version)
     if target_version < 1:
         raise ValueError('No previous version to roll back to.')
 

@@ -11,6 +11,7 @@ import os
 import shutil
 from datetime import datetime, timezone
 
+import bleach
 import jinja2
 
 from markupsafe import Markup
@@ -19,6 +20,9 @@ logger = logging.getLogger(__name__)
 
 from ..models import db, Author, Site, SitePage, SiteBrand, OddsConfig, OddsFixture, OddsData
 from .schema_generator import generate_schema
+
+_SAFE_BIO_TAGS = ['p', 'br', 'strong', 'em', 'a', 'ul', 'ol', 'li', 'h2', 'h3', 'h4', 'span', 'blockquote']
+_SAFE_BIO_ATTRS = {'a': ['href', 'target', 'rel'], 'span': ['class']}
 
 
 def _generate_favicon_svg(site_name, vertical_slug):
@@ -31,7 +35,7 @@ def _generate_favicon_svg(site_name, vertical_slug):
         initials = site_name[:2].upper()
 
     # Derive a hue from the vertical slug for colour variety
-    hue = int(hashlib.md5(vertical_slug.encode()).hexdigest()[:4], 16) % 360
+    hue = int(hashlib.sha256(vertical_slug.encode()).hexdigest()[:4], 16) % 360
     bg_colour = f'hsl({hue}, 55%, 45%)'
 
     return f'''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
@@ -394,7 +398,8 @@ def build_site(site, output_base_dir, upload_folder):
     for a in authors:
         author_map[a.id] = {
             'name': a.name, 'slug': a.slug, 'role': a.role,
-            'short_bio': a.short_bio, 'bio': a.bio,
+            'short_bio': a.short_bio,
+            'bio': bleach.clean(a.bio, tags=_SAFE_BIO_TAGS, attributes=_SAFE_BIO_ATTRS, strip=False) if a.bio else None,
             'avatar_filename': a.avatar_filename,
             'expertise': json.loads(a.expertise) if a.expertise else [],
             'social_links': json.loads(a.social_links) if a.social_links else {},

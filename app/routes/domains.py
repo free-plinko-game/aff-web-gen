@@ -1,8 +1,19 @@
+import re
+
 from flask import Blueprint, render_template, request, redirect, url_for, flash, abort
+from flask_login import login_required
 
 from ..models import db, Domain
 
+_DOMAIN_RE = re.compile(r'^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$')
+
 bp = Blueprint('domains', __name__, url_prefix='/domains')
+
+
+@bp.before_request
+@login_required
+def require_login():
+    pass
 
 
 @bp.route('/')
@@ -17,8 +28,8 @@ def create():
         domain_name = request.form.get('domain', '').strip().lower()
         registrar = request.form.get('registrar', '').strip()
 
-        if not domain_name:
-            flash('Domain name is required.', 'error')
+        if not domain_name or not _DOMAIN_RE.match(domain_name):
+            flash('Please enter a valid domain name (e.g. example.com).', 'error')
             return render_template('domains/form.html', domain=None)
 
         if Domain.query.filter_by(domain=domain_name).first():

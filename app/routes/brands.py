@@ -3,13 +3,20 @@ import io
 import os
 
 from flask import Blueprint, render_template, request, redirect, url_for, flash, current_app, abort
+from flask_login import login_required
 from werkzeug.utils import secure_filename
 
 from ..models import db, Brand, BrandGeo, BrandVertical, Geo, Vertical
 
 bp = Blueprint('brands', __name__, url_prefix='/brands')
 
-ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'svg', 'webp'}
+
+@bp.before_request
+@login_required
+def require_login():
+    pass
+
+ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
 
 
 def _allowed_file(filename):

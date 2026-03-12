@@ -7,12 +7,40 @@ but without writing to disk. Used for the live preview iframe.
 import json
 from datetime import datetime
 
+import bleach
+
 from .site_builder import (
     _get_jinja_env, _build_nav_links, _build_footer_links,
     _build_brand_info_list, _build_brand_lookup, _build_cta_table_data,
     _page_url_for_link, _page_display_title, PAYMENT_ICON_MAP,
 )
 from .schema_generator import generate_schema
+
+# Allowed HTML tags/attributes for custom_head and author bio fields
+_SAFE_HEAD_TAGS = ['meta', 'link', 'script', 'style', 'noscript']
+_SAFE_HEAD_ATTRS = {
+    'meta': ['name', 'content', 'property', 'charset', 'http-equiv'],
+    'link': ['rel', 'href', 'type', 'media', 'crossorigin'],
+    'script': ['src', 'type', 'async', 'defer', 'crossorigin'],
+    'style': ['type', 'media'],
+}
+
+_SAFE_BIO_TAGS = ['p', 'br', 'strong', 'em', 'a', 'ul', 'ol', 'li', 'h2', 'h3', 'h4', 'span', 'blockquote']
+_SAFE_BIO_ATTRS = {'a': ['href', 'target', 'rel'], 'span': ['class']}
+
+
+def _sanitize_custom_head(html_str):
+    """Sanitize custom head HTML to only allow safe tags."""
+    if not html_str or not html_str.strip():
+        return ''
+    return bleach.clean(html_str, tags=_SAFE_HEAD_TAGS, attributes=_SAFE_HEAD_ATTRS, strip=False)
+
+
+def _sanitize_bio(html_str):
+    """Sanitize author bio HTML to only allow safe content tags."""
+    if not html_str or not html_str.strip():
+        return ''
+    return bleach.clean(html_str, tags=_SAFE_BIO_TAGS, attributes=_SAFE_BIO_ATTRS, strip=False)
 
 
 def render_page_preview(site_page, site, asset_url_prefix=''):
@@ -109,7 +137,7 @@ def render_page_preview(site_page, site, asset_url_prefix=''):
         'cta_table': cta_table_data,
         'cluster_links': cluster_links,
         'schema_json_ld': '',  # Skip schema in preview
-        'custom_head': (site.custom_head or '') + '\n' + (site_page.custom_head or ''),
+        'custom_head': _sanitize_custom_head((site.custom_head or '') + '\n' + (site_page.custom_head or '')),
         'payment_icon_map': PAYMENT_ICON_MAP,
         'review_slugs': review_slugs,
         'bonus_slugs': bonus_slugs,

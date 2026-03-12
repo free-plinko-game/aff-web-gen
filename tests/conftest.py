@@ -4,7 +4,7 @@ import pytest
 from sqlalchemy import event
 
 from app import create_app
-from app.models import db as _db
+from app.models import db as _db, AdminUser
 from app.seed import seed_all
 
 
@@ -18,6 +18,7 @@ def app():
         'WTF_CSRF_ENABLED': False,
         'UPLOAD_FOLDER': tmp_upload,
         'SECRET_KEY': 'test-secret',
+        'LOGIN_DISABLED': True,
     })
     with app.app_context():
         seed_all()

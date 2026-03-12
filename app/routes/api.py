@@ -3,6 +3,7 @@ import logging
 import os
 
 from flask import Blueprint, jsonify, request, abort, Response, send_from_directory, current_app
+from flask_login import login_required
 
 from ..models import db, Author, Brand, BrandGeo, BrandVertical, Comment, CommentUser, Site, SitePage, PageType
 from ..services.content_generator import call_openai
@@ -11,6 +12,12 @@ from ..services.preview_renderer import render_page_preview
 logger = logging.getLogger(__name__)
 
 bp = Blueprint('api', __name__, url_prefix='/api')
+
+
+@bp.before_request
+@login_required
+def require_login():
+    pass
 
 
 @bp.route('/brands/filter')
@@ -114,7 +121,9 @@ def page_preview(site_id, page_id):
     try:
         html = render_page_preview(page, site, asset_url_prefix=asset_prefix)
     except Exception as e:
-        html = f'<html><body><h1>Preview Error</h1><pre>{e}</pre></body></html>'
+        import html as html_mod
+        logger.error('Preview error for page %d: %s', page_id, e)
+        html = f'<html><body><h1>Preview Error</h1><pre>{html_mod.escape(str(e))}</pre></body></html>'
 
     return Response(html, content_type='text/html; charset=utf-8')
 
@@ -138,13 +147,15 @@ def preview_assets(site_id, filename):
 
     # Check if it's a logo file — serve from uploads/logos/ instead
     if filename.startswith('logos/'):
+        logo_name = os.path.basename(filename[6:])
         upload_folder = current_app.config.get('UPLOAD_FOLDER', 'uploads')
-        return send_from_directory(os.path.join(upload_folder, 'logos'), filename[6:])
+        return send_from_directory(os.path.join(upload_folder, 'logos'), logo_name)
 
     # Check if it's an avatar file — serve from uploads/avatars/
     if filename.startswith('avatars/'):
+        avatar_name = os.path.basename(filename[8:])
         upload_folder = current_app.config.get('UPLOAD_FOLDER', 'uploads')
-        return send_from_directory(os.path.join(upload_folder, 'avatars'), filename[8:])
+        return send_from_directory(os.path.join(upload_folder, 'avatars'), avatar_name)
 
     return send_from_directory(assets_dir, filename)
 
@@ -315,7 +326,7 @@ def suggest_news(site_id):
         suggestions = result.get('suggestions', [])
     except Exception as e:
         logger.warning('News suggestion failed: %s', e)
-        return jsonify({'error': f'AI suggestion failed: {e}'}), 500
+        return jsonify({'error': 'AI suggestion failed. Check server logs for details.'}), 500
 
     return jsonify({'suggestions': suggestions})
 
@@ -409,7 +420,7 @@ def sweep_links(site_id):
 
 # ── Author CRUD ──────────────────────────────────────────────────────────
 
-ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'webp', 'svg'}
+ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
 
 
 def _slugify(text):
@@ -420,13 +431,14 @@ def _slugify(text):
     return s.strip('-')
 
 
-def _save_avatar(file, slug):
+def _save_avatar(file, slug, site_id=None):
     """Save an uploaded avatar file. Returns the filename or None."""
     if file and file.filename and '.' in file.filename:
         ext = file.filename.rsplit('.', 1)[1].lower()
         if ext not in ALLOWED_EXTENSIONS:
             return None
-        filename = f"{slug}.{ext}"
+        prefix = f"s{site_id}-" if site_id else ""
+        filename = f"{prefix}{slug}.{ext}"
         filepath = os.path.join(current_app.config['UPLOAD_FOLDER'], 'avatars', filename)
         file.save(filepath)
         return filename
@@ -561,7 +573,7 @@ def upload_avatar(site_id, author_id):
         return jsonify({'error': 'No avatar file provided'}), 400
 
     file = request.files['avatar']
-    filename = _save_avatar(file, author.slug)
+    filename = _save_avatar(file, author.slug, site_id=site_id)
     if not filename:
         return jsonify({'error': 'Invalid file type'}), 400
 
@@ -637,7 +649,7 @@ def generate_authors(site_id):
         personas = generate_author_personas(site, api_key)
     except Exception as e:
         logger.warning('Author generation failed for site %d: %s', site_id, e)
-        return jsonify({'error': f'Generation failed: {e}'}), 500
+        return jsonify({'error': 'Generation failed. Check server logs for details.'}), 500
 
     return jsonify({'success': True, 'authors': personas})
 
@@ -692,7 +704,7 @@ def generate_personas_endpoint(site_id):
         return jsonify({'success': True, 'count': created})
     except Exception as e:
         logger.error('Persona generation failed for site %d: %s', site_id, e)
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'Persona generation failed. Check server logs.'}), 500
 
 
 @bp.route('/sites/<int:site_id>/seed-comments/<path:page_slug>', methods=['POST'])
@@ -708,7 +720,7 @@ def seed_comments_endpoint(site_id, page_slug):
         return jsonify({'success': True, 'count': count})
     except Exception as e:
         logger.error('Comment seeding failed for %s: %s', page_slug, e)
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'Comment seeding failed. Check server logs.'}), 500
 
 
 @bp.route('/sites/<int:site_id>/seed-all-comments', methods=['POST'])

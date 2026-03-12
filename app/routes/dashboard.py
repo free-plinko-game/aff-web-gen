@@ -1,10 +1,17 @@
 from datetime import datetime, timezone, timedelta
 
 from flask import Blueprint, render_template
+from flask_login import login_required
 
 from ..models import Brand, Domain, Site
 
 bp = Blueprint('dashboard', __name__)
+
+
+@bp.before_request
+@login_required
+def require_login():
+    pass
 
 
 def _get_stale_sites():

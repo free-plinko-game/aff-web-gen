@@ -160,6 +160,11 @@
 
 {% block scripts %}
 <script>
+function _esc(str) {
+    if (str == null) return '';
+    return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
 function toggleFields() {
     const type = document.getElementById('page_type').value;
     const brandReview = document.getElementById('brandReviewField');
@@ -248,18 +253,18 @@ function renderSuggestions(data) {
         missingSection.classList.remove('d-none');
         data.missing_pages.forEach((item, i) => {
             const label = item.brand_name
-                ? `${item.page_type}: ${item.brand_name}`
-                : item.page_type;
+                ? `${_esc(item.page_type)}: ${_esc(item.brand_name)}`
+                : _esc(item.page_type);
             missingList.innerHTML += `
                 <div class="form-check">
                     <input class="form-check-input suggestion-check" type="checkbox" checked
                            id="missing_${i}"
-                           data-page-type="${item.page_type}"
-                           data-brand-slug="${item.brand_slug || ''}"
+                           data-page-type="${_esc(item.page_type)}"
+                           data-brand-slug="${_esc(item.brand_slug || '')}"
                            data-topic="">
                     <label class="form-check-label" for="missing_${i}">
                         <strong>${label}</strong>
-                        <small class="text-muted ms-1">— ${item.reason}</small>
+                        <small class="text-muted ms-1">— ${_esc(item.reason)}</small>
                     </label>
                 </div>`;
         });
@@ -276,11 +281,11 @@ function renderSuggestions(data) {
                            id="evergreen_${i}"
                            data-page-type="evergreen"
                            data-brand-slug=""
-                           data-topic="${item.topic}">
+                           data-topic="${_esc(item.topic)}">
                     <label class="form-check-label" for="evergreen_${i}">
-                        <strong>${item.topic}</strong>
-                        ${item.keyword ? '<br><small class="text-muted">Keyword: ' + item.keyword + '</small>' : ''}
-                        ${item.reason ? '<br><small class="text-muted">' + item.reason + '</small>' : ''}
+                        <strong>${_esc(item.topic)}</strong>
+                        ${item.keyword ? '<br><small class="text-muted">Keyword: ' + _esc(item.keyword) + '</small>' : ''}
+                        ${item.reason ? '<br><small class="text-muted">' + _esc(item.reason) + '</small>' : ''}
                     </label>
                 </div>`;
         });
