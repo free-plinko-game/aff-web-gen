@@ -198,8 +198,8 @@
         listEl.innerHTML = html;
       })
       .catch(function (err) {
-        console.error('Comments load failed:', url, err);
-        listEl.innerHTML = '<p class="comments-empty">Comments unavailable. <!-- ' + url + ' : ' + (err.message || err) + ' --></p>';
+        console.error('Comments load failed:', err);
+        listEl.innerHTML = '<p class="comments-empty">Comments unavailable.</p>';
       });
   }
 

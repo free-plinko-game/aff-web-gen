@@ -1,8 +1,14 @@
 import os
 
 from flask import Flask
+from flask_login import LoginManager
+from flask_wtf.csrf import CSRFProtect
 
 from .models import db
+
+login_manager = LoginManager()
+login_manager.login_view = 'auth.login'
+csrf = CSRFProtect()
 
 
 def create_app(test_config=None):
@@ -21,18 +27,59 @@ def create_app(test_config=None):
     app.config['UPLOAD_FOLDER'] = upload_folder
 
     db.init_app(app)
+    login_manager.init_app(app)
+    csrf.init_app(app)
+
+    @login_manager.user_loader
+    def load_user(user_id):
+        from .models import AdminUser
+        return db.session.get(AdminUser, int(user_id))
 
     with app.app_context():
         db.create_all()
         _auto_migrate(db)
         _seed_page_types(db)
+        _seed_admin_user(db, app)
         _reset_stuck_generating(db)
+
+    # Security headers
+    @app.after_request
+    def set_security_headers(response):
+        response.headers['X-Frame-Options'] = 'DENY'
+        response.headers['X-Content-Type-Options'] = 'nosniff'
+        response.headers['X-XSS-Protection'] = '1; mode=block'
+        response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
+        return response
 
     # Register blueprints
     from .routes import register_blueprints
     register_blueprints(app)
 
+    from .routes.auth import bp as auth_bp
+    app.register_blueprint(auth_bp)
+
+    # Exempt the public comments API from CSRF (called by external static sites)
+    from .routes.comments_api import bp as comments_bp
+    csrf.exempt(comments_bp)
+
     return app
+
+
+def _seed_admin_user(db, app):
+    """Create a default admin user if none exists."""
+    from .models import AdminUser
+    if AdminUser.query.count() == 0:
+        password = os.environ.get('ADMIN_PASSWORD', 'changeme')
+        admin = AdminUser(username='admin')
+        admin.set_password(password)
+        db.session.add(admin)
+        db.session.commit()
+        if password == 'changeme':
+            import logging
+            logging.getLogger(__name__).warning(
+                'Default admin user created with password "changeme". '
+                'Set ADMIN_PASSWORD env var or change it immediately!'
+            )
 
 
 def _reset_stuck_generating(db):

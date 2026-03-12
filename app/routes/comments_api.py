@@ -1,25 +1,73 @@
 """Public comments API — served to static sites via CORS."""
 
 import hashlib
+import html as html_mod
 import re
 import time
 from datetime import datetime, timezone
 
 from flask import Blueprint, jsonify, request
-from flask_cors import cross_origin
 
 from ..models import db, Comment, CommentUser, CommentVote, Site
 
 bp = Blueprint('comments_api', __name__, url_prefix='/comments-api')
 
+
+@bp.after_request
+def add_cors_headers(response):
+    """Add CORS headers restricted to the site's deployed domain."""
+    origin = request.headers.get('Origin', '')
+    if not origin:
+        return response
+
+    # Extract site_id from the URL path: /comments-api/<site_id>/...
+    try:
+        parts = request.path.strip('/').split('/')
+        if len(parts) >= 2:
+            site_id = int(parts[1])
+            allowed = _get_allowed_origins(site_id)
+            if origin in allowed:
+                response.headers['Access-Control-Allow-Origin'] = origin
+                response.headers['Access-Control-Allow-Methods'] = 'GET, POST, OPTIONS'
+                response.headers['Access-Control-Allow-Headers'] = 'Content-Type'
+                response.headers['Vary'] = 'Origin'
+    except (ValueError, IndexError):
+        pass
+    return response
+
+
+# --- CORS origin helper ---
+def _get_allowed_origins(site_id):
+    """Return allowed CORS origins based on the site's domain."""
+    from ..models import Domain
+    site = db.session.get(Site, site_id)
+    if not site or not site.domain:
+        return []
+    domain = site.domain.domain
+    return [f'https://{domain}', f'https://www.{domain}', f'http://{domain}', f'http://www.{domain}']
+
+
 # --- Rate limiter (in-memory, per-worker) ---
 _rate_limit_store = {}
 _RATE_LIMIT_MAX = 3
 _RATE_LIMIT_WINDOW = 600  # 10 minutes
+_RATE_LIMIT_CLEANUP_INTERVAL = 3600  # prune old entries every hour
+_last_cleanup = time.time()
 
 
 def _is_rate_limited(ip):
+    global _last_cleanup
     now = time.time()
+
+    # Periodic cleanup of stale entries to prevent memory leak
+    if now - _last_cleanup > _RATE_LIMIT_CLEANUP_INTERVAL:
+        cutoff_global = now - _RATE_LIMIT_WINDOW
+        stale_keys = [k for k, v in _rate_limit_store.items()
+                      if not v or v[-1] < cutoff_global]
+        for k in stale_keys:
+            del _rate_limit_store[k]
+        _last_cleanup = now
+
     cutoff = now - _RATE_LIMIT_WINDOW
     timestamps = _rate_limit_store.get(ip, [])
     timestamps = [t for t in timestamps if t > cutoff]
@@ -107,7 +155,6 @@ def _serialize_comment(comment, user):
 
 
 @bp.route('/<int:site_id>/<path:page_slug>', methods=['GET'])
-@cross_origin()
 def get_comments(site_id, page_slug):
     """Return threaded comments for a page."""
     comments = (
@@ -150,7 +197,6 @@ def get_comments(site_id, page_slug):
 
 
 @bp.route('/<int:site_id>/<path:page_slug>/count', methods=['GET'])
-@cross_origin()
 def get_comment_count(site_id, page_slug):
     """Return comment count for a page (lightweight)."""
     count = Comment.query.filter_by(site_id=site_id, page_slug=page_slug, is_hidden=False).count()
@@ -158,7 +204,6 @@ def get_comment_count(site_id, page_slug):
 
 
 @bp.route('/<int:site_id>/<path:page_slug>', methods=['POST'])
-@cross_origin()
 def post_comment(site_id, page_slug):
     """Create a guest comment."""
     data = request.get_json(silent=True) or {}
@@ -170,9 +215,7 @@ def post_comment(site_id, page_slug):
         return jsonify({'errors': result}), 422
 
     # Rate limit by real client IP
-    ip = request.headers.get('X-Forwarded-For', request.remote_addr)
-    if ip:
-        ip = ip.split(',')[0].strip()
+    ip = request.access_route[0] if request.access_route else request.remote_addr
     if _is_rate_limited(ip):
         return jsonify({'errors': ['Too many comments. Please wait a few minutes.']}), 429
 
@@ -191,7 +234,7 @@ def post_comment(site_id, page_slug):
             cleaned['parent_id'] = parent.parent_id
 
     # Find or create guest CommentUser by email hash
-    email_hash = hashlib.md5(cleaned['email'].encode()).hexdigest()
+    email_hash = hashlib.sha256(cleaned['email'].encode()).hexdigest()
     username = f'guest_{email_hash[:8]}'
 
     user = CommentUser.query.filter_by(site_id=site_id, username=username).first()
@@ -223,7 +266,7 @@ def post_comment(site_id, page_slug):
         page_slug=page_slug,
         user_id=user.id,
         parent_id=cleaned['parent_id'],
-        body=cleaned['body'],
+        body=html_mod.escape(cleaned['body']),
     )
     db.session.add(comment)
     db.session.commit()
@@ -233,12 +276,9 @@ def post_comment(site_id, page_slug):
 
 
 @bp.route('/<int:site_id>/<path:page_slug>/flag/<int:comment_id>', methods=['POST'])
-@cross_origin()
 def flag_comment(site_id, page_slug, comment_id):
     """Increment flag count on a comment. Always returns success to prevent gaming."""
-    ip = request.headers.get('X-Forwarded-For', request.remote_addr)
-    if ip:
-        ip = ip.split(',')[0].strip()
+    ip = request.access_route[0] if request.access_route else request.remote_addr
 
     flag_key = f'flag_{ip}'
     if _is_rate_limited(flag_key):

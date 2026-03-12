@@ -662,6 +662,12 @@
 </script>
 {% endif %}
 <script>
+/* HTML-escape to prevent XSS when inserting API data via innerHTML */
+function _esc(str) {
+    if (str == null) return '';
+    return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
 function saveRobotsTxt() {
     const content = document.getElementById('robotsTxt').value;
     fetch('{{ url_for("api.save_robots_txt", site_id=site.id) }}', {
@@ -829,9 +835,9 @@ function suggestNews() {
             div.innerHTML = `
                 <input class="form-check-input" type="checkbox" id="news-${i}" checked>
                 <label class="form-check-label" for="news-${i}">
-                    <strong>${s.topic}</strong>
-                    <br><small class="text-muted">${s.angle || ''}</small>
-                    <br><small class="text-info">${s.reason || ''}</small>
+                    <strong>${_esc(s.topic)}</strong>
+                    <br><small class="text-muted">${_esc(s.angle)}</small>
+                    <br><small class="text-info">${_esc(s.reason)}</small>
                 </label>
             `;
             list.appendChild(div);
@@ -1131,7 +1137,7 @@ function sweepLinks(mode) {
         tbody.innerHTML = '';
         data.dead_links.forEach(d => {
             const tr = document.createElement('tr');
-            tr.innerHTML = '<td>' + d.page_title + '</td><td><code>' + d.link_url + '</code></td><td>' + d.link_text + '</td>';
+            tr.innerHTML = '<td>' + _esc(d.page_title) + '</td><td><code>' + _esc(d.link_url) + '</code></td><td>' + _esc(d.link_text) + '</td>';
             tbody.appendChild(tr);
         });
         table.classList.remove('d-none');
@@ -1181,24 +1187,24 @@ function renderAuthorList() {
 
     let html = '<div class="list-group">';
     _authors.forEach(a => {
-        const initials = a.name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
+        const initials = _esc(a.name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase());
         const avatarHtml = a.avatar_filename
-            ? `<img src="/uploads/avatars/${a.avatar_filename}" class="rounded-circle" width="36" height="36" style="object-fit:cover">`
+            ? `<img src="/uploads/avatars/${_esc(a.avatar_filename)}" class="rounded-circle" width="36" height="36" style="object-fit:cover">`
             : `<span class="rounded-circle d-inline-flex align-items-center justify-content-center text-white" style="width:36px;height:36px;font-size:0.8rem;background:hsl(${hashCode(a.name) % 360},45%,45%)">${initials}</span>`;
         html += `
         <div class="list-group-item d-flex align-items-center gap-2">
             ${avatarHtml}
             <div class="flex-grow-1">
-                <strong>${a.name}</strong>
-                ${a.role ? '<small class="text-muted ms-1">' + a.role + '</small>' : ''}
+                <strong>${_esc(a.name)}</strong>
+                ${a.role ? '<small class="text-muted ms-1">' + _esc(a.role) + '</small>' : ''}
                 <br><small class="text-muted">${a.article_count} article${a.article_count !== 1 ? 's' : ''}${!a.is_active ? ' · <span class="text-danger">Inactive</span>' : ''}</small>
             </div>
             <div class="btn-group btn-group-sm">
                 <label class="btn btn-outline-secondary btn-sm mb-0" title="Upload avatar">
-                    <input type="file" accept="image/*" class="d-none" onchange="uploadAvatar(${a.id}, this.files[0])">&#128247;
+                    <input type="file" accept="image/*" class="d-none" onchange="uploadAvatar(${parseInt(a.id)}, this.files[0])">&#128247;
                 </label>
-                <button class="btn btn-outline-primary btn-sm" onclick="editAuthor(${a.id})">Edit</button>
-                <button class="btn btn-outline-danger btn-sm" onclick="deleteAuthor(${a.id})">Delete</button>
+                <button class="btn btn-outline-primary btn-sm" onclick="editAuthor(${parseInt(a.id)})">Edit</button>
+                <button class="btn btn-outline-danger btn-sm" onclick="deleteAuthor(${parseInt(a.id)})">Delete</button>
             </div>
         </div>`;
     });
@@ -1395,11 +1401,11 @@ function generateAuthors() {
             <div class="border rounded p-2 mb-2 bg-white">
                 <div class="d-flex justify-content-between align-items-start">
                     <div>
-                        <strong>${p.name}</strong> <small class="text-muted">— ${p.role || ''}</small>
-                        <br><small>${p.short_bio || ''}</small>
-                        <br><small class="text-muted">Expertise: ${(p.expertise || []).join(', ')}</small>
+                        <strong>${_esc(p.name)}</strong> <small class="text-muted">— ${_esc(p.role)}</small>
+                        <br><small>${_esc(p.short_bio)}</small>
+                        <br><small class="text-muted">Expertise: ${_esc((p.expertise || []).join(', '))}</small>
                     </div>
-                    <button class="btn btn-sm btn-success" onclick="saveGeneratedAuthor(${i})">Save</button>
+                    <button class="btn btn-sm btn-success" onclick="saveGeneratedAuthor(${parseInt(i)})">Save</button>
                 </div>
             </div>`;
         });

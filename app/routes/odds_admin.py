@@ -4,12 +4,19 @@ import json
 import logging
 
 from flask import Blueprint, render_template, jsonify, request, current_app, abort
+from flask_login import login_required
 
 from ..models import db, Site, SitePage, PageType, OddsConfig, OddsFixture, OddsData
 
 logger = logging.getLogger(__name__)
 
 bp = Blueprint('odds_admin', __name__, url_prefix='/sites')
+
+
+@bp.before_request
+@login_required
+def require_login():
+    pass
 
 
 @bp.route('/<int:site_id>/odds-comparison')

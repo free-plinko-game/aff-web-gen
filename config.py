@@ -5,8 +5,8 @@ load_dotenv()
 
 
 class Config:
-    SECRET_KEY = os.getenv('FLASK_SECRET_KEY', 'dev-secret-key')
-    SQLALCHEMY_DATABASE_URI = os.getenv('DATABASE_URL', 'sqlite:///factory.db')
+    SECRET_KEY = os.environ.get('FLASK_SECRET_KEY') or os.urandom(32).hex()
+    SQLALCHEMY_DATABASE_URI = os.environ['DATABASE_URL'] if os.getenv('DATABASE_URL') else 'sqlite:///factory.db'
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     UPLOAD_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'uploads')
     MAX_CONTENT_LENGTH = 16 * 1024 * 1024  # 16MB max upload
