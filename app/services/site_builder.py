@@ -1144,6 +1144,7 @@ def _build_odds_pages(env, site, common_ctx, brand_info_list, brand_lookup,
         'comments_api_url': '',
         'site_id': site.id,
         'page_slug': 'odds',
+        'subdirectory': True,
     }
 
     html = env.get_template('odds_hub.html').render(**hub_ctx)
