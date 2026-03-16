@@ -1,11 +1,26 @@
+import hashlib
 import os
+import warnings
 from dotenv import load_dotenv
 
 load_dotenv()
 
 
+def _fallback_secret_key():
+    """Generate a stable fallback key and warn that FLASK_SECRET_KEY should be set."""
+    warnings.warn(
+        'FLASK_SECRET_KEY is not set. Using an insecure fallback. '
+        'Set FLASK_SECRET_KEY in your environment for production.',
+        stacklevel=2,
+    )
+    # Derive a stable key from the database URI so it survives restarts and
+    # stays consistent across workers, but is still unique per deployment.
+    seed = os.getenv('DATABASE_URL', 'sqlite:///factory.db')
+    return hashlib.sha256(f'aff-web-gen-fallback-{seed}'.encode()).hexdigest()
+
+
 class Config:
-    SECRET_KEY = os.environ.get('FLASK_SECRET_KEY') or os.urandom(32).hex()
+    SECRET_KEY = os.environ.get('FLASK_SECRET_KEY') or _fallback_secret_key()
     SQLALCHEMY_DATABASE_URI = os.environ['DATABASE_URL'] if os.getenv('DATABASE_URL') else 'sqlite:///factory.db'
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     UPLOAD_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'uploads')
